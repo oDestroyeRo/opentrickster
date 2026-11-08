@@ -19,5 +19,5 @@ Read `docs/agents/domain.md` before exploring domain concepts.
 
 ## App design
 
-`DESIGN.md` holds the confirmed macOS app design: layout, session states, tokens, and component specs.
+`DESIGN.md` is the macOS app design reference: confirmed decisions, layout, session states, tokens, and component specs.
 Read it before any UI work. When a change alters the design, update `DESIGN.md` in the same change.

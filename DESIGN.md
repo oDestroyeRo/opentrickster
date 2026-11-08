@@ -1,6 +1,6 @@
 # Design
 
-This file is the design reference for the OpenTrickster macOS app. It records the layout, states, controls, visual tokens, and component specifications that the owner confirmed on 2026-11-08 in [issue #9](https://github.com/oDestroyeRo/opentrickster/issues/9). Read it before you build or change any part of the app's UI.
+This file is the design reference for the OpenTrickster macOS app. The [Decisions](#decisions) table lists what the owner confirmed on 2026-11-08 in [issue #9](https://github.com/oDestroyeRo/opentrickster/issues/9), and which values are defaults or derived. The rest of the file specifies the layout, states, controls, visual tokens, and components as the prototype built them to carry out those decisions. The owner did not confirm each specification separately. Read this file before you build or change any part of the app's UI.
 
 The decisions come from an interactive HTML prototype on the throwaway [`research/macos-app-ui-prototype`](https://github.com/oDestroyeRo/opentrickster/tree/e4af28319a522bf92f1456166e6e11750e42af95/prototypes/macos-app-ui) branch. The prototype is not production code and never merges into `main`. Every name, map, monster, item, and number in the screenshots is sample data. Sizes are logical pixels.
 
@@ -11,7 +11,7 @@ The decisions come from an interactive HTML prototype on the throwaway [`researc
 | Layout | The game on the left and a 344 px side panel on the right. **Hide panel** (⌘\\) hides the panel and gives the game the window. The prototype calls this layout A. | Confirmed |
 | Theme | Follows the macOS appearance setting | Confirmed |
 | Palette | Graphite neutrals with one lagoon accent | Confirmed |
-| Typeface | IBM Plex Sans with IBM Plex Sans Thai, and IBM Plex Mono for build identifiers and coordinates | Confirmed |
+| Typeface | IBM Plex Sans with IBM Plex Sans Thai | Confirmed |
 | Shortcuts | The [keyboard table](#keyboard-and-menus) | Confirmed |
 | Policies | The [seven policies](#policies) | Confirmed |
 | Alerts | Notify on a pause with a reason, a lost connection, and a reached goal, and badge the Dock icon. All four are on by default. | Confirmed |
@@ -72,7 +72,7 @@ The prototype measured these sizes in headless Chrome. Each window size includes
 
 ## Session states
 
-One reducer drives every screen. In the prototype, `reduceSession` in `index.html` applies events through the transition table `T` and touches no UI code, so the #8 contract work can lift it as is. The diagram shows the main transitions. The table `T` has the rest.
+One reducer drives every screen. In the prototype, `reduceSession` in `index.html` applies events through the transition table `T` and touches no rendering code. In the `error` phase, `canSession` also reads each halt's recovery actions from the `HALTS` table, so the #8 contract work would lift those actions with the reducer. The diagram shows the main transitions. The table `T` has the rest.
 
 ```mermaid
 stateDiagram-v2
@@ -427,7 +427,7 @@ The pulse strip is a 3 px line (`size.pulse`) under the toolbar that shows the s
 
 | Pattern | Phases | Look |
 | --- | --- | --- |
-| Live | `starting`, `running` | A tone line. One beat crosses it for each result the game confirms, over `motion.pulse`. |
+| Live | `starting`, `running` | A tone line. A beat crosses it over `motion.pulse` when the game confirms a result. Results confirmed while a beat crosses share that beat. |
 | Hatch | `pausing`, `paused` | Diagonal stripes in the tone color |
 | March | `reconnecting` | Dashes in the tone color that move to the right |
 | Solid | `disconnected`, `error` | A solid line in the tone color |
