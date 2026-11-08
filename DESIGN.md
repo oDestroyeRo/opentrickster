@@ -16,7 +16,7 @@ The decisions come from an interactive HTML prototype on the throwaway [`researc
 | Policies | The [seven policies](#policies) | Confirmed |
 | Alerts | Notify on a pause with a reason, a lost connection, and a reached goal, and badge the Dock icon. All four are on by default. | Confirmed |
 | UI language | English for the app's own text. Game data, such as Thai character, map, and item names, appears as the game supplies it. | Default. The owner can still choose Thai or both. |
-| Minimum window | 972 × 641 | Derived from the proposed 960 × 540 minimum game size, which #4 and #11 own |
+| Minimum window | 972 × 641 | Derived from the proposed 960 × 540 minimum game size, which #11 owns |
 
 ## Constraints from research
 
@@ -28,7 +28,7 @@ The design takes these constraints from finished research and does not reopen th
 - The webview receives keyboard input while it has focus. Command shortcuts and Escape need joint verification with GPUI (#4).
 - Nobody knows yet whether the game is readable at a given minimum size (#4). The design proposes 960 × 540.
 - The game's version endpoint reported deployment build `f5e972fa`, according to the [target interfaces report from #3](https://github.com/oDestroyeRo/opentrickster/blob/6d996ef87a75bd8857ee998ddf30dcd99b80c1bf/docs/research/target-game-interfaces.md). The design treats that build as supported. Build `7c21e0b4` is invented to show the "game updated" error.
-- Clientless sign-in is unproven. Client metadata names a LoginServer ticket, a GameServer handoff, and a second-password hint, but the #3 report calls these leads, not verified steps.
+- Clientless sign-in is unproven. Client metadata names a LoginServer ticket, a GameServer handoff, and a second-password hint, but the #3 report calls these leads, not verified steps. The [authentication and handoff report from #15](https://github.com/oDestroyeRo/opentrickster/blob/97d6bf407a23bf87d054b40571d14224d0fb32ac/docs/research/target-authentication-handoff.md) has since recovered the client's sign-in sequence from its code, including world selection, character selection, and the GameServer login. It ran no sign-in, so whether the server accepts a native one is still unknown.
 
 Combat behavior (#6), digging behavior (#7), and the session contracts (#8) are still open. Every combat and digging rule, threshold, and game message here is a proposal or sample data.
 
@@ -630,15 +630,15 @@ The mode switch confirms with a native AppKit sheet, not a GPUI overlay. The she
 Each question names the issue that owns the answer.
 
 1. Do macOS menus, sheets, alerts, and tooltips draw over the `WKWebView` child? Until #11 answers, every control above the game keeps a visible label. (#11)
-2. Do ⌘R, ⌘P, ⌘., and Escape reach the app while the game has keyboard focus? Menu-bar key equivalents are the candidate fix. (#4, #11)
-3. What is the smallest readable game size? The design proposes 960 × 540, and the minimum window follows from it. (#4, #11)
-4. What does the app do when the game requests fullscreen? The panel-hidden view is a candidate answer. (#4)
+2. Do ⌘R, ⌘P, ⌘., and Escape reach the app while the game has keyboard focus? Menu-bar key equivalents are the candidate fix. (#11)
+3. What is the smallest readable game size? The design proposes 960 × 540, and the minimum window follows from it. (#11)
+4. What does the app do when the game requests fullscreen? The panel-hidden view is a candidate answer. (#11)
 5. Can the app check before a run whether a map allows automation? The preflight list shows "Cannot be checked yet". (#6, #8)
-6. Does the game acknowledge each action, so the app can tell sent actions from confirmed results? The #3 report lists acknowledgement behavior as unknown. (#8)
+6. Does the game acknowledge each action, so the app can tell sent actions from confirmed results? The #3 report lists acknowledgement behavior as unknown. (#8, #12)
 7. How does the app measure how old its game state is? (#8)
 8. Which units and leash rules does the combat movement boundary use? (#6)
 9. How does digging choose a spot, and what happens when a monster attacks during a dig? (#7)
-10. Which steps does clientless sign-in need, and is a second password one of them? (#3, #8)
+10. Which steps does clientless sign-in need, and is a second password one of them? (#8, #12)
 11. Can a reload ever clear an unsupported game build, or does only an OpenTrickster update fix it? (#8)
 12. How does the app ask for notification permission before the first alert? No issue tracks this yet.
 
