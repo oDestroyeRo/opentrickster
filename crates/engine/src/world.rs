@@ -33,7 +33,7 @@ pub(crate) struct Book {
     pub entities: BTreeMap<EntityKey, Entity>,
     pub drops: BTreeMap<DropKey, Drop>,
     pub inventory: InventoryBook,
-    pub hp_potion: Option<StackKey>,
+    hp_potion: Option<(StackKey, ItemKind, u64)>,
     stamps: BTreeMap<Field, (IngressMark, At)>,
     incarnations: BTreeMap<EntityKey, u64>,
     map_labels: BTreeMap<MapKey, DisplayText>,
@@ -66,6 +66,17 @@ impl Book {
 
     pub fn incarnation(&self, key: EntityKey) -> u64 {
         self.incarnations.get(&key).copied().unwrap_or(0)
+    }
+
+    pub fn hp_potion(&self) -> Option<StackKey> {
+        if self.inventory.knowledge() != InventoryKnowledge::Observed {
+            return None;
+        }
+        self.hp_potion
+            .filter(|(key, kind, generation)| {
+                self.inventory.identity(*key) == Some((*kind, *generation))
+            })
+            .map(|(key, _, _)| key)
     }
 
     fn accept(&mut self, field: Field, ingress: IngressMark, at: At) -> bool {
@@ -187,6 +198,7 @@ impl Book {
         };
         let mut inventory = Vec::new();
         let mut settled: Option<IngressMark> = None;
+        let mut potion = None;
         let mut state = false;
         for fact in facts {
             match fact {
@@ -236,7 +248,7 @@ impl Book {
                     state = true;
                 }
                 Fact::HpPotionStack(stack) if self.accept(Field::PotionStack, ingress, now) => {
-                    self.hp_potion = stack;
+                    potion = Some(stack);
                 }
                 Fact::Drill(drill) if self.accept(Field::Drill, ingress, now) => {
                     self.own.drill = drill;
@@ -282,6 +294,13 @@ impl Book {
         self.inventory.observe(inventory, ingress, now);
         if let Some(frontier) = settled {
             evidence.gains = self.inventory.settle(frontier);
+        }
+        if let Some(proof) = potion {
+            self.hp_potion = proof.and_then(|key| {
+                self.inventory
+                    .identity(key)
+                    .map(|(kind, generation)| (key, kind, generation))
+            });
         }
         self.own.inventory = self.inventory.knowledge();
         if let Some(stamp) = self.inventory.stamp() {

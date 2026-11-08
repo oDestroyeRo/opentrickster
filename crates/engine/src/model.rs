@@ -292,6 +292,7 @@ pub enum Fact {
     Weight(Gauge),
     HpPotions(u32),
     /// Adapter-verified usable HP potion stack; never infer this from an item number.
+    /// Reissue after removal, replacement or a complete inventory reset.
     HpPotionStack(Option<StackKey>),
     Drill(Drill),
     Drop(Drop),

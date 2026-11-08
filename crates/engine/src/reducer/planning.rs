@@ -52,11 +52,11 @@ impl Engine {
                         {
                             blockers.push(Blocker::NeedsCapability(Capability::HpPotion));
                         }
-                        if self.book.hp_potion.is_none() {
+                        if self.book.hp_potion().is_none() {
                             blockers.push(Blocker::NeedsObservation(StateKind::HpPotionStack));
                         } else if self
                             .book
-                            .hp_potion
+                            .hp_potion()
                             .and_then(|key| self.book.inventory.stacks.get(&key))
                             .is_none_or(|stack| stack.quantity == 0)
                         {
@@ -148,7 +148,7 @@ impl Engine {
             }
             let key = self
                 .book
-                .hp_potion
+                .hp_potion()
                 .ok_or(Blocker::NeedsObservation(StateKind::HpPotionStack))?;
             if self
                 .book

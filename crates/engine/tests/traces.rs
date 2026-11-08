@@ -1399,6 +1399,11 @@ fn missing_or_empty_verified_potion_stack_blocks_resource_use() {
         let mut facts = baseline();
         facts.push(Fact::Hp(gauge(20, 100)));
         if empty {
+            facts.push(Fact::Inventory(Inventory::Put(Stack {
+                key: StackKey(9),
+                kind: ItemKind(81),
+                quantity: 0,
+            })));
             facts.push(Fact::HpPotionStack(Some(StackKey(9))));
         }
         let mut h = Harness::with(false, capabilities, facts, None);
@@ -1920,5 +1925,219 @@ fn review_delayed_pre_send_inventory_is_not_post_send_goal_credit() {
     assert_eq!(
         settled.snapshot.totals.goal_gained, 1,
         "only the change from 2 before send to 3 after send belongs to the run goal"
+    );
+}
+
+fn stack(key: u64, kind: u64, quantity: u32) -> Stack {
+    Stack {
+        key: StackKey(key),
+        kind: ItemKind(kind),
+        quantity,
+    }
+}
+
+fn goal_harness(stacks: Vec<Stack>, goal: u32) -> Harness {
+    let mut facts = baseline();
+    facts.push(Fact::Inventory(Inventory::Reset(stacks)));
+    Harness::with(
+        true,
+        support(),
+        facts,
+        Some(Goal {
+            item: ItemKind(7),
+            gained: goal,
+        }),
+    )
+}
+
+fn raw(h: &mut Harness, mark: u64, facts: Vec<Fact>) -> Effects {
+    h.revision += 1;
+    h.now = h.now.max(mark);
+    h.engine.handle(Input::Observed {
+        at: At(mark),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(h.revision),
+                ingress: IngressMark(mark),
+                facts,
+            },
+        },
+    })
+}
+
+#[test]
+fn same_source_stack_transfer_has_zero_goal_gain() {
+    let mut h = goal_harness(vec![stack(7, 7, 2), stack(8, 7, 1)], 1);
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    let transferred = h.facts(vec![
+        Fact::Inventory(Inventory::Quantity(StackKey(7), 1)),
+        Fact::Inventory(Inventory::Quantity(StackKey(8), 2)),
+    ]);
+    let quantity: u32 = transferred
+        .snapshot
+        .inventory
+        .iter()
+        .filter(|s| s.kind == ItemKind(7))
+        .map(|s| s.quantity)
+        .sum();
+    assert_eq!(quantity, 3);
+    assert_eq!(
+        transferred.snapshot.totals.goal_gained, 0,
+        "moving existing quantity between stacks must not satisfy a gain goal; phase {:?}",
+        transferred.snapshot.phase
+    );
+}
+
+#[test]
+fn stop_repeat_during_timeout_closure_keeps_run_until_closed() {
+    let mut h = Harness::new(true);
+    h.command(Command::Start);
+    let run = h.engine.run_key();
+    h.command(Command::Stop);
+    let closing = h.wake(2_000);
+    assert_eq!(closing.snapshot.phase, Phase::Closing);
+    assert_eq!(closes(&closing), 1);
+    assert_eq!(h.engine.run_key(), run);
+    let repeat = h.command(Command::Stop);
+    assert_eq!(repeat.snapshot.phase, Phase::Closing);
+    assert_eq!(
+        h.engine.run_key(),
+        run,
+        "repeated Stop must not acknowledge resource closure"
+    );
+    h.event(Event::Closed);
+    assert!(h.engine.run_key().is_none());
+}
+
+#[test]
+fn reused_stack_does_not_inherit_potion_verification() {
+    for replacement in [7, 8] {
+        let mut facts = baseline();
+        facts.extend([
+            Fact::Inventory(Inventory::Put(stack(7, 7, 2))),
+            Fact::HpPotionStack(Some(StackKey(7))),
+        ]);
+        let mut capabilities = support();
+        capabilities.hp_potion = true;
+        let mut h = Harness::with(
+            true,
+            capabilities,
+            facts,
+            Some(Goal {
+                item: ItemKind(9),
+                gained: 1,
+            }),
+        );
+        let start = h.command(Command::Start);
+        h.sent(acts(&start)[0].id);
+        let changed = h.facts(vec![
+            Fact::Inventory(Inventory::Remove(StackKey(7))),
+            Fact::Inventory(Inventory::Put(stack(7, replacement, 1))),
+            Fact::Hp(gauge(20, 100)),
+            Fact::Outcome(Outcome::DigEnded(DigEnd::Empty)),
+        ]);
+        let next = h.idle(&changed);
+        assert!(
+            !acts(&next)
+                .iter()
+                .any(|t| matches!(t.action, Action::HpPotion(_))),
+            "replacement stack was never verified as a potion"
+        );
+    }
+}
+
+#[test]
+fn pending_replacement_does_not_inherit_potion_verification() {
+    for replacement in [7, 8] {
+        let mut facts = baseline();
+        facts.extend([
+            Fact::Inventory(Inventory::Put(stack(7, 7, 2))),
+            Fact::HpPotionStack(Some(StackKey(7))),
+        ]);
+        let mut capabilities = support();
+        capabilities.hp_potion = true;
+        let mut h = Harness::with(
+            true,
+            capabilities,
+            facts,
+            Some(Goal {
+                item: ItemKind(9),
+                gained: 1,
+            }),
+        );
+        let start = h.command(Command::Start);
+        h.sent(acts(&start)[0].id);
+        raw(
+            &mut h,
+            30,
+            vec![
+                Fact::Inventory(Inventory::Remove(StackKey(7))),
+                Fact::Inventory(Inventory::Put(stack(7, replacement, 1))),
+            ],
+        );
+        let confirmed = raw(
+            &mut h,
+            20,
+            vec![
+                Fact::Hp(gauge(20, 100)),
+                Fact::Outcome(Outcome::DigEnded(DigEnd::Empty)),
+                Fact::InventorySettled(IngressMark(20)),
+            ],
+        );
+        let next = h.idle(&confirmed);
+        assert!(
+            next.snapshot
+                .blockers
+                .contains(&Blocker::NeedsObservation(StateKind::Inventory))
+        );
+        assert!(
+            !acts(&next)
+                .iter()
+                .any(|t| matches!(t.action, Action::HpPotion(_))),
+            "unsettled replacement kind must not inherit old potion verification"
+        );
+    }
+}
+
+#[test]
+fn unknown_potion_proof_needs_a_fresh_verified_identity() {
+    let mut facts = baseline();
+    facts.extend([
+        Fact::Hp(gauge(20, 100)),
+        Fact::HpPotionStack(Some(StackKey(7))),
+    ]);
+    let mut capabilities = support();
+    capabilities.hp_potion = true;
+    let mut h = Harness::with(false, capabilities, facts, None);
+    h.facts(vec![Fact::Inventory(Inventory::Put(stack(7, 81, 2)))]);
+    assert!(acts(&h.command(Command::Start)).is_empty());
+    h.facts(vec![Fact::HpPotionStack(Some(StackKey(7)))]);
+    assert_eq!(
+        acts(&h.command(Command::Start))[0].action,
+        Action::HpPotion(StackKey(7))
+    );
+}
+
+#[test]
+fn replacement_can_use_a_new_potion_proof_in_the_same_event() {
+    let mut facts = baseline();
+    facts.extend([
+        Fact::Inventory(Inventory::Put(stack(7, 81, 2))),
+        Fact::HpPotionStack(Some(StackKey(7))),
+    ]);
+    let mut capabilities = support();
+    capabilities.hp_potion = true;
+    let mut h = Harness::with(false, capabilities, facts, None);
+    h.facts(vec![
+        Fact::Inventory(Inventory::Remove(StackKey(7))),
+        Fact::Inventory(Inventory::Put(stack(7, 82, 1))),
+        Fact::HpPotionStack(Some(StackKey(7))),
+        Fact::Hp(gauge(20, 100)),
+    ]);
+    assert_eq!(
+        acts(&h.command(Command::Start))[0].action,
+        Action::HpPotion(StackKey(7))
     );
 }

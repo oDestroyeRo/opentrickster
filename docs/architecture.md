@@ -71,6 +71,9 @@ requires source and runtime proof before replacing that backend.
   the run's send boundary earn credit. A goal waits for unsettled inventory;
   metadata alone cannot refresh state. Late mutations behind a proven frontier
   or journal overflow invalidate inventory until the session is reconstructed.
+  Ordinary mutations in one source event net by item kind before crediting a
+  gain. Potion verification follows a stack's identity generation; a replacement
+  needs a fresh adapter proof even when its key and item kind are reused.
 - Pause and Stop drain only the current action. A tagged quiescence barrier
   establishes idle state; an old barrier cannot clear a later action. If idle
   cannot be established within the drain deadline, close the adapter.

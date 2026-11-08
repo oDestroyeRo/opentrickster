@@ -506,6 +506,10 @@ impl Engine {
             Command::Stop => {
                 if matches!(self.connection, Connection::Online(_)) {
                     self.drain(AfterDrain::Stop, io);
+                } else if matches!(self.connection, Connection::Closing { .. }) {
+                    if let Some(run) = &mut self.run {
+                        run.stage = Stage::Draining(AfterDrain::Stop);
+                    }
                 } else {
                     self.finish_run();
                 }
