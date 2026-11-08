@@ -15,6 +15,7 @@ the recovered contracts. Older builds and prototype labels are not interchangeab
 | Clientless authentication and initial state | [Native startup](native-startup-current-build.md) | `5de55dbf` | One standalone script reached the existing character without Unity. This is not production Rust adapter or gameplay proof. |
 | Full manual dig | [Manual dig control](manual-dig-control.md) | `b1a12a97` | Complete timed controller and serializers; actual tool/spot state and server acceptance require runtime evidence. |
 | Normal gun attack and attribution | [Gun combat control](gun-combat-control.md) | `efccf799` | Equipment, timing, request and own-result paths; live effect baselines and gameplay remain separate. |
+| Own effect baseline and gun reload-speed lifetime | [Own effect lifecycle](native-own-effect-lifecycle.md) | `1614063e` | Positive own appearance baseline, attached/detached lifetimes and conservative recovery; actual effects, reload continuity and accepted shots still need runtime evidence. |
 | Actual public definitions and resource formulas | [Game definitions](target-game-definitions.md) | `07bd3daf` | Decoded item/drill/gun/zone tables and checks; catalog rows do not establish current character state or inventory completeness. |
 | Normal embedded input and private read-only state | [Assisted input](assisted-input-control.md) | `6f93a75a` | Source-backed bindings, projection, controller and drain predicates; native delivery and live correspondence still need verification. |
 | Gameplay and quest progression | [Gameplay progression](trickster-gameplay-progression.md) | `4dc02384` | Target guides with explicit classic-game caveats. Quest automation is outside the MVP. |
@@ -24,10 +25,13 @@ commit URLs inside these reports. Reproduction code uses public artifacts and
 synthetic fixtures; do not commit downloaded game assets, compiled access-bearing
 keys, credentials, private captures or actual account values.
 
-Current remaining contracts are tracked in
-[inventory/weight readiness #31](https://github.com/oDestroyeRo/opentrickster/issues/31),
-[own effect lifecycle #32](https://github.com/oDestroyeRo/opentrickster/issues/32), and
+Remaining inventory/weight and sampler integration work is tracked in
+[inventory/weight readiness #31](https://github.com/oDestroyeRo/opentrickster/issues/31) and
 [assisted sampler #30](https://github.com/oDestroyeRo/opentrickster/issues/30).
+The bounded source investigation for [own effect lifecycle #32](https://github.com/oDestroyeRo/opentrickster/issues/32)
+is complete; production integration and live effect validation remain under
+[#21](https://github.com/oDestroyeRo/opentrickster/issues/21) and
+[#23](https://github.com/oDestroyeRo/opentrickster/issues/23).
 The production adapters, desktop, live integration and package remain under
 [MVP delivery #19](https://github.com/oDestroyeRo/opentrickster/issues/19).
 
