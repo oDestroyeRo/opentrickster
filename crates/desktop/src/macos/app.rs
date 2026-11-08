@@ -2,6 +2,7 @@ mod adapter;
 
 use super::{
     controller::Controller,
+    credential_load::{CredentialLoad, Revision},
     host::{EmbeddedHost, HostEpoch, HostEvent, HostInbox, HostQueue, HostSource, PageIdentity},
     input::TextInput,
     macos_native,
@@ -146,6 +147,7 @@ pub struct Desktop {
     pub alerts: super::alerts::Alerts,
     background: Background,
     credentials: Option<NetCredentials>,
+    credential_revision: Revision,
     quit_requested: bool,
     pub remember_password: bool,
     pub keychain_status: &'static str,
@@ -202,6 +204,7 @@ impl Desktop {
             alerts: super::alerts::Alerts::new(),
             background: Background::new(),
             credentials: None,
+            credential_revision: Revision::default(),
             quit_requested: false,
             remember_password: false,
             keychain_status: "The password is used for this session only.",
@@ -327,6 +330,14 @@ impl Desktop {
             Command::CancelConnect => self.allowed(Control::CancelConnect),
             _ => false,
         };
+        let authenticating = match &command {
+            Command::Open => self.allowed(Control::Open),
+            Command::Reconnect => self.allowed(Control::Reconnect),
+            _ => false,
+        };
+        if revoke || authenticating {
+            self.credential_revision.invalidate();
+        }
         if revoke {
             self.credentials.take();
             self.password.update(cx, |input, cx| input.clear(cx));
@@ -376,6 +387,7 @@ impl Desktop {
         if !self.allowed(Control::Open) {
             return;
         }
+        self.credential_revision.invalidate();
         let id = self.account.read(cx).value().to_owned();
         let password = self.password.update(cx, |input, cx| input.take(cx));
         if self.remember_password {
@@ -403,46 +415,55 @@ impl Desktop {
         }
     }
     pub fn load_saved_password(&mut self, cx: &mut Context<Self>) {
-        if !self.can_authenticate() {
+        if self.snapshot().mode != Mode::Clientless
+            || self.quit_requested
+            || !self.can_authenticate()
+        {
             return;
         }
+        self.credential_revision.invalidate();
+        let request = self.credential_context(cx);
         let task = cx.read_credentials("org.opentrickster.desktop/game");
         cx.spawn(async move |app, cx| {
-            let result = task.await;
+            // Protect results even if the entity disappears before update runs.
+            let result = task.await.map(|entry| {
+                entry.map(|(id, bytes)| {
+                    (zeroize::Zeroizing::new(id), zeroize::Zeroizing::new(bytes))
+                })
+            });
             let _ = app.update(cx, |app, cx| {
-                use zeroize::Zeroize;
+                if !request.accepts(
+                    &app.credential_context(cx),
+                    app.snapshot().mode,
+                    app.quit_requested,
+                    app.can_authenticate(),
+                ) {
+                    return;
+                }
                 match result {
-                    Ok(Some((mut id, bytes))) => {
-                        let password = String::from_utf8(bytes);
-                        match password {
-                            Ok(mut password) => {
-                                if app.can_authenticate() {
-                                    app.account.update(cx, |input, cx| {
-                                        input.set(std::mem::take(&mut id), cx)
-                                    });
-                                    app.password.update(cx, |input, cx| {
-                                        input.set(std::mem::take(&mut password), cx)
-                                    });
-                                    app.keychain_status =
-                                        "Saved password loaded from macOS Keychain.";
-                                }
-                                id.zeroize();
-                                password.zeroize();
-                            }
-                            Err(error) => {
-                                let mut bytes = error.into_bytes();
-                                bytes.zeroize();
-                                id.zeroize();
-                                app.keychain_status = "The saved password could not be read.";
-                            }
+                    Ok(Some((mut id, bytes))) => match std::str::from_utf8(&bytes) {
+                        Ok(password) => {
+                            app.account
+                                .update(cx, |input, cx| input.set(std::mem::take(&mut *id), cx));
+                            app.password
+                                .update(cx, |input, cx| input.set(password.to_owned(), cx));
+                            app.keychain_status = "Saved password loaded from macOS Keychain.";
                         }
-                    }
+                        Err(_) => app.keychain_status = "The saved password could not be read.",
+                    },
                     _ => app.keychain_status = "No saved password is available in macOS Keychain.",
                 }
                 cx.notify();
             });
         })
         .detach();
+    }
+    fn credential_context(&self, cx: &App) -> CredentialLoad {
+        CredentialLoad::new(
+            self.credential_revision.clone(),
+            self.account.read(cx).revision(),
+            self.password.read(cx).revision(),
+        )
     }
     pub fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.ticks += 1;

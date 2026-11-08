@@ -1,6 +1,7 @@
 mod alerts;
 mod app;
 mod controller;
+mod credential_load;
 mod host;
 mod input;
 #[allow(unsafe_code)]

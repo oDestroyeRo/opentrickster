@@ -8,6 +8,7 @@ use std::{
         mpsc,
     },
     thread,
+    time::Duration,
 };
 
 pub enum Prepared {
@@ -21,22 +22,16 @@ pub enum Completion {
     },
     Closed {
         session: SessionKey,
-        result: Result<(), NetError>,
     },
 }
 pub struct Background {
     sender: mpsc::SyncSender<Completion>,
     receiver: mpsc::Receiver<Completion>,
-    overflow: Arc<AtomicBool>,
 }
 impl Background {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::sync_channel(4);
-        Self {
-            sender,
-            receiver,
-            overflow: Arc::new(AtomicBool::new(false)),
-        }
+        Self { sender, receiver }
     }
     pub fn prepare(
         &self,
@@ -47,7 +42,6 @@ impl Background {
         cache: PathBuf,
     ) {
         let sender = self.sender.clone();
-        let overflow = self.overflow.clone();
         thread::spawn(move || {
             let result = (|| {
                 let profile = VerifiedProfile::fetch_public(&cache)?;
@@ -65,48 +59,40 @@ impl Background {
                 }
             })();
             if cancel.load(Ordering::Acquire) {
-                let result = close_prepared(result.ok());
-                post(&sender, Completion::Closed { session, result }, &overflow);
+                close_prepared(result.ok());
+                post(&sender, Completion::Closed { session });
             } else {
-                post(&sender, Completion::Prepared { session, result }, &overflow);
+                post(&sender, Completion::Prepared { session, result });
             }
         });
     }
     pub fn close(&self, session: SessionKey, native: NativeSession) {
         let sender = self.sender.clone();
-        let overflow = self.overflow.clone();
         thread::spawn(move || {
-            let mut native = native;
-            let result = native.close();
-            post(&sender, Completion::Closed { session, result }, &overflow);
+            close_prepared(Some(Prepared::Native(native)));
+            post(&sender, Completion::Closed { session });
         });
     }
     pub fn next(&self) -> Option<Completion> {
         self.receiver.try_recv().ok()
     }
-    pub fn overflowed(&self) -> bool {
-        self.overflow.swap(false, Ordering::AcqRel)
+}
+fn post(sender: &mpsc::SyncSender<Completion>, event: Completion) {
+    // Only background workers send. Backpressure preserves the cleanup completion.
+    if let Err(mpsc::SendError(Completion::Prepared {
+        result: Ok(prepared),
+        ..
+    })) = sender.send(event)
+    {
+        close_prepared(Some(prepared));
     }
 }
-fn post(sender: &mpsc::SyncSender<Completion>, event: Completion, overflow: &AtomicBool) {
-    if let Err(error) = sender.try_send(event) {
-        overflow.store(true, Ordering::Release);
-        let event = match error {
-            mpsc::TrySendError::Full(event) | mpsc::TrySendError::Disconnected(event) => event,
-        };
-        if let Completion::Prepared {
-            result: Ok(prepared),
-            ..
-        } = event
-        {
-            let _ = close_prepared(Some(prepared));
+fn close_prepared(prepared: Option<Prepared>) {
+    if let Some(Prepared::Native(mut native)) = prepared {
+        while native.close().is_err() {
+            // A timeout or joined panic is not the definitive cleanup receipt.
+            thread::park_timeout(Duration::from_millis(100));
         }
-    }
-}
-fn close_prepared(prepared: Option<Prepared>) -> Result<(), NetError> {
-    match prepared {
-        Some(Prepared::Native(mut native)) => native.close(),
-        _ => Ok(()),
     }
 }
 pub fn public_cache() -> Result<PathBuf, NetError> {
@@ -116,4 +102,46 @@ pub fn public_cache() -> Result<PathBuf, NetError> {
     Ok(directory
         .join("Library/Caches/org.opentrickster.desktop/public")
         .join(opentrickster_net::BUILD))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_backpressure_preserves_all_closes() {
+        use opentrickster_engine::{At, Command, Effect, Engine, Input, RequestKey};
+        let session = Engine::new(Mode::Assisted)
+            .handle(Input::User {
+                at: At(0),
+                request: RequestKey(1),
+                command: Command::Open,
+            })
+            .io
+            .into_iter()
+            .find_map(|effect| match effect {
+                Effect::Open { session, .. } => Some(session),
+                _ => None,
+            })
+            .unwrap();
+        let (sender, receiver) = mpsc::sync_channel(1);
+        post(
+            &sender,
+            Completion::Prepared {
+                session,
+                result: Err(NetError::Cancelled),
+            },
+        );
+        let worker = thread::spawn(move || {
+            post(&sender, Completion::Closed { session });
+        });
+        assert!(matches!(
+            receiver.recv().unwrap(),
+            Completion::Prepared { .. }
+        ));
+        worker.join().unwrap();
+        assert!(
+            matches!(receiver.recv().unwrap(), Completion::Closed { session: closed } if closed == session)
+        );
+    }
 }

@@ -161,6 +161,7 @@ impl Desktop {
             return;
         }
         self.quit_requested = true;
+        self.credential_revision.invalidate();
         self.credentials.take();
         if let Some(session) = self.adapter.as_ref().map(Adapter::session) {
             self.close_adapter(session);
@@ -172,6 +173,7 @@ impl Desktop {
             error,
             NetError::InvalidCredentials | NetError::Refused | NetError::SecurityRequired
         ) {
+            self.credential_revision.invalidate();
             self.credentials.take();
         }
         let halt = if error == NetError::BuildChanged {
@@ -264,7 +266,7 @@ impl Desktop {
                         Err(error) => self.net_failure(session, error),
                     }
                 }
-                Completion::Closed { session, result } => {
+                Completion::Closed { session } => {
                     if !self
                         .adapter
                         .as_ref()
@@ -272,21 +274,10 @@ impl Desktop {
                     {
                         continue;
                     }
-                    match result {
-                        Ok(()) => {
-                            self.adapter.take();
-                            self.observe(session, Event::Closed);
-                        }
-                        Err(error) => self.net_failure(session, error),
-                    }
+                    self.adapter.take();
+                    self.observe(session, Event::Closed);
                 }
             }
-        }
-        if self.background.overflowed()
-            && let Some(session) = self.adapter.as_ref().map(Adapter::session)
-        {
-            self.close_adapter(session);
-            self.net_failure(session, NetError::Capacity);
         }
         let now = self.controller().map(|c| c.now()).unwrap_or(engine::At(0));
         let mut observations = Vec::new();
@@ -345,6 +336,7 @@ impl Desktop {
                 observation.event,
                 Event::Failed(engine::Halt::SessionReplaced)
             ) {
+                self.credential_revision.invalidate();
                 self.credentials.take();
             }
             if matches!(observation.event, Event::Closed)
