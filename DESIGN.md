@@ -20,17 +20,20 @@ The decisions come from an interactive HTML prototype on the throwaway [`researc
 
 ## Constraints from research
 
-The design takes these constraints from finished research and does not reopen them.
+The design takes these constraints from the [implementation evidence](docs/research/README.md).
+Its prototypes remain illustrative; implementation and runtime proof are tracked separately.
 
-- The game runs in a native `WKWebView` child inside one GPUI window, in a reserved rectangle. A separate browser window does not meet the product requirement. The [GPUI embedding report from #4](https://github.com/oDestroyeRo/opentrickster/blob/89d5993882982e959fc078f6690c8562abd7cb44/docs/research/macos-gpui-embedding.md) calls this an architectural inference that #11 must still prove.
+- The game runs in a native `WKWebView` child inside one GPUI window, in a reserved rectangle. A separate browser window does not meet the product requirement. The [GPUI embedding report from #4](https://github.com/oDestroyeRo/opentrickster/blob/89d5993882982e959fc078f6690c8562abd7cb44/docs/research/macos-gpui-embedding.md) supplied the initial inference. Account-free hosting/title checks have since run, as recorded in [architecture](docs/architecture.md#host-evidence) and [desktop work #22](https://github.com/oDestroyeRo/opentrickster/issues/22). Live gameplay and nonzero-socket cleanup remain integration checks.
 - The native child sits outside GPUI clipping and paint order. No GPUI-drawn tooltip, banner, message, popover, or focus ring may cover the game rectangle. Whether macOS menus, sheets, and tooltips draw over the webview is unverified, and #11 owns that test.
 - The game page sizes its own canvas. Its desktop default is 1280 × 720 CSS pixels, scaled to fit the rectangle it gets (#4). The app keeps the game rectangle at 16:9.
 - The webview receives keyboard input while it has focus. Command shortcuts and Escape need joint verification with GPUI (#4).
 - Nobody knows yet whether the game is readable at a given minimum size (#4). The design proposes 960 × 540.
-- The game's version endpoint reported deployment build `f5e972fa`, according to the [target interfaces report from #3](https://github.com/oDestroyeRo/opentrickster/blob/6d996ef87a75bd8857ee998ddf30dcd99b80c1bf/docs/research/target-game-interfaces.md). The design treats that build as supported. Build `7c21e0b4` is invented to show the "game updated" error.
-- Clientless sign-in is unproven. Client metadata names a LoginServer ticket, a GameServer handoff, and a second-password hint, but the #3 report calls these leads, not verified steps. The [authentication and handoff report from #15](https://github.com/oDestroyeRo/opentrickster/blob/97d6bf407a23bf87d054b40571d14224d0fb32ac/docs/research/target-authentication-handoff.md) has since recovered the client's sign-in sequence from its code, including world selection, character selection, and the GameServer login. It ran no sign-in, so whether the server accepts a native one is still unknown.
+- The implementation profile is pinned to build `8502ebbf2fc9033d2fba50d02fd92002` and the fingerprints in [current-build revalidation](docs/research/current-build-protocol-revalidation.md). Earlier build `f5e972fa` and invented prototype label `7c21e0b4` are not compatibility checks.
+- A [bounded native startup probe](docs/research/native-startup-current-build.md) completed sign-in, existing-character selection and initial-state receipt without Unity. That standalone script does not prove the production Rust adapter, recovery or gameplay. Those remain under [MVP delivery #19](https://github.com/oDestroyeRo/opentrickster/issues/19).
 
-Combat behavior (#6), digging behavior (#7), and the session contracts (#8) are still open. Every combat and digging rule, threshold, and game message here is a proposal or sample data.
+The screenshots and prototype messages remain sample data. Production defaults
+and shared contracts are specified in [MVP behavior](docs/mvp.md) and
+[architecture](docs/architecture.md); their live adapter acceptance remains open.
 
 ## Window
 
