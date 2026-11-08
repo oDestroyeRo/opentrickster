@@ -85,14 +85,11 @@ impl NetCredentials {
     }
 }
 fn derive(password: &str) -> u64 {
-    let mut normalized = Zeroizing::new(
-        password
-            .chars()
-            .take(18)
-            .collect::<String>()
-            .trim_end_matches(' ')
-            .to_ascii_lowercase(),
-    );
+    let mut normalized = Zeroizing::new(password.chars().take(18).collect::<String>());
+    while normalized.ends_with(' ') {
+        normalized.pop();
+    }
+    normalized.make_ascii_lowercase();
     let mut digest = Md5::digest(normalized.as_bytes());
     let key = u64::from_be_bytes(digest[4..12].try_into().unwrap());
     digest.as_mut_slice().zeroize();

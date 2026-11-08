@@ -10,7 +10,8 @@ use zeroize::Zeroizing;
 pub(crate) const INCOMING: &[u16] = &[
     5, 159, 679, 230, 233, 7, 8, 9, 6, 15, 16, 21, 24, 25, 26, 27, 729, 36, 37, 38, 1030, 286, 289,
     43, 42, 231, 561, 160, 770, 262, 246, 260, 843, 68, 82, 85, 41, 10, 11, 12, 13, 14, 617, 34,
-    45, 46, 371, 50, 1951, 1952, 512, 518, 521, 31, 485, 1438, 32, 310, 525,
+    45, 46, 371, 50, 1951, 1952, 512, 518, 521, 31, 485, 1438, 32, 310, 525, 39, 109, 110, 271,
+    282, 283, 523, 437,
 ];
 pub(crate) const OUTGOING: &[u16] = &[24, 288, 29, 477, 44, 48, 49];
 
@@ -54,11 +55,13 @@ pub enum PageFault {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PageNotice {
     Closed { request: u64, sockets: u32 },
+    Sample { request: u64, available: bool },
     Fault(PageFault),
 }
 pub(crate) struct State {
     pub(crate) binding: PageBinding,
     pub(crate) sequence: u64,
+    pub(crate) raw_ingress: u64,
     pub(crate) closing: Option<u64>,
 }
 impl State {
@@ -66,6 +69,7 @@ impl State {
         Self {
             binding,
             sequence: 0,
+            raw_ingress: 0,
             closing: None,
         }
     }
@@ -79,6 +83,19 @@ impl State {
         self.closing = Some(request);
         Ok(ObserverScript(Zeroizing::new(format!(
             "globalThis.__opentricksterNetCloseV1?.(\"{}\",\"{}\",\"{request:x}\");",
+            self.binding.epoch_text(),
+            self.binding.guard.as_str()
+        ))))
+    }
+    pub(crate) fn sample_script(&self, request: u64, layout: u64) -> Result<ObserverScript> {
+        if request == 0 || layout == 0 {
+            return Err(NetError::Malformed);
+        }
+        if self.closing.is_some() {
+            return Err(NetError::Closed);
+        }
+        Ok(ObserverScript(Zeroizing::new(format!(
+            "globalThis.__opentricksterNetSampleV1?.(\"{}\",\"{}\",\"{request:x}\",\"{layout:x}\");",
             self.binding.epoch_text(),
             self.binding.guard.as_str()
         ))))
@@ -97,10 +114,20 @@ impl State {
         }
         let sequence = value["sequence"]
             .as_u64()
-            .filter(|n| *n > self.sequence)
+            .filter(|n| *n > self.sequence && *n <= 9_007_199_254_740_991)
             .ok_or(NetError::StaleConnection)?;
         if sequence != self.sequence + 1 && value["kind"] != "closed" {
             return Err(NetError::Uncertain);
+        }
+        if value["kind"] != "closed" {
+            let ingress = value["rawIngress"]
+                .as_u64()
+                .filter(|n| *n >= self.raw_ingress && *n <= 9_007_199_254_740_991)
+                .ok_or(NetError::Uncertain)?;
+            if value["ingress"].as_u64().is_some_and(|mark| mark > ingress) {
+                return Err(NetError::Malformed);
+            }
+            self.raw_ingress = ingress;
         }
         self.sequence = sequence;
         Ok(value)
@@ -113,7 +140,12 @@ pub(crate) fn script(binding: &PageBinding) -> Result<ObserverScript> {
     let settings =
         Zeroizing::new(serde_json::to_string(&settings).map_err(|_| NetError::Malformed)?);
     Ok(ObserverScript(Zeroizing::new(
-        include_str!("page_bridge.js").replace("__OPENTRICKSTER_SETTINGS__", &settings),
+        include_str!("page_bridge.js")
+            .replace("__OPENTRICKSTER_SETTINGS__", &settings)
+            .replace(
+                "__OPENTRICKSTER_SAMPLER__",
+                crate::sampler::install_script(),
+            ),
     )))
 }
 pub(crate) fn captured(value: &serde_json::Value, at: Instant) -> Result<Instant> {

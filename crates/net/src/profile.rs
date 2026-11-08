@@ -112,7 +112,10 @@ impl VerifiedProfile {
                 String::from_utf8(marker.to_vec()).map_err(|_| NetError::BuildChanged)?,
             ),
             client_version: Zeroizing::new(client_version.to_vec()),
-            definitions: crate::definitions::GameDefinitions::load(cache)?.map(std::sync::Arc::new),
+            definitions: match crate::definitions::GameDefinitions::load(cache)? {
+                Some(definitions) => Some(std::sync::Arc::new(definitions)),
+                None => crate::catalog::load(cache, metadata)?.map(std::sync::Arc::new),
+            },
         })
     }
     pub(crate) async fn revalidate_online(&self) -> Result<()> {
@@ -275,7 +278,7 @@ fn metadata(data: &[u8]) -> Result<&[u8]> {
     }
     found.ok_or(NetError::BuildChanged)
 }
-async fn get(client: &reqwest::Client, url: &str, limit: usize) -> Result<Vec<u8>> {
+pub(crate) async fn get(client: &reqwest::Client, url: &str, limit: usize) -> Result<Vec<u8>> {
     let response = client
         .get(url)
         .send()
@@ -326,9 +329,10 @@ async fn fetch(cache: &Path) -> Result<()> {
     }
     atomic_write(cache, "spinel-config.json", &config)?;
     atomic_write(cache, "version", &version)?;
-    atomic_write(cache, "index.public.html", &page)
+    atomic_write(cache, "index.public.html", &page)?;
+    crate::catalog::fetch(&client, cache).await
 }
-fn atomic_write(cache: &Path, name: &str, b: &[u8]) -> Result<()> {
+pub(crate) fn atomic_write(cache: &Path, name: &str, b: &[u8]) -> Result<()> {
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let counter = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let pending = cache.join(format!(".{name}.{}.{counter}.tmp", std::process::id()));

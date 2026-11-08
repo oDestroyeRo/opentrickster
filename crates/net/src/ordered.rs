@@ -12,6 +12,9 @@ pub(crate) struct OrderedIngress {
     frontier: u64,
 }
 impl OrderedIngress {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.pending.is_empty()
+    }
     pub(crate) fn push(&mut self, packet: Packet) -> Result<()> {
         if packet.mark <= self.frontier || self.pending.contains_key(&packet.mark) {
             return Err(NetError::Uncertain);

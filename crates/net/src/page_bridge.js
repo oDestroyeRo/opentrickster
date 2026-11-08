@@ -12,7 +12,7 @@
   const now = () => performance.now();
   let failed = false, closing = false, sequence = 0, ingress = 0, lastFrontier = 0, next = 0, queue = [], queuedBytes = 0, timer = null;
   function post(kind, value) {
-    const body = Object.assign({channel:"opentrickster.net.v1",epoch:cfg.epoch,guard:cfg.guard,sequence:++sequence,kind},value);
+    const body = Object.assign({channel:"opentrickster.net.v1",epoch:cfg.epoch,guard:cfg.guard,sequence:++sequence,rawIngress:ingress,kind},value);
     try {globalThis.ipc.postMessage(JSON.stringify(body));}
     catch (_) {failed=true;for(const record of records.values())record.capture=false;}
   }
@@ -125,6 +125,8 @@
       else post("close-failed",{code:"socket-close"});
     }
   }
+  __OPENTRICKSTER_SAMPLER__
+  Object.defineProperty(globalThis,"__opentricksterNetSampleV1",{configurable:false,writable:false,value:globalThis.__opentricksterNetSampleV1});
   const ProxySocket = new Proxy(Native,{construct(target,args,newTarget) {
     if (closing) throw new DOMException("Document network is closing","InvalidStateError");
     if (records.size>=64 || Array.from(records.values()).filter(record=>!record.closed).length>=8) {fault("capacity");throw new DOMException("Document network capacity","InvalidStateError");}

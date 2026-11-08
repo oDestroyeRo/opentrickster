@@ -15,6 +15,7 @@ use tokio::sync::{mpsc as channel, watch};
 use zeroize::Zeroizing;
 
 const EVENTS: usize = 256;
+type Descriptors = Arc<Mutex<std::collections::BTreeMap<e::ItemKind, crate::ItemDescriptor>>>;
 struct QueuedOp {
     op: SessionOp,
     at: Option<e::At>,
@@ -30,6 +31,7 @@ pub struct NativeSession {
     worker: Option<JoinHandle<()>>,
     fault: Arc<Mutex<Option<NetError>>>,
     readiness: Arc<Mutex<crate::Readiness>>,
+    descriptors: Descriptors,
     closed_reported: bool,
     cleanup_done: bool,
 }
@@ -47,6 +49,8 @@ impl NativeSession {
         let actor_fault = fault.clone();
         let readiness = Arc::new(Mutex::new(crate::Readiness::default()));
         let actor_readiness = readiness.clone();
+        let descriptors = Arc::new(Mutex::new(std::collections::BTreeMap::new()));
+        let actor_descriptors = descriptors.clone();
         let worker = thread::Builder::new()
             .name("opentrickster-native".into())
             .spawn(move || {
@@ -64,6 +68,7 @@ impl NativeSession {
                                 events,
                                 fault: actor_fault.clone(),
                                 readiness: actor_readiness,
+                                descriptors: actor_descriptors,
                                 order: 0,
                                 attempt: 0,
                                 seen: Vec::new(),
@@ -89,6 +94,7 @@ impl NativeSession {
             worker: Some(worker),
             fault,
             readiness,
+            descriptors,
             closed_reported: false,
             cleanup_done: false,
         })
@@ -98,6 +104,18 @@ impl NativeSession {
             return Err(NetError::WrongPhase);
         }
         self.enqueue(None, op)
+    }
+    /// Public properties for a received opaque kind; never exposes the server item ID.
+    pub fn item_descriptor(&self, kind: e::ItemKind) -> Result<Option<crate::ItemDescriptor>> {
+        Ok(self
+            .descriptors
+            .lock()
+            .map_err(|_| NetError::Io)?
+            .get(&kind)
+            .cloned())
+    }
+    pub fn item_label(&self, kind: e::ItemKind) -> Result<Option<e::DisplayText>> {
+        Ok(self.item_descriptor(kind)?.map(|d| d.label))
     }
     /// Supplies the engine's monotonic clock origin for deadline checks.
     pub fn submit_at(&self, at: e::At, op: SessionOp) -> Result<()> {
@@ -162,17 +180,30 @@ impl NativeSession {
         if self.worker.is_none() {
             return Ok(());
         }
-        self.done
-            .recv_timeout(Duration::from_millis(2500))
-            .map_err(|_| NetError::Timeout)?;
+        if self
+            .worker
+            .as_ref()
+            .is_some_and(|worker| worker.is_finished())
+        {
+            return self.join();
+        }
+        if self.done.recv_timeout(Duration::from_millis(2500)).is_err()
+            && !self
+                .worker
+                .as_ref()
+                .is_some_and(|worker| worker.is_finished())
+        {
+            return Err(NetError::Timeout);
+        }
         self.join()
     }
     fn join(&mut self) -> Result<()> {
-        if let Some(worker) = self.worker.take() {
-            worker.join().map_err(|_| NetError::Io)?;
-        }
+        let result = self
+            .worker
+            .take()
+            .map_or(Ok(()), |worker| worker.join().map_err(|_| NetError::Io));
         self.cleanup_done = true;
-        Ok(())
+        result
     }
 }
 impl Drop for NativeSession {
@@ -189,11 +220,19 @@ struct Actor {
     events: mpsc::SyncSender<crate::TimedEvent>,
     fault: Arc<Mutex<Option<NetError>>>,
     readiness: Arc<Mutex<crate::Readiness>>,
+    descriptors: Descriptors,
     order: u64,
     attempt: u8,
     seen: Vec<e::ActionKey>,
 }
 impl Actor {
+    fn publish_descriptors(&self, decoder: &mut Decoder) -> Result<()> {
+        self.descriptors
+            .lock()
+            .map_err(|_| NetError::Io)?
+            .extend(decoder.take_item_descriptors());
+        Ok(())
+    }
     fn emit(&self, event: Event) -> Result<()> {
         self.emit_at(event, Instant::now())
     }
@@ -475,6 +514,7 @@ impl Actor {
             startup.push_through(p, g.complete_through(self.order))?;
         }
         let mut decoder = startup.decoder;
+        self.publish_descriptors(&mut decoder)?;
         *self.readiness.lock().map_err(|_| NetError::Io)? = decoder.readiness;
         let mut baseline_facts = startup.facts;
         if startup.settled > 0 {
@@ -482,7 +522,7 @@ impl Actor {
         }
         self.emit_at(
             Event::Baseline {
-                support: support(&decoder)?,
+                support: support(&decoder, true)?,
                 revision: e::EvidenceKey((self.order << 2) | 1),
                 facts: baseline_facts,
                 resumed: self.attempt > 0,
@@ -492,7 +532,6 @@ impl Actor {
         let mut aux = startup.aux;
         let mut ordered = startup.ordered;
         let mut dig: Option<PendingDig> = None;
-        let mut other_pending = false;
         let mut barrier = None;
         let mut ticks = tokio::time::interval(Duration::from_millis(16));
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -512,7 +551,7 @@ impl Actor {
                             if now.is_none_or(|now|now>=ticket.not_after.0) {
                                 self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;
                             }
-                            if dig.is_some() || other_pending {self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}
+                            if dig.is_some() || decoder.action_pending() || barrier.is_some() {self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}
                             let plan:Result<Vec<(u16,Writer)>>=match ticket.action {
                                 e::Action::MoveTo(point)=>decoder.move_payload(point).map(|payload|vec![(24,payload)]),
                                 e::Action::BasicAttack(target)=>decoder.attack_payloads(target).map(|(selected,attack)|vec![(288,selected),(29,attack)]),
@@ -524,6 +563,7 @@ impl Actor {
                                 _=>Err(NetError::Unsupported),
                             };
                             let plan=match plan {Ok(plan)=>plan,Err(_)=>{self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}};
+                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?)?;}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Submitted})?;
                             let mut last_mark=0;
                             for (opcode,payload) in plan {
@@ -532,13 +572,14 @@ impl Actor {
                                     Err(error)=>{self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Unknown})?;return Err(error);}
                                 }
                             }
-                            if let Some(pending)=&mut dig {pending.mark=last_mark;}else{other_pending=true;}
+                            if let Some(pending)=&mut dig {pending.mark=last_mark;}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Sent(e::IngressMark(last_mark))})?;
                         }
                         SessionOp::Close=>return Err(NetError::Cancelled),
                         SessionOp::Quiesce(key)=>{
                             barrier=Some(key);
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
+                            if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                         },
                         _=>return Err(NetError::WrongPhase),
                     }
@@ -561,9 +602,15 @@ impl Actor {
                     for p in ready {
                         let dig_ended=dig.as_ref().is_some_and(|pending|p.mark>pending.mark && p.opcode==50 && pending.cycle.stopped());
                         let facts=decoder.apply(&p)?;
+                        if decoder.physical_uncertain(){return Err(NetError::Uncertain);}
+                        self.publish_descriptors(&mut decoder)?;
                         *self.readiness.lock().map_err(|_|NetError::Io)?=decoder.readiness;
                         if !facts.is_empty() {self.emit_at(Event::Facts{revision:e::EvidenceKey(p.mark<<2),ingress:e::IngressMark(p.mark),facts},p.received)?;}
-                        if dig_ended {dig=None;if let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}}
+                        let mut correlated=std::collections::BTreeMap::<u64,(Instant,Vec<e::Fact>)>::new();
+                        for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
+                        for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
+                        if dig_ended {dig=None;}
+                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
                         self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts:vec![e::Fact::InventorySettled(e::IngressMark(mark))]},proof_at)?;
@@ -581,7 +628,7 @@ struct PendingDig {
     queued: Instant,
     last_tick: Instant,
 }
-pub(crate) fn support(decoder: &Decoder) -> Result<e::Support> {
+pub(crate) fn support(decoder: &Decoder, quiesce: bool) -> Result<e::Support> {
     Ok(e::Support {
         build: text(crate::BUILD.into())?,
         move_to: decoder.move_payload(e::Point { x: 0, y: 0 }).is_ok(),
@@ -592,7 +639,7 @@ pub(crate) fn support(decoder: &Decoder) -> Result<e::Support> {
             .is_ok(),
         pickup: false,
         hp_potion: false,
-        quiesce: false,
+        quiesce,
     })
 }
 fn refusal(b: &[u8]) -> Result<NetError> {
@@ -794,6 +841,9 @@ impl Startup {
             .release(complete_through, self.aux.oldest_mark())?;
         for packet in ready {
             self.facts.extend(self.decoder.apply(&packet)?);
+            for deferred in self.decoder.take_correlated() {
+                self.facts.extend(deferred.facts);
+            }
         }
         if let Some(mark) = settled {
             self.settled = mark;
@@ -805,6 +855,90 @@ impl Startup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn cleanup_fixture(worker: JoinHandle<()>, done: mpsc::Receiver<()>) -> NativeSession {
+        let mut engine = e::Engine::new(e::Mode::Clientless);
+        let opened = engine.handle(e::Input::User {
+            at: e::At(0),
+            request: e::RequestKey(1),
+            command: e::Command::Open,
+        });
+        let session = opened
+            .io
+            .iter()
+            .find_map(|effect| match effect {
+                e::Effect::Open { session, .. } => Some(*session),
+                _ => None,
+            })
+            .unwrap();
+        let (ops, _) = channel::channel(1);
+        let (cancel, _) = watch::channel(false);
+        let (_, events) = mpsc::sync_channel(1);
+        NativeSession {
+            session,
+            ops,
+            cancel,
+            events,
+            done,
+            worker: Some(worker),
+            fault: Arc::new(Mutex::new(None)),
+            readiness: Arc::new(Mutex::new(crate::Readiness::default())),
+            descriptors: Arc::new(Mutex::new(std::collections::BTreeMap::new())),
+            closed_reported: false,
+            cleanup_done: false,
+        }
+    }
+    fn finished(worker: &JoinHandle<()>) {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !worker.is_finished() {
+            assert!(Instant::now() < deadline, "fixture worker must finish");
+            thread::yield_now();
+        }
+    }
+    #[test]
+    fn close_joins_finished_workers_without_a_completion_signal_including_panic() {
+        for panics in [false, true] {
+            let (done, rx) = mpsc::sync_channel(1);
+            let worker = thread::spawn(move || {
+                drop(done);
+                assert!(!panics, "synthetic worker termination");
+            });
+            finished(&worker);
+            let mut session = cleanup_fixture(worker, rx);
+            assert_eq!(
+                session.close(),
+                if panics { Err(NetError::Io) } else { Ok(()) }
+            );
+            assert!(session.worker.is_none());
+            assert!(session.cleanup_done);
+            session.close().unwrap();
+            assert!(matches!(
+                session.try_next().unwrap().map(|o| o.event),
+                Some(Event::Closed)
+            ));
+            assert!(session.try_next().unwrap().is_none());
+        }
+    }
+    #[test]
+    fn a_close_timeout_retains_the_worker_until_actual_exit_and_join() {
+        let (release, wait) = mpsc::sync_channel(1);
+        let (done, rx) = mpsc::sync_channel(1);
+        let worker = thread::spawn(move || {
+            wait.recv().unwrap();
+            let _ = done.send(());
+        });
+        let mut session = cleanup_fixture(worker, rx);
+        assert_eq!(session.close(), Err(NetError::Timeout));
+        assert!(session.worker.is_some());
+        assert!(!session.cleanup_done);
+        assert!(session.try_next().unwrap().is_none());
+        release.send(()).unwrap();
+        session.close().unwrap();
+        assert!(session.worker.is_none());
+        assert!(matches!(
+            session.try_next().unwrap().map(|o| o.event),
+            Some(Event::Closed)
+        ));
+    }
     fn packet(opcode: u16, payload: Vec<u8>) -> Packet {
         Packet {
             opcode,
@@ -869,144 +1003,153 @@ mod tests {
             .build()
             .unwrap();
         rt.block_on(async {
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let address = listener.local_addr().unwrap();
-            let (cancel, cancel_rx) = watch::channel(false);
-            let server = tokio::spawn(async move {
-                let (socket, _) = listener.accept().await.unwrap();
-                let mut ws = tokio_tungstenite::accept_async(socket).await.unwrap();
-                let mut incoming = Frames::new(b"c2s");
-                let outgoing = OpcodeMap::current(b"s2c");
-                let mut order = 0;
-                for expected in [11501, 11505, 2000, 2012, 4] {
-                    let message = ws.next().await.unwrap().unwrap();
-                    let Message::Binary(bytes) = message else {
-                        panic!("expected binary")
-                    };
-                    let packets = incoming.push(&bytes, &mut order).unwrap();
-                    assert_eq!(packets.len(), 1);
-                    assert_eq!(packets[0].opcode, expected);
-                    let mut response = Vec::new();
-                    match expected {
-                        11501 => {
-                            assert_eq!(packets[0].payload.len(), 46);
-                            let mut w = Writer::new();
-                            w.raw(&[0; 12]);
-                            w.u8(1);
-                            w.u8(1);
-                            w.u16(7);
-                            w.u16(9);
-                            w.fixed("Synthetic server", 33).unwrap();
-                            w.fixed("Synthetic world", 33).unwrap();
-                            w.u16(100);
-                            w.u16(1);
-                            response.extend_from_slice(&outgoing.encode(11502, 0, &w.0).unwrap());
-                        }
-                        11505 => {
-                            assert_eq!(packets[0].payload.as_slice(), &[7, 0, 9, 0]);
-                            let mut w = Writer::new();
-                            w.fixed("127.0.0.1", 16).unwrap();
-                            w.u16(1234);
-                            response.extend_from_slice(&outgoing.encode(11506, 0, &w.0).unwrap());
-                        }
-                        2000 => {
-                            let mut record = vec![0; 156];
-                            record[..8].copy_from_slice(&42u64.to_le_bytes());
-                            record[8] = 5;
-                            record[9..18].copy_from_slice(b"Synthetic");
-                            let mut w = Writer::new();
-                            w.u8(1);
-                            w.raw(&record);
-                            w.u32(3);
-                            w.u32(0);
-                            w.cstr("").unwrap();
-                            w.raw(&[0, 0, 1, 1, 0]);
-                            response.extend_from_slice(&outgoing.encode(2002, 0, &w.0).unwrap());
-                        }
-                        2012 => {
-                            response
-                                .extend_from_slice(&outgoing.encode(2014, 0, &ticket()).unwrap());
-                            response.extend_from_slice(&outgoing.encode(3, 0, &[]).unwrap());
-                        }
-                        4 => {
-                            assert_eq!(packets[0].payload.len(), 14);
-                            let mut profile = vec![0; 69];
-                            profile[17..26].copy_from_slice(b"Synthetic");
-                            let mut clock = Writer::new();
-                            clock.u32(1);
-                            clock.u16(321);
-                            clock.u16(100);
-                            clock.u16(200);
-                            for (op, payload) in [
-                                (5, vec![]),
-                                (679, profile),
-                                (230, clock.0.to_vec()),
-                                (233, vec![0; 251]),
-                            ] {
+            let retained = NetCredentials::new("ExampleId".into(), "ExampleOnlyA1".into()).unwrap();
+            for _ in 0..2 {
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let address = listener.local_addr().unwrap();
+                let (cancel, cancel_rx) = watch::channel(false);
+                let server = tokio::spawn(async move {
+                    let (socket, _) = listener.accept().await.unwrap();
+                    let mut ws = tokio_tungstenite::accept_async(socket).await.unwrap();
+                    let mut incoming = Frames::new(b"c2s");
+                    let outgoing = OpcodeMap::current(b"s2c");
+                    let mut order = 0;
+                    for expected in [11501, 11505, 2000, 2012, 4] {
+                        let message = ws.next().await.unwrap().unwrap();
+                        let Message::Binary(bytes) = message else {
+                            panic!("expected binary")
+                        };
+                        let packets = incoming.push(&bytes, &mut order).unwrap();
+                        assert_eq!(packets.len(), 1);
+                        assert_eq!(packets[0].opcode, expected);
+                        let mut response = Vec::new();
+                        match expected {
+                            11501 => {
+                                assert_eq!(packets[0].payload.len(), 46);
+                                let mut w = Writer::new();
+                                w.raw(&[0; 12]);
+                                w.u8(1);
+                                w.u8(1);
+                                w.u16(7);
+                                w.u16(9);
+                                w.fixed("Synthetic server", 33).unwrap();
+                                w.fixed("Synthetic world", 33).unwrap();
+                                w.u16(100);
+                                w.u16(1);
                                 response
-                                    .extend_from_slice(&outgoing.encode(op, 0, &payload).unwrap());
+                                    .extend_from_slice(&outgoing.encode(11502, 0, &w.0).unwrap());
                             }
+                            11505 => {
+                                assert_eq!(packets[0].payload.as_slice(), &[7, 0, 9, 0]);
+                                let mut w = Writer::new();
+                                w.fixed("127.0.0.1", 16).unwrap();
+                                w.u16(1234);
+                                response
+                                    .extend_from_slice(&outgoing.encode(11506, 0, &w.0).unwrap());
+                            }
+                            2000 => {
+                                let mut record = vec![0; 156];
+                                record[..8].copy_from_slice(&42u64.to_le_bytes());
+                                record[8] = 5;
+                                record[9..18].copy_from_slice(b"Synthetic");
+                                let mut w = Writer::new();
+                                w.u8(1);
+                                w.raw(&record);
+                                w.u32(3);
+                                w.u32(0);
+                                w.cstr("").unwrap();
+                                w.raw(&[0, 0, 1, 1, 0]);
+                                response
+                                    .extend_from_slice(&outgoing.encode(2002, 0, &w.0).unwrap());
+                            }
+                            2012 => {
+                                response.extend_from_slice(
+                                    &outgoing.encode(2014, 0, &ticket()).unwrap(),
+                                );
+                                response.extend_from_slice(&outgoing.encode(3, 0, &[]).unwrap());
+                            }
+                            4 => {
+                                assert_eq!(packets[0].payload.len(), 14);
+                                let mut profile = vec![0; 69];
+                                profile[17..26].copy_from_slice(b"Synthetic");
+                                let mut clock = Writer::new();
+                                clock.u32(1);
+                                clock.u16(321);
+                                clock.u16(100);
+                                clock.u16(200);
+                                for (op, payload) in [
+                                    (5, vec![]),
+                                    (679, profile),
+                                    (230, clock.0.to_vec()),
+                                    (233, vec![0; 251]),
+                                ] {
+                                    response.extend_from_slice(
+                                        &outgoing.encode(op, 0, &payload).unwrap(),
+                                    );
+                                }
+                            }
+                            _ => unreachable!(),
                         }
-                        _ => unreachable!(),
+                        ws.send(Message::Binary(response.into())).await.unwrap();
                     }
-                    ws.send(Message::Binary(response.into())).await.unwrap();
-                }
-                tokio::time::sleep(Duration::from_millis(20)).await;
-                cancel.send_replace(true);
-                let _ = ws.next().await;
-            });
-            let (ops, rx) = channel::channel(32);
-            let (events, event_rx) = mpsc::sync_channel(256);
-            ops.try_send(QueuedOp {
-                op: SessionOp::ChooseWorld(e::WorldKey(257)),
-                at: None,
-                queued: Instant::now(),
-            })
-            .unwrap();
-            ops.try_send(QueuedOp {
-                op: SessionOp::ChooseCharacter(e::CharacterKey(257)),
-                at: None,
-                queued: Instant::now(),
-            })
-            .unwrap();
-            let mut actor = Actor {
-                profile: VerifiedProfile {
-                    first_host: "127.0.0.1".into(),
-                    first_port: 1234,
-                    marker: Zeroizing::new("synthetic".into()),
-                    client_version: Zeroizing::new(vec![1, 2, 3, 4]),
-                    definitions: None,
-                },
-                credentials: NetCredentials::new("ExampleId".into(), "ExampleOnlyA1".into())
-                    .unwrap(),
-                ops: rx,
-                cancel: cancel_rx,
-                events,
-                fault: Arc::new(Mutex::new(None)),
-                readiness: Arc::new(Mutex::new(crate::Readiness::default())),
-                order: 0,
-                attempt: 0,
-                seen: vec![],
-            };
-            let mut gateway = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
-            let (_, _, ticket) = actor.first_login(&mut gateway).await.unwrap();
-            let ticket = actor.login_server(&mut gateway, &ticket).await.unwrap();
-            assert_eq!(
-                actor.game_server(&mut gateway, &ticket).await,
-                Err(NetError::Cancelled)
-            );
-            gateway.close().await;
-            server.await.unwrap();
-            let events: Vec<_> = event_rx.try_iter().map(|event| event.event).collect();
-            assert!(events.iter().any(|e| matches!(e, Event::Worlds(_))));
-            assert!(events.iter().any(|e| matches!(e, Event::Characters(_))));
-            assert_eq!(
-                events
-                    .iter()
-                    .filter(|e| matches!(e, Event::Baseline { .. }))
-                    .count(),
-                1
-            );
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    cancel.send_replace(true);
+                    assert!(matches!(ws.next().await, Some(Ok(Message::Close(_)))));
+                });
+                let (ops, rx) = channel::channel(32);
+                let (events, event_rx) = mpsc::sync_channel(256);
+                ops.try_send(QueuedOp {
+                    op: SessionOp::ChooseWorld(e::WorldKey(257)),
+                    at: None,
+                    queued: Instant::now(),
+                })
+                .unwrap();
+                ops.try_send(QueuedOp {
+                    op: SessionOp::ChooseCharacter(e::CharacterKey(257)),
+                    at: None,
+                    queued: Instant::now(),
+                })
+                .unwrap();
+                let mut actor = Actor {
+                    profile: VerifiedProfile {
+                        first_host: "127.0.0.1".into(),
+                        first_port: 1234,
+                        marker: Zeroizing::new("synthetic".into()),
+                        client_version: Zeroizing::new(vec![1, 2, 3, 4]),
+                        definitions: None,
+                    },
+                    credentials: retained.clone(),
+                    ops: rx,
+                    cancel: cancel_rx,
+                    events,
+                    fault: Arc::new(Mutex::new(None)),
+                    readiness: Arc::new(Mutex::new(crate::Readiness::default())),
+                    descriptors: Arc::new(Mutex::new(std::collections::BTreeMap::new())),
+                    order: 0,
+                    attempt: 0,
+                    seen: vec![],
+                };
+                let mut gateway = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
+                let (_, _, ticket) = actor.first_login(&mut gateway).await.unwrap();
+                let ticket = actor.login_server(&mut gateway, &ticket).await.unwrap();
+                assert_eq!(
+                    actor.game_server(&mut gateway, &ticket).await,
+                    Err(NetError::Cancelled)
+                );
+                gateway.close().await;
+                drop(actor);
+                server.await.unwrap();
+                let events: Vec<_> = event_rx.try_iter().map(|event| event.event).collect();
+                assert!(events.iter().any(|e| matches!(e, Event::Worlds(_))));
+                assert!(events.iter().any(|e| matches!(e, Event::Characters(_))));
+                assert_eq!(
+                    events
+                        .iter()
+                        .filter(|e| matches!(e, Event::Baseline { .. }))
+                        .count(),
+                    1
+                );
+            }
         });
     }
 }

@@ -6,6 +6,23 @@ use crate::{
 use serde::Deserialize;
 use std::{collections::BTreeMap, path::Path};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecoveryKind {
+    Hp,
+    Mp,
+    HpAndMp,
+    Other,
+    Unknown,
+}
+/// Public catalog properties for a received opaque item kind. Recovery classification
+/// does not prove the instance is unexpired, usable or currently accepted by the server.
+#[derive(Clone)]
+pub struct ItemDescriptor {
+    pub label: opentrickster_engine::DisplayText,
+    pub weight_per_piece: Option<u64>,
+    pub recovery: RecoveryKind,
+}
+
 pub(crate) struct GameDefinitions {
     pub(crate) item_types: BTreeMap<u32, (i32, i32)>,
     pub(crate) items: BTreeMap<u32, ItemInfo>,
@@ -98,6 +115,26 @@ struct RawDefinitions {
     movement_mode: Option<u8>,
 }
 impl GameDefinitions {
+    pub(crate) fn descriptor(&self, id: u32) -> Option<ItemDescriptor> {
+        let info = self.items.get(&id)?;
+        let hp = info.flags & 2 != 0 && (info.hp > 0 || info.hp_rate > 0.0);
+        let mp = info.flags & 2 != 0 && (info.mp > 0 || info.mp_rate > 0.0);
+        let recovery = if info.class == 2 {
+            RecoveryKind::Unknown
+        } else {
+            match (hp, mp) {
+                (true, true) => RecoveryKind::HpAndMp,
+                (true, false) => RecoveryKind::Hp,
+                (false, true) => RecoveryKind::Mp,
+                (false, false) => RecoveryKind::Other,
+            }
+        };
+        Some(ItemDescriptor {
+            label: crate::decode::text(self.labels.get(&id)?.clone()).ok()?,
+            weight_per_piece: u64::try_from(info.weight).ok(),
+            recovery,
+        })
+    }
     pub(crate) fn load(cache: &Path) -> Result<Option<Self>> {
         let definitions = cache.join("game_definitions.json");
         let items = cache.join("items.json");

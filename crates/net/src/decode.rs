@@ -33,6 +33,8 @@ struct Item {
     count: u16,
     state: [u8; 4],
     id: u32,
+    wire_kind: u8,
+    options: Option<Vec<[u32; 3]>>,
 }
 struct ItemBody {
     kind: u8,
@@ -40,19 +42,77 @@ struct ItemBody {
     uid: u64,
     count: u16,
     state: [u8; 4],
+    options: Option<Vec<[u32; 3]>>,
+}
+struct PendingAction {
+    action: e::Action,
+    mark: u64,
+    ended: bool,
+    outcome: bool,
+}
+pub(crate) struct DeferredFacts {
+    pub(crate) mark: u64,
+    pub(crate) received: std::time::Instant,
+    pub(crate) facts: Vec<Fact>,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MissingPrerequisite {
+    OwnBaseline,
+    Definitions,
+    Equipment,
+    GunProfile,
+    GunKey,
+    GunAmmo,
+    GunSkills,
+    GunEffectState,
+    PotionInventory,
+    PotionInstanceOverrides,
+    PotionInstanceOptions,
+    PotionExpiry,
+    PotionNormalForm,
+    PotionUseState,
+    InventoryCompleteness,
+}
+#[derive(Clone, Copy)]
 pub struct Readiness {
     pub own_baseline_seen: bool,
     pub inventory_list_seen: bool,
     pub equipment_references_resolved: bool,
+    pub hp_maximum_known: bool,
+    pub mp_maximum_known: bool,
+    pub weight_maximum_known: bool,
+    pub missing_gun: Option<MissingPrerequisite>,
+    pub missing_hp_potion: Option<MissingPrerequisite>,
+}
+impl Default for Readiness {
+    fn default() -> Self {
+        Self {
+            own_baseline_seen: false,
+            inventory_list_seen: false,
+            equipment_references_resolved: false,
+            hp_maximum_known: false,
+            mp_maximum_known: false,
+            weight_maximum_known: false,
+            missing_gun: Some(MissingPrerequisite::OwnBaseline),
+            missing_hp_potion: Some(MissingPrerequisite::OwnBaseline),
+        }
+    }
 }
 /// No complete-inventory flag exists. These fields report only observed boundaries.
 pub(crate) struct Decoder {
     definitions: Option<std::sync::Arc<crate::definitions::GameDefinitions>>,
     mode: Option<u8>,
     native_walk: bool,
+    physical_uncertain: bool,
+    pending: Option<PendingAction>,
+    combat: crate::combat::Correlator,
+    correlated: Vec<DeferredFacts>,
+    totals: crate::resources::Totals,
+    current_hp: Option<(u32, std::time::Instant)>,
+    current_mp: Option<(u32, std::time::Instant)>,
+    gun_key: Option<u16>,
+    learned: Option<BTreeSet<u16>>,
     zone: Option<u16>,
     dig_active: bool,
     own: Option<u16>,
@@ -65,6 +125,7 @@ pub(crate) struct Decoder {
     actors: BTreeMap<u16, Actor>,
     items: BTreeMap<u64, Item>,
     kinds: BTreeMap<(u8, u32), e::ItemKind>,
+    item_descriptors: Vec<(e::ItemKind, crate::ItemDescriptor)>,
     species: BTreeMap<u16, e::SpeciesKey>,
     maps: BTreeMap<u16, e::MapKey>,
     drops: BTreeMap<u16, e::DropKey>,
@@ -84,6 +145,15 @@ impl Decoder {
             definitions: None,
             mode: None,
             native_walk: false,
+            physical_uncertain: false,
+            pending: None,
+            combat: Default::default(),
+            correlated: Vec::new(),
+            totals: Default::default(),
+            current_hp: None,
+            current_mp: None,
+            gun_key: None,
+            learned: None,
             zone: None,
             dig_active: false,
             own: None,
@@ -96,6 +166,7 @@ impl Decoder {
             actors: BTreeMap::new(),
             items: BTreeMap::new(),
             kinds: BTreeMap::new(),
+            item_descriptors: Vec::new(),
             species: BTreeMap::new(),
             maps: BTreeMap::new(),
             drops: BTreeMap::new(),
@@ -117,9 +188,41 @@ impl Decoder {
         self.mode = Some(1);
     }
     pub(crate) fn move_payload(&self, to: e::Point) -> Result<crate::wire::Writer> {
+        self.map.ok_or(NetError::Unsupported)?;
         let from = self.point.ok_or(NetError::Unsupported)?;
         let mode = self.mode.ok_or(NetError::Unsupported)?;
         crate::actions::movement(from, to, mode)
+    }
+    pub(crate) fn expect_action(&mut self, action: e::Action, mark: u64) -> Result<()> {
+        if self.pending.is_some() {
+            return Err(NetError::Busy);
+        }
+        if let e::Action::BasicAttack(key) = action {
+            self.combat.expect(crate::combat::Pending {
+                target: self.raw_target(key)?,
+                key,
+                floor: mark,
+            });
+        }
+        self.pending = Some(PendingAction {
+            action,
+            mark,
+            ended: false,
+            outcome: false,
+        });
+        Ok(())
+    }
+    pub(crate) fn action_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+    pub(crate) fn physical_uncertain(&self) -> bool {
+        self.physical_uncertain
+    }
+    pub(crate) fn sampling_identity(&self) -> Option<(u16, u16)> {
+        Some((self.own?, self.zone?))
+    }
+    pub(crate) fn take_correlated(&mut self) -> Vec<DeferredFacts> {
+        std::mem::take(&mut self.correlated)
     }
     pub(crate) fn normal_weapon_mode(&self) -> Result<u8> {
         let data = self.definitions.as_ref().ok_or(NetError::Unsupported)?;
@@ -167,6 +270,10 @@ impl Decoder {
             return Err(NetError::Unsupported);
         }
         let params = *data.drills.get(&item.id).ok_or(NetError::Unsupported)?;
+        let metadata = data.drill_meta.get(&item.id).ok_or(NetError::Unsupported)?;
+        if metadata.grade <= 0 || metadata.maximum_life <= 0 {
+            return Err(NetError::Unsupported);
+        }
         Ok(crate::dig::Inputs {
             params,
             life: item.count,
@@ -187,6 +294,9 @@ impl Decoder {
         }
         let k = e::ItemKind(self.next()?);
         self.kinds.insert((kind, id), k);
+        if let Some(descriptor) = self.definitions.as_ref().and_then(|d| d.descriptor(id)) {
+            self.item_descriptors.push((k, descriptor));
+        }
         Ok(k)
     }
     fn species(&mut self, id: u16) -> Result<e::SpeciesKey> {
@@ -254,6 +364,8 @@ impl Decoder {
         })))
     }
     pub(crate) fn apply(&mut self, p: &Packet) -> Result<Vec<Fact>> {
+        let old_maxima = [self.totals.maximum(9), self.totals.maximum(3)];
+        self.totals.observe(p)?;
         let b = &p.payload;
         let mut r = Reader::new(b);
         let mut out = Vec::new();
@@ -304,13 +416,32 @@ impl Decoder {
                 let level = r.u16()?;
                 r.take(3)?;
                 let zone = r.u16()?;
+                if self.zone.is_some_and(|old| old != zone) {
+                    self.physical_uncertain = true;
+                    self.actors.clear();
+                    self.drops.clear();
+                    self.combat.clear();
+                    self.pending = None;
+                }
                 self.zone = Some(zone);
                 let map = self.map_key(zone)?;
                 self.map = Some(map);
+                if let Some(label) = self
+                    .definitions
+                    .as_ref()
+                    .and_then(|d| d.zone_labels.get(&zone))
+                {
+                    out.push(Fact::MapLabel {
+                        map,
+                        label: text(label.clone())?,
+                    });
+                }
                 r.take(10)?;
                 let galder = r.u32()? as u64;
                 let hp = r.u32()?;
                 let mp = r.u32()?;
+                self.current_hp = Some((hp, p.received));
+                self.current_mp = Some((mp, p.received));
                 let tm_experience = r.u32()?;
                 let experience = r.u32()?;
                 let profile = e::Profile {
@@ -402,6 +533,13 @@ impl Decoder {
                     if let Some(map) = self.map {
                         out.push(Fact::Position { map, point });
                     }
+                    if matches!(p.opcode, 25 | 27) && self.pending.as_ref().is_some_and(|pending| {
+                        p.mark > pending.mark
+                            && matches!(pending.action,e::Action::MoveTo(target) if target==point)
+                    }) {
+                        self.pending = None;
+                        out.push(Fact::Outcome(e::Outcome::Arrived(point)));
+                    }
                     // A destination in a movement packet is not proof of arrival or idle.
                 }
                 if let Some(a) = self.actors.get_mut(&id) {
@@ -414,11 +552,49 @@ impl Decoder {
             36 | 37 => {
                 let value = (r.u32()? as i32).max(0) as u32;
                 r.end()?;
-                out.push(if p.opcode == 36 {
-                    Fact::Hp(gauge(value))
+                if p.opcode == 36 {
+                    self.current_hp = Some((value, p.received));
                 } else {
-                    Fact::Mp(gauge(value))
+                    self.current_mp = Some((value, p.received));
+                }
+                out.push(if p.opcode == 36 {
+                    Fact::Hp(self.totals.gauge(value, 9))
+                } else {
+                    Fact::Mp(self.totals.gauge(value, 3))
                 });
+            }
+            32 => {
+                let actor = r.u16()?;
+                r.end()?;
+                if Some(actor) == self.own
+                    && let Some(pending) = &mut self.pending
+                    && p.mark > pending.mark
+                    && matches!(pending.action, e::Action::BasicAttack(_))
+                {
+                    pending.ended = true;
+                }
+            }
+            512 => {
+                let key = r.u16()?;
+                r.end()?;
+                self.gun_key = Some(key);
+            }
+            271 => {
+                let count = r.u16()? as usize;
+                let mut learned = BTreeSet::new();
+                for _ in 0..count {
+                    learned.insert(r.u16()?);
+                    r.u8()?;
+                    r.u16()?;
+                }
+                r.end()?;
+                self.learned = Some(learned);
+            }
+            523 => {
+                let skill = r.u16()?;
+                if let Some(learned) = &mut self.learned {
+                    learned.insert(skill);
+                }
             }
             286 | 289 => {
                 let id = r.u16()?;
@@ -440,7 +616,8 @@ impl Decoder {
                 }
                 r.end()?;
                 if Some(id) == self.own {
-                    out.push(Fact::Hp(gauge(0)));
+                    self.current_hp = Some((0, p.received));
+                    out.push(Fact::Hp(self.totals.gauge(0, 9)));
                 }
                 if let Some(a) = self.actors.get_mut(&id) {
                     a.alive = false;
@@ -593,6 +770,7 @@ impl Decoder {
                 // The caption path does not insert inventory or prove a pickup action.
             }
             437 => {
+                self.physical_uncertain = true;
                 self.own = Some(r.u16()?);
                 let point = e::Point {
                     x: r.u16()? as i32,
@@ -600,9 +778,13 @@ impl Decoder {
                 };
                 r.end()?;
                 self.point = Some(point);
-                if let Some(map) = self.map {
-                    out.push(Fact::Position { map, point });
-                }
+                self.map = None;
+                self.zone = None;
+                self.stats_seen = false;
+                self.actors.clear();
+                self.drops.clear();
+                self.pending = None;
+                self.combat.clear();
             }
             45 => {
                 self.dig_active = true;
@@ -658,6 +840,56 @@ impl Decoder {
             }
             _ => {}
         }
+        let correlated = self.combat.observe(p, self.own)?;
+        let completed = !correlated.is_empty();
+        for result in correlated {
+            let key = match result.outcome {
+                e::Outcome::OwnHit(key) | e::Outcome::OwnKill(key) => key,
+                _ => return Err(NetError::Malformed),
+            };
+            if self.actors.values().any(|a| a.key == key) {
+                if let Some(pending) = &mut self.pending
+                    && matches!(pending.action,e::Action::BasicAttack(target) if target==key)
+                {
+                    pending.outcome = true;
+                }
+                if self.correlated.len() >= 256 {
+                    return Err(NetError::Capacity);
+                }
+                self.correlated.push(DeferredFacts {
+                    mark: result.mark,
+                    received: result.received,
+                    facts: vec![Fact::Outcome(result.outcome)],
+                });
+            }
+        }
+        if completed {
+            self.combat.clear();
+        }
+        if self.pending.as_ref().is_some_and(|p| p.ended && p.outcome) {
+            self.pending = None;
+            self.combat.clear();
+        }
+        if p.opcode != 233 && old_maxima != [self.totals.maximum(9), self.totals.maximum(3)] {
+            let mut facts = Vec::new();
+            let mut original = None;
+            for (value, stat, hp) in [(self.current_hp, 9, true), (self.current_mp, 3, false)] {
+                if let Some((current, received)) = value {
+                    original = Some(
+                        original.map_or(received, |old: std::time::Instant| old.min(received)),
+                    );
+                    let gauge = self.totals.composite(current, stat);
+                    facts.push(if hp { Fact::Hp(gauge) } else { Fact::Mp(gauge) });
+                }
+            }
+            if let Some(received) = original {
+                self.correlated.push(DeferredFacts {
+                    mark: p.mark,
+                    received,
+                    facts,
+                });
+            }
+        }
         if matches!(
             p.opcode,
             233 | 82 | 85 | 561 | 160 | 770 | 262 | 246 | 260 | 843 | 68
@@ -667,7 +899,108 @@ impl Decoder {
             out.push(self.drill_fact());
         }
         self.readiness.own_baseline_seen = self.baseline();
+        self.readiness.hp_maximum_known = self.totals.maximum(9).is_some();
+        self.readiness.mp_maximum_known = self.totals.maximum(3).is_some();
+        self.readiness.weight_maximum_known = self.totals.maximum(6).is_some();
+        self.readiness.missing_gun = self.gun_prerequisite();
+        self.readiness.missing_hp_potion = self.potion_prerequisite();
         Ok(out)
+    }
+    fn gun_prerequisite(&self) -> Option<MissingPrerequisite> {
+        use MissingPrerequisite as M;
+        if !self.stats_seen {
+            return Some(M::OwnBaseline);
+        }
+        let Some(data) = &self.definitions else {
+            return Some(M::Definitions);
+        };
+        if !self.readiness.equipment_references_resolved {
+            return Some(M::Equipment);
+        }
+        let Some(gun) = self.items.get(&self.slots[1]) else {
+            return Some(M::GunProfile);
+        };
+        let Some(param) = data.gun_params.get(&gun.id) else {
+            return Some(M::GunProfile);
+        };
+        if param.kind < 0
+            || param.speed <= 0
+            || param.range <= 0
+            || param.start < 0
+            || param.min_range < 0
+            || param.max_range < param.min_range
+        {
+            return Some(M::GunProfile);
+        }
+        if self.gun_key.is_none() {
+            return Some(M::GunKey);
+        }
+        let Some(ammo) = self.items.get(&self.slots[20]).filter(|i| i.count > 0) else {
+            return Some(M::GunAmmo);
+        };
+        let Some(info) = data.items.get(&ammo.id).filter(|i| i.kind == 29) else {
+            return Some(M::GunAmmo);
+        };
+        let _infinite_local_ammo = info.flags_ex & 64 != 0;
+        if self.learned.is_none() {
+            return Some(M::GunSkills);
+        }
+        Some(M::GunEffectState)
+    }
+    fn potion_prerequisite(&self) -> Option<MissingPrerequisite> {
+        use MissingPrerequisite as M;
+        let Some(data) = &self.definitions else {
+            return Some(M::Definitions);
+        };
+        let Some(profile) = &self.profile else {
+            return Some(M::OwnBaseline);
+        };
+        let mut reason = M::PotionInventory;
+        for item in self
+            .items
+            .values()
+            .filter(|i| i.count > 0 && i.wire_kind == 1)
+        {
+            let Some(info) = data.items.get(&item.id) else {
+                continue;
+            };
+            if info.flags & 2 == 0
+                || (info.hp <= 0 && info.hp_rate <= 0.0)
+                || i32::from(profile.level) < i32::from(info.min_level as i16)
+            {
+                continue;
+            }
+            reason = if info.class == 2 && item.options.is_none() {
+                M::PotionInstanceOptions
+            } else if info.class == 2
+                && item
+                    .options
+                    .as_ref()
+                    .is_some_and(|rows| rows.iter().any(|r| r[0] == 13))
+            {
+                M::PotionInstanceOverrides
+            } else if info.exist_type != 0 || info.life != 0 || info.ftype != 0 {
+                M::PotionExpiry
+            } else if data.normal_form_effects.contains(&info.effect) {
+                M::PotionNormalForm
+            } else {
+                M::PotionUseState
+            };
+        }
+        Some(reason)
+    }
+    pub(crate) fn item_label(&self, kind: e::ItemKind) -> Option<e::DisplayText> {
+        Some(self.item_descriptor(kind)?.label)
+    }
+    pub(crate) fn item_descriptor(&self, kind: e::ItemKind) -> Option<crate::ItemDescriptor> {
+        let id = self
+            .kinds
+            .iter()
+            .find_map(|((_, id), key)| (*key == kind).then_some(id))?;
+        self.definitions.as_ref()?.descriptor(*id)
+    }
+    pub(crate) fn take_item_descriptors(&mut self) -> Vec<(e::ItemKind, crate::ItemDescriptor)> {
+        std::mem::take(&mut self.item_descriptors)
     }
     fn drill_fact(&self) -> Fact {
         let drill = if !self.stats_seen || !self.readiness.equipment_references_resolved {
@@ -708,7 +1041,7 @@ impl Decoder {
         out.push(Fact::Inventory(e::Inventory::Put(e::Stack {
             key,
             kind,
-            quantity: item.count as u32,
+            quantity: if item.kind == 1 { item.count as u32 } else { 1 },
         })));
         self.items.insert(
             item.uid,
@@ -717,6 +1050,8 @@ impl Decoder {
                 count: item.count,
                 state: item.state,
                 id: item.id,
+                wire_kind: item.kind,
+                options: item.options,
             },
         );
         Ok(())
@@ -763,9 +1098,14 @@ fn item_body(r: &mut Reader<'_>, kind: u8, options: bool) -> Result<ItemBody> {
     if matches!(kind, 2 | 3) {
         state.copy_from_slice(r.take(4)?);
     }
+    let mut parsed_options = None;
     if options && kind == 2 {
         let count = r.u8()? as usize;
-        r.take(count * 12)?;
+        let mut rows = Vec::with_capacity(count);
+        for _ in 0..count {
+            rows.push([r.u32()?, r.u32()?, r.u32()?]);
+        }
+        parsed_options = Some(rows);
     }
     Ok(ItemBody {
         kind,
@@ -773,6 +1113,7 @@ fn item_body(r: &mut Reader<'_>, kind: u8, options: bool) -> Result<ItemBody> {
         uid,
         count,
         state,
+        options: parsed_options,
     })
 }
 struct Appearance {
@@ -992,6 +1333,110 @@ mod tests {
         b.extend(item(1, 42, 0));
         d.apply(&packet(561, b)).unwrap();
         assert!(!d.items.contains_key(&42));
+    }
+    #[test]
+    fn resource_composites_keep_old_current_time_and_never_guess_a_reduction() {
+        let mut d = Decoder::new();
+        let original = std::time::Instant::now() - std::time::Duration::from_secs(2);
+        let mut hp = packet(36, 77u32.to_le_bytes().to_vec());
+        hp.received = original;
+        hp.mark = 10;
+        d.apply(&hp).unwrap();
+        for (mark, max) in [(11, 100i32), (12, 60i32)] {
+            let mut bytes = vec![1, 9];
+            bytes.extend_from_slice(&max.to_le_bytes());
+            let mut total = packet(282, bytes);
+            total.mark = mark;
+            assert!(d.apply(&total).unwrap().is_empty());
+            let delayed = d.take_correlated();
+            assert_eq!(delayed.len(), 1);
+            assert_eq!(delayed[0].received, original);
+            assert_eq!(delayed[0].mark, mark);
+            assert!(
+                matches!(&delayed[0].facts[0],Fact::Hp(gauge) if gauge.current==77&&gauge.maximum.map(|v|v.get())==if max==100 {Some(100)}else{None})
+            );
+        }
+    }
+    #[test]
+    fn native_walk_and_pending_actions_require_own_source_evidence() {
+        let mut d = Decoder::new();
+        d.use_native_walk_policy();
+        let mut clock = vec![0; 10];
+        clock[4..6].copy_from_slice(&321u16.to_le_bytes());
+        d.apply(&packet(230, clock)).unwrap();
+        d.apply(&packet(233, vec![0; 251])).unwrap();
+        let to = e::Point { x: 100, y: 200 };
+        d.expect_action(e::Action::MoveTo(to), 10).unwrap();
+        let mut payload = Vec::new();
+        for n in [321u16, 0, 0, 100, 200] {
+            payload.extend_from_slice(&n.to_le_bytes());
+        }
+        payload.push(2);
+        let mut movement = packet(24, payload);
+        movement.mark = 11;
+        let facts = d.apply(&movement).unwrap();
+        assert!(d.action_pending());
+        assert!(!facts.iter().any(|f| matches!(f, Fact::Outcome(_))));
+        let mut payload = Vec::new();
+        for n in [321u16, 100, 200] {
+            payload.extend_from_slice(&n.to_le_bytes());
+        }
+        payload.push(2);
+        let mut stop = packet(25, payload);
+        stop.mark = 12;
+        assert!(
+            d.apply(&stop)
+                .unwrap()
+                .iter()
+                .any(|f| matches!(f,Fact::Outcome(e::Outcome::Arrived(p)) if *p==to))
+        );
+        assert!(!d.action_pending());
+        assert_eq!(
+            *d.move_payload(e::Point { x: 200, y: 300 })
+                .unwrap()
+                .0
+                .last()
+                .unwrap(),
+            1
+        );
+        let mut monster = vec![0; 38];
+        monster[..2].copy_from_slice(&9u16.to_le_bytes());
+        monster[2..4].copy_from_slice(&3u16.to_le_bytes());
+        monster[22] = b'M';
+        d.apply(&packet(7, monster)).unwrap();
+        let key = d.actors[&9].key;
+        d.expect_action(e::Action::BasicAttack(key), 20).unwrap();
+        let payload = [321u16, 0, 9, 1, 2, 3, 4]
+            .into_iter()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let mut strike = packet(31, payload);
+        strike.aux = 7;
+        strike.mark = 21;
+        d.apply(&strike).unwrap();
+        let mut payload = 9u16.to_le_bytes().to_vec();
+        payload.extend_from_slice(&3u32.to_le_bytes());
+        payload.extend_from_slice(&[0; 20]);
+        let mut hit = packet(42, payload);
+        hit.aux = 7;
+        hit.mark = 22;
+        d.apply(&hit).unwrap();
+        let mut end = packet(32, 321u16.to_le_bytes().to_vec());
+        end.mark = 23;
+        d.apply(&end).unwrap();
+        assert!(d.action_pending());
+        assert!(d.take_correlated().is_empty());
+        let mut boundary = packet(1951, vec![]);
+        boundary.aux = 7;
+        boundary.mark = 24;
+        d.apply(&boundary).unwrap();
+        let correlated = d.take_correlated();
+        assert_eq!(correlated.len(), 1);
+        assert_eq!(correlated[0].mark, 22);
+        assert!(
+            matches!(correlated[0].facts.as_slice(),[Fact::Outcome(e::Outcome::OwnHit(actual))] if *actual==key)
+        );
+        assert!(!d.action_pending());
     }
     #[test]
     fn malformed_effect_and_player_branches() {

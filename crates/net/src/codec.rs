@@ -195,9 +195,9 @@ impl AuxGroups {
             self.packets -= ready.len();
             if p.opcode == 1952 {
                 self.groups.insert(p.aux, Vec::new());
-            } else {
-                ready.push(p);
             }
+            // Retain the control boundary privately; neither marker creates a domain fact.
+            ready.push(p);
             if self.groups.len() > 64 {
                 return Err(NetError::Capacity);
             }

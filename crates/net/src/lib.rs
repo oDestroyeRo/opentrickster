@@ -33,22 +33,30 @@
 //! - `GameObserver::close(&mut self) -> Result<(), NetError>`
 mod actions;
 mod auth;
+mod catalog;
 mod codec;
+mod combat;
 mod decode;
 mod definitions;
 mod dig;
 mod input;
+mod input_flow;
 mod observer;
 mod ordered;
 mod page;
 mod profile;
+mod resources;
+mod sampler;
 mod session;
+#[cfg(test)]
+mod test_support;
 mod transport;
 mod wire;
 
 pub use auth::NetCredentials;
-pub use decode::Readiness;
-pub use input::{InputFences, InputKey, InputPlan, NormalInput};
+pub use decode::{MissingPrerequisite, Readiness};
+pub use definitions::{ItemDescriptor, RecoveryKind};
+pub use input::{InputFences, InputKey, InputPlan, InputStepKey, NormalInput};
 pub use observer::{ConnectionKey, GameObserver, ObservedDirection, ObserverContext};
 pub use page::{ObserverScript, PageBinding, PageFault, PageNotice};
 pub use profile::{BUILD, VerifiedProfile};
@@ -75,6 +83,7 @@ pub enum NetError {
     Closed,
     DuplicateAction,
     Uncertain,
+    NotReady,
     Io,
 }
 
