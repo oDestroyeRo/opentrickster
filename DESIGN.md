@@ -638,7 +638,7 @@ Each question names the issue that owns the answer.
 7. How does the app measure how old its game state is? (#8)
 8. Which units and leash rules does the combat movement boundary use? (#6)
 9. How does digging choose a spot, and what happens when a monster attacks during a dig? (#7)
-10. Which steps does clientless sign-in need, and is a second password one of them? (#8, #12)
+10. Which steps does clientless sign-in need, and is a second password one of them? (#8, #12, #17)
 11. Can a reload ever clear an unsupported game build, or does only an OpenTrickster update fix it? (#8)
 12. How does the app ask for notification permission before the first alert? No issue tracks this yet.
 
