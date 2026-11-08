@@ -594,6 +594,10 @@ impl Actor {
                 }
                 result=g.receive(&mut self.order)=>{
                     let raw=result?;let proof_at=raw.received;
+                    if raw.opcode==2028 {
+                        let millis=SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_|NetError::Io)?.as_millis() as u32;
+                        g.send(2028,&millis.to_le_bytes(),&mut self.order).await?;
+                    }
                     for packet in aux.push(raw)? {
                         if let Some(pending)=&mut dig && packet.mark>pending.mark {pending.cycle.observe(packet.opcode,&packet.payload)?;}
                         ordered.push(packet)?;

@@ -1,96 +1,151 @@
 # Native network boundary
 
-This crate implements the pinned gateway and existing-character handshake for
-build `8502ebbf2fc9033d2fba50d02fd92002`. It also provides a passive decoder for
-the embedded game. It does not yet complete issue #21 or the MVP.
+This crate implements the production gateway, existing-character authentication,
+state decoder, public catalog resolver, and passive embedded input boundary for
+build `8502ebbf2fc9033d2fba50d02fd92002`. It is a partial delivery of #21.
+The remaining native action paths and live acceptance belong to #21 and #23.
 
-`src/lib.rs` documents the public integration signatures. `fetch_public` and
-`load_cache` block and belong off the GPUI thread. `open` starts a private Tokio
-runtime thread. `submit_at` supplies the engine's monotonic clock for gameplay
-deadlines. `try_next_at` returns each observation with its original ingress time
-in the caller's clock domain. Runtime consumers use that method rather than
-refreshing queued facts at poll time. `try_next` remains an inspection convenience. `close` has a
-2.5 second local cleanup wait. A timeout preserves the worker handle, and a
-later `Closed` is emitted only after the worker has exited and joined.
+## Runtime ownership
 
-The native actor revalidates fresh official config, version, and page asset
-references before opening each authentication attempt. A cached profile alone
-does not authorize connecting to a changed deployment. Assets and compiled
-marker/version fields require the current fingerprints. Public assets stay in
-a caller-provided cache outside Git. Credentials, login keys, tickets, gateway
-tokens, raw identity maps, and packet payloads remain private. Secret buffers
-use `Zeroizing`; none of those types implements `Debug` or `Serialize`.
+`VerifiedProfile::load_cache` and `fetch_public` block and run off GPUI. They
+validate the official deployment, public asset fingerprints, compiled marker
+and client-version fields. The Rust catalog resolver validates the encrypted
+public responses, IIDX EOF/read-set/runtime/overlay stamps, XTEA table hashes,
+row counts and first-duplicate gun selection. Cached assets and extracted keys
+stay outside Git. Static definitions never become received character state.
 
-The gateway uses the current directional maps, a six-byte header, and byte
-accounting that includes headers. A binary WebSocket message is a stream chunk.
-Raw authentication waits run before Aux session grouping. Aux groups retain
-original first-byte ingress marks and receive times, including incomplete headers.
-Facts use even evidence keys; baselines use odd keys to avoid collisions with
-frames already decoded in the same stream chunk. The native liveness policy treats its actor as visible.
-It sends probes after five seconds of silence and requires a pending probe,
-two ticks, and another five seconds before reporting loss. It retains at most
-1 MiB, accepts stale ordinary ACKs, and rejects ACKs above bytes sent. It never
-resumes a gateway or replays uncertain gameplay. Only explicit engine recovery
-effects can begin another physical authentication attempt, up to five attempts.
+`NativeSession::open` starts one private Tokio runtime thread. It registers
+startup waits before FL, LS and GS sends, consumes coalesced 2014 and 3 in raw
+order, and requires accepted 5 plus all 679/230/233 before its baseline.
+`submit_at` supplies the engine clock at actual enqueue time. `submit(Act)`
+refuses. `try_next_at` preserves original receive age across every queue.
 
-The observer supports eight concurrent connection generations. The actual
-outbound GS login selects its gameplay stream. `disconnect` retires a generation;
-late callbacks cannot enter a replacement stream. An observer-only `Closed`
-proves decoder cleanup. The desktop must wait for its webview and Unity resources
-before forwarding adapter closure to the engine. The observer neither opens
-sockets nor sends ACKs. Arming a movement or attack ticket reserves correlation;
-only a matching observed send produces a `Sent` receipt. An ordinary attack
-requires both target 288 and attack 29. An observed gun 477 uses its distinct
-seven-byte layout. Neither a receipt, damage, faint, nor despawn awards a kill.
-The host must copy each actual socket callback once and preserve its connection
-generation. This API does not authenticate an arbitrary page's self-reported
-origin or deduplicate duplicated host callbacks.
+`NetCredentials` is an opaque cloneable secret capability. It retains only
+normalized ID and derived key in zeroizing owners. The password is zeroed in
+`new`, and every clone zeroes on drop. Desktop retains one selected-account
+capability, clones only after the previous native resource closed and joined,
+and clears it on disconnect, mode change, quit or failed authorization.
+There is no raw getter, Debug or Serialize implementation.
 
-The decoder handles the full startup field extents, strict entity/effect/player
-branches, movement, HP/MP, faint/despawn, inventory lists and deltas, equipment
-references, ground items, pickup captions, and manual dig feedback. Every actor
-appearance gets a new local incarnation. Missing 231 remains unknown. Multiple
-231 lists merge; they never clear previously observed items. A valid empty list
-records that a list was seen without asserting inventory completeness. Missing
-equipment references stay unresolved at their original replay point. HP/MP
-maxima, weight, potion counts, and drill metadata stay unknown.
+The native actor revalidates fresh config/version/page references before each
+physical authentication attempt. Occupied 60013, gateway busy, unknown security
+or refusal stops it. Optional absent character status remains Unknown;
+`CharacterChoice.busy=false` means no positive busy signal. The explicitly
+approved security state 0 decline uses UID-only 2012 without changing settings.
+There is no takeover, release-held retry or automatic uncertain gameplay replay.
+Only engine recovery effects authorize another physical attempt, up to five.
 
-## Remaining prerequisites
+`close` waits up to 2.5 seconds and retains its worker on timeout. A finished
+worker can join without a done signal, including after panic. Native `Closed`
+requires the join and means local resource cleanup, never server logout. Only
+this actor's own token can reach the bounded release request.
 
-Native movement, ordinary attack, and a full timed manual dig have sender paths.
-The current profile loader does not yet resolve public gameplay definitions, so
-its support flags remain false and unavailable tickets receive `NotSent`. A
-private `GameDefinitions` boundary accepts source-verified item type/subtype,
-gun slots, drill rows, zone classifications, and movement mode. It has no fixture
-defaults. The root owns the pending definition resolver.
+## Framing and provenance
 
-The manual controller follows 44, accepted 45 and own 371, measured timed gauge
-updates, one 49 completion request, and actual 50 result. It uses the exact
-f32/f64 arithmetic and real cancellation counters. Local drill wear is not
-reported as a server inventory delta. Completion and cancellation are never
-replayed. An active dig can satisfy a tagged barrier only after its actual result;
-no cancellation-ack grammar or general idle proof is claimed.
+The codec uses exact current directional maps, six-byte LE headers and a 32745
+payload limit. Reassembly reserves the original ingress mark and Instant at
+the first byte, including a partial header. Raw authentication waits precede
+Aux grouping. Independent Aux groups preserve original marks; 1952's private
+boundary resets attribution without producing a domain fact. Buffers, queues,
+actors, items and frame groups have explicit bounds and fail closed.
 
-| Capability | Missing prerequisite |
+Evidence keys use separate namespaces for packet facts, baselines, settlement
+metadata and delayed correlation. `InventorySettled(mark)` follows all inventory
+facts through that original mark and remains behind raw, partial and Aux work.
+A latest observed mark is never a complete-through frontier. S282 resource
+composites retain the older current HP/MP timestamp. A new maximum cannot
+freshen or fabricate a change to an older current value.
+
+Retention includes frame headers and partial ACK boundaries. Stale ordinary
+ACKs are ignored; ACKs beyond sent bytes fail. Native liveness uses the current
+visible-client policy. No gateway resume or uncertain outbound replay occurs.
+
+## Passive page and normal input
+
+`VerifiedProfile::observer_script` generates one document-start wrapper from the
+verified maps. It recognizes the GS login from its six-byte header and never
+copies that authentication body. Only allowlisted GS state/actions cross IPC.
+FL/LS authentication bytes and text tokens never cross. Host epoch, guard,
+connection generation, sequence and first-byte ordinal fence callbacks.
+
+The same wrapper owns the guarded sampler and close request. It refuses new
+sockets during closure and closes every owned socket, including unknown roles.
+An ACK requires their actual close events. CLOSED state, an error, a timeout or
+an unupgraded preconnect does not manufacture an ACK. Desktop additionally
+neutralizes the document and detaches WK before forwarding engine Closed.
+Observer-local `close` proves only decoder cleanup.
+
+The sampler reads only pinned heap classes/fields with extent, RGCTX, version
+and consistency checks. Its snapshots and Candidates stay private. It neither
+calls target gameplay methods nor writes memory or sockets. Desktop dispatches
+ordinary native input from the typed `InputPlan`.
+
+The locked public methods are in `src/observer.rs`:
+
+- `sample_script(request, layout_epoch)` requests one guarded source sample.
+- `input_plan(now, fences, ticket)` prepares one event for one logical action.
+- `input_dispatched(step_key, original_instant)` records actual native dispatch.
+- `continue_input(now, fences, action)` returns the next event or None to wait.
+- `active_input()` becomes None only when the controller has fully drained.
+- `quiesce(now, fences, barrier)` permits owned ups and normal right-click drain.
+- `emergency_released(action, original_instant)` records actual host neutralization.
+
+Every plan contains exactly one event. Every dispatch invalidates the previous
+sample AND its outstanding request. A newly requested post-dispatch sample must
+prove the relevant Held/controller transition. A matching actual send can release
+an ordinary mouse press sooner. RAF and delay are never receipts. Initial dig
+selection is an ordinary click with a <=250ms release bound. Only actual gauge
+Charging and Tracking holds are exempt. Held controls still require fresh samples.
+Physical ASCII `Character` bindings mean DOM KeyA..KeyZ, never layout text.
+
+Manual dig preserves one armed ticket across key targeting,44,45/own371, gauge
+holds,49,50 and sampled releases. Normal right-down/up clears active digging or
+remaining targeting. Source input-up,46,stage7 and silence are not idle proof.
+Quiescent requires a new source idle sample, original ingress drained through
+that sample, no unresolved action and no queued/held input. Planning NotReady,
+Busy and Refused are transient errors and do not poison the decoder. Missing
+receipt means owned emergency release plus uncertainty/drain, never replay.
+
+## Received state and remaining scope
+
+The decoder handles own profile/zone/resources, full typed entity appearance
+and effects, moves, HP, faint/despawn, inventories/equipment, ground items and
+dig feedback. Actor incarnations fence raw-ID reuse. Wire Kind, Count, state,
+full option triplets and 23 raw slot UIDs remain private. Stack pieces use Count
+only for wire Kind 1. Catalog Type/SubType remain separate.
+
+231 is merge-only `InventorySnapshot`, never Reset or a grant. Missing and empty
+lists stay distinct from complete inventory. Missing equipment references stay
+unresolved at their original replay point. Current carried weight remains
+unknown. H=max raw accepted 5/679/230/233 is UNACCEPTED until Root compares the
+actual Rust decoder with Unity's synchronous cache boundary and weight oracle.
+
+Native code sends24, ordinary288+29 and the full timed44->45/371->49->50 dig
+exchange, including real48 cancellation counters. Native movement policy is
+explicit WALK1. Assisted mode uses observed RunToggle/Heavy; it never inherits
+that policy. Own hit/kill association requires one complete unambiguous own
+Strike bundle with the matching recipient, action floor and incarnation.
+Unattributed HP falls, captions and faint alone cannot award outcomes.
+
+| Remaining part of #21/#23 | Current boundary |
 | --- | --- |
-| Native movement | A proved current movement-mode source and held-own-stop/cancellation ordering. |
-| Native ordinary attack | Populate the verified item metadata subtype lookup and configured equipment-slot list needed by current `GunFlowing.HoldsGun`. A gun must not take the ordinary path. |
-| Native gun attack | Current ready/gauge parameters, key, bunch/ammunition, and progression. The static CRC and serializer alone do not implement that flow. |
-| Complete dig cycle | Populate verified drill parameters, item Type 6, movement mode, and zone classifications; receive the slot-7 UID and actual item Count as life. The full timed exchange is implemented and tested with synthetic fixtures. |
-| HP potion | Source-backed use path and item metadata that identifies HP potions. Consumable kind alone is insufficient. |
-| Pickup | Source-backed normal outgoing path and action attribution to actual inventory changes. A pickup caption is not inventory receipt. |
-| Quiescence | A proved stop/cancel path and barrier evidence. Silence is not proof of idle. |
-| Action outcomes | Attacker-attributed hit/kill evidence, ordered movement completion, and result-to-ticket attribution. HP reduction and faint alone are insufficient. |
-| Live acceptance | Root's serialized account lease and an authorized runtime handoff. No account, game socket, or live gameplay was used for this implementation. |
+| Sampler review | Root owns a scoped correction for the independent geometry/type/catalog findings on frozen 3abe. Assisted gameplay acceptance waits for that patch and review. |
+| Native gun controller | Serializer and source-backed profile/key/skill/ammo prerequisites exist. Tick/CRC/effect-lifetime controller integration remains unfinished. A gun never falls back to melee. |
+| HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
+| Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
+| Carried weight | Source31 gives a bounded comparison recipe; no accepted complete native inventory cutoff yet. |
+| Runtime acceptance | No account credentials, game-server socket or gameplay was used here. Root owns serialized live proof and Desktop integration. |
 
-An absent or unrecognized optional character-status trailer remains Unknown.
-The approved normal UID-only selection is allowed without a positive busy signal.
-`CharacterChoice.busy=false` never asserts idle. An advertised malformed v1 trailer,
-unrecognized security state, positive failure count, occupied error 60013, and
-gateway busy stop the attempt. Known security state 0 follows the explicitly
-approved local decline path without a setting-change packet. The adapter does
-not configure a second password, evict a session, retry release-held tokens,
-or assert server logout after local cleanup.
+These gaps remain visible in support/readiness and cannot be called a completed
+MVP. S282 totals become unknown on source-backed recompute events. Potion
+restoration arithmetic, gun defaults and full-inventory claims are not invented.
+
+The catalog and input contracts use the immutable
+[definition resolver](https://github.com/oDestroyeRo/opentrickster/blob/07bd3daf8f6dbbd6bcef3730269d0e6b2d7412c1/docs/research/target-game-definitions.md),
+[normal input report](https://github.com/oDestroyeRo/opentrickster/blob/6f93a75a23849475c7f88d5f3b099d98a4a6c33e/docs/research/assisted-input-control.md),
+[gun report](https://github.com/oDestroyeRo/opentrickster/blob/efccf7992b77966804e9078d4643a565aa3b6340/docs/research/gun-combat-control.md),
+[own effect report](https://github.com/oDestroyeRo/opentrickster/blob/1614063ecbfa92836050eec8a545d0ae2b4fb663/docs/research/native-own-effect-lifecycle.md)
+and [inventory baseline report](https://github.com/oDestroyeRo/opentrickster/blob/ce0cf202159c669832087a204db435d998ec2518/docs/research/native-inventory-baseline.md).
 
 ## Evidence
 

@@ -1335,6 +1335,34 @@ mod tests {
         assert!(!d.items.contains_key(&42));
     }
     #[test]
+    fn wire_kind_options_and_drill_life_are_preserved_separately_from_pieces() {
+        let mut d = Decoder::new();
+        let mut bytes = vec![1, 0];
+        bytes.extend(item(2, 42, 300));
+        bytes.push(2);
+        let rows = [[13u32, 0x1234, 0x80000000], [90, 1, 2]];
+        for row in rows {
+            for value in row {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        let facts = d.apply(&packet(231, bytes)).unwrap();
+        assert!(
+            matches!(facts.as_slice(),[Fact::InventorySnapshot(stacks)] if stacks.len()==1&&stacks[0].quantity==1)
+        );
+        assert_eq!(d.items[&42].wire_kind, 2);
+        assert_eq!(d.items[&42].count, 300);
+        assert_eq!(d.items[&42].options.as_deref(), Some(rows.as_slice()));
+        let mut change = vec![1];
+        change.extend(item(2, 42, 999));
+        let len = change.len();
+        change[len - 4..].copy_from_slice(&[1, 2, 3, 4]);
+        d.apply(&packet(561, change)).unwrap();
+        assert_eq!(d.items[&42].count, 300);
+        assert_eq!(d.items[&42].state, [1, 2, 3, 4]);
+        assert_eq!(d.items[&42].options.as_deref(), Some(rows.as_slice()));
+    }
+    #[test]
     fn resource_composites_keep_old_current_time_and_never_guess_a_reduction() {
         let mut d = Decoder::new();
         let original = std::time::Instant::now() - std::time::Duration::from_secs(2);

@@ -31,6 +31,20 @@
 //! - `GameObserver::try_next(&mut self) -> Result<Option<Observation>, NetError>`
 //! - `GameObserver::try_next_at(&mut self, now: At) -> Result<Option<(At, Observation)>, NetError>`
 //! - `GameObserver::close(&mut self) -> Result<(), NetError>`
+//!
+//! The document-bound input API returns one normal native event per plan:
+//! - `sample_script(&mut self, request: u64, layout_epoch: u64) -> Result<ObserverScript, NetError>`
+//! - `input_plan(&mut self, now: At, fences: InputFences, ticket: ActionTicket) -> Result<InputPlan, NetError>`
+//! - `input_dispatched(&mut self, step: InputStepKey, captured_at: Instant) -> Result<(), NetError>`
+//! - `continue_input(&mut self, now: At, fences: InputFences, action: ActionKey) -> Result<Option<InputPlan>, NetError>`
+//! - `active_input(&self) -> Option<ActionKey>`
+//! - `quiesce(&mut self, now: At, fences: InputFences, barrier: BarrierKey) -> Result<Option<InputPlan>, NetError>`
+//! - `emergency_released(&mut self, action: ActionKey, captured_at: Instant) -> Result<(), NetError>`
+//!
+//! Each actual dispatch invalidates old samples and outstanding sample requests.
+//! Request a new guarded sample afterward. None waits; `active_input()==None` is done.
+//! Transient planning errors never poison the passive decoder. The host fences its
+//! queue before cancellation and retains token-owned releases across every failure.
 mod actions;
 mod auth;
 mod catalog;

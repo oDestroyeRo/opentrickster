@@ -152,6 +152,9 @@ impl GameObserver {
         if self.barrier.is_some() {
             return Err(NetError::Busy);
         }
+        if !self.input_order_ready() {
+            return Err(NetError::NotReady);
+        }
         if let Some(flow) = &self.input_flow {
             if flow.ticket.id != ticket.id {
                 return Err(NetError::Busy);
@@ -272,6 +275,13 @@ impl GameObserver {
         self.sample_pending = None;
         self.sample_after = Some(after);
     }
+    fn input_order_ready(&self) -> bool {
+        self.sample
+            .as_ref()
+            .is_some_and(|sample| self.page_frontier >= sample.raw_ingress)
+            && self.aux.oldest_mark().is_none()
+            && self.ordered.is_empty()
+    }
     fn next_input(
         &mut self,
         now: e::At,
@@ -328,6 +338,15 @@ impl GameObserver {
             return Err(NetError::Malformed);
         }
         let event = candidate.steps[0];
+        if matches!(
+            event,
+            crate::NormalInput::LeftDown
+                | crate::NormalInput::RightDown
+                | crate::NormalInput::KeyDown(_)
+        ) && !self.input_order_ready()
+        {
+            return Err(NetError::NotReady);
+        }
         let needs_arm = self.input_flow.as_ref().is_some_and(|flow| !flow.armed)
             && matches!(
                 event,
@@ -1092,6 +1111,7 @@ mod tests {
             .bind_page(crate::PageBinding::new(7, "a".repeat(32)).unwrap())
             .unwrap();
         observer.decoder = Some(decoder);
+        observer.page_frontier = 19;
         value["channel"] = json!("opentrickster.net.v1");
         value["guard"] = json!("a".repeat(32));
         value["sequence"] = json!(1);
