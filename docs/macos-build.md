@@ -43,6 +43,15 @@ Use a fresh `CARGO_TARGET_DIR` for acceptance checks when switching between
 worktrees or combining archived source. This avoids reusing proof from a
 different source tree.
 
+GitHub Actions runs the engine checks on Linux and workspace tests, Clippy and
+release packaging on the Apple silicon `macos-26` runner. It pins Rust 1.99.1
+and the action revisions. Each successful macOS job uploads
+`OpenTrickster-macOS-arm64.zip`, containing the app with executable permissions
+preserved. Download and unzip that artifact to obtain `OpenTrickster.app`.
+CI uses no game account or private credentials and does not establish live
+gameplay acceptance. Runner labels follow GitHub's
+[hosted runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
 Account-free verification runs the packaged executable directly so its exit
 status can be checked:
 
