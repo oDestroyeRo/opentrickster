@@ -1,7 +1,8 @@
 {
   // Build 8502ebbf, source joins in issues 25, 27, 28 and 29. No target calls.
   const samplerBuild = "8502ebbf2fc9033d2fba50d02fd92002";
-  let sampleRevision = 0, previousGeometry = null;
+  const typeKinds = {8914:14,8959:2,9020:8,9021:10,9064:12,9092:11,9200:28,5590:17,9043:17,9982:17,13048:17,13049:17};
+  let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
   const sampleHex = value => typeof value === "string" && /^[1-9a-f][0-9a-f]{0,15}$/.test(value);
   const unavailable = code => { throw code; };
   function readClient() {
@@ -40,6 +41,8 @@
       return n;
     }
     function pointer(p) { return extent(u32(p), 4); }
+    // By-value kinds from the pinned metadata. Other whitelisted objects are classes.
+    const typeKind = id => typeKinds[id] ?? 18;
     function type(p, depth = 0) {
       if (depth > 4) unavailable("generic");
       extent(p, 8);
@@ -49,16 +52,18 @@
         const base = type(pointer(data),depth+1), inst = pointer(data + 4);
         const count = integer(u32(inst), 1, 4), args = pointer(inst + 4);
         extent(args, 4 * count);
-        return {id: base.id, args: Array.from({length: count}, (_, i) => type(pointer(args + i * 4),depth+1))};
+        if (base.args.length || ![17,18].includes(base.kind)) unavailable("generic");
+        return {id: base.id, kind:base.kind, args: Array.from({length: count}, (_, i) => type(pointer(args + i * 4),depth+1))};
       }
-      if (![2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 28, 29].includes(code)) unavailable("type");
-      return {id: integer(data, 0, 15439), args: []};
+      const id = integer(data, 0, 15439);
+      if (code !== typeKind(id)) unavailable("type");
+      return {id, kind:code, args: []};
     }
-    function sameType(a, b) { return a.id === b.id && a.args.length === b.args.length && a.args.every((v, i) => sameType(v, b.args[i])); }
+    function sameType(a, b) { return a.id === b.id && a.kind === b.kind && a.args.length === b.args.length && a.args.every((v, i) => sameType(v, b.args[i])); }
     function klass(p, id, args) {
       extent(p, 192);
       const t = type(p + 16);
-      if (t.id !== id || (args && (args.length !== t.args.length || !args.every((v, i) => sameType({id:v, args:[]}, t.args[i]))))) unavailable("type");
+      if (t.id !== id || (args && (args.length !== t.args.length || !args.every((v, i) => sameType({id:v,kind:typeKind(v),args:[]}, t.args[i]))))) unavailable("type");
       return p;
     }
     function object(p, id, size) {
@@ -85,6 +90,7 @@
       const c = pointer(p), count = integer(i32(p + 12), 0, limit);
       extent(c, 192);
       if (u32(c + 140) !== stride || u32(p + 8) !== 0) unavailable("generic");
+      if (byte(c + 22) !== 29 || !sameType(type(pointer(c + 16)),type(pointer(c + 32) + 16))) unavailable("generic");
       if (element !== undefined) klass(pointer(c + 32), element);
       extent(p, 16 + count * stride);
       return {p, count, data:p + 16};
@@ -120,7 +126,14 @@
       const m = method || virtualTry(p), ctx = context(m);
       if (pointer(m + 16) !== c || !sameType(type(pointer(ctx + 40) + 16), t.args[0]) || !sameType(type(pointer(ctx + 48) + 16), t.args[1])) unavailable("generic");
       const hash = integer(u32(ctx + 36), 0, 120), key = integer(u32(ctx + 44), 0, 120), value = integer(u32(ctx + 52), 0, 120);
-      const kw = integer(u32(pointer(ctx + 40) + 132), 1, 8), vw = integer(u32(pointer(ctx + 48) + 132), 1, 8);
+      const width = t => {
+        if ([14,18,28].includes(t.kind)) return 4;
+        const n = {8959:1,9020:4,9021:8,9064:4,9092:8}[t.id];
+        if (!n || t.args.length) unavailable("generic");
+        return n;
+      };
+      const kw = width(t.args[0]), vw = width(t.args[1]);
+      if (u32(pointer(ctx + 40) + 132) !== kw || u32(pointer(ctx + 48) + 132) !== vw) unavailable("generic");
       if (hash % 4 || key % Math.min(kw,4) || value % Math.min(vw,4) || key < hash + 8 || value < key + kw) unavailable("generic");
       const count = integer(i32(p + 16), 0, limit), free = integer(i32(p + 24), 0, count);
       i32(p + 28);
@@ -129,6 +142,8 @@
       extent(ep, 16);
       const stride = integer(u32(pointer(ep) + 140), value + vw, 128);
       if (stride % 4) unavailable("generic");
+      const entry = klass(pointer(pointer(ep) + 32),9982), entryType = type(entry + 16);
+      if (entryType.args.length !== 2 || !entryType.args.every((arg,i) => sameType(arg,t.args[i])) || u32(entry + 132) !== stride) unavailable("generic");
       const a = array(ep, stride, limit);
       if (count > a.count) unavailable("generic");
       const rows = [];
@@ -310,14 +325,19 @@
     const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id).subtype === 54; });
     const pet = itemAt(8), data = object(pointer(drill + 12),6225,36);
     const wornTool = itemAt(7);
-    let usableTool = false;
+    let usableTool = false, equippedParam = null;
+    const drillParameters = p => {
+      object(p,6222,64);
+      return {id:u64(p+8),grade:i32(p+16),nature:i32(p+20),depth:i32(p+24),area:i32(p+28),speed:i32(p+32),mass:i32(p+36),life:i32(p+40)};
+    };
     if (wornTool && infos.get(wornTool.id).type === 6 && wornTool.count > 0) {
       const rows = dictionary(pointer(data+8),9021,6222,512);
       const matching = rows.filter(row => u64(row.key) === wornTool.id);
       if (matching.length !== 1) unavailable("cold");
       const p = object(pointer(matching[0].value),6222,64);
-      if (u64(p+8)!==wornTool.id) unavailable("generic");
-      usableTool = i32(p+24)>0 && i32(p+28)>0 && i32(p+28)<=200 && i32(p+32)>0 && i32(p+36)>0;
+      equippedParam = drillParameters(p);
+      if (equippedParam.id!==wornTool.id) unavailable("generic");
+      usableTool = equippedParam.depth>0 && equippedParam.area>0 && equippedParam.area<=200 && equippedParam.speed>0 && equippedParam.mass>0;
     }
     let automaticPet = false;
     if (pet) automaticPet = dictionary(pointer(data + 32),9021,null,512,methodCell(3296664)).some(row => u64(row.key) === pet.id) && (u32(zoneInfo+40)&1)===0;
@@ -376,17 +396,28 @@
     if (fsmState === 5 && (!param || !tool)) unavailable("cold");
     const automatic = u32(drill+196);
     if (tool && (!wornTool || object(tool,12070,40) !== wornTool.p)) unavailable("changing");
-    const dig = {fsm:fsmState,flags:u32(drill+60),stage:integer(i32(drill+100),0,7),held:bool(drill+152),inState:bool(drill+84),gauge:f32(drill+104),area:param ? i32(object(param,6222,64)+28) : null,assist:integer(i32(assist+48),0,4),autoMode:bool(drill+192),autoFlag:bool(drill+200),automatic:automatic ? integer(i32(object(automatic,5779,56)+24),0,16)!==0 : false,crazy:bool(drill+154),manual,automaticPet,mapAllowed:![1,5,6].includes(i32(zoneInfo+24)) && i32(zoneInfo+44)!==14,toolUsable:usableTool};
+    const activeParam = param ? drillParameters(param) : null;
+    if (fsmState === 5 && (!usableTool || !equippedParam || Object.keys(equippedParam).some(key => activeParam[key] !== equippedParam[key]))) unavailable("changing");
+    const dig = {fsm:fsmState,flags:u32(drill+60),stage:integer(i32(drill+100),0,7),held:bool(drill+152),inState:bool(drill+84),gauge:f32(drill+104),area:activeParam?.area ?? null,assist:integer(i32(assist+48),0,4),autoMode:bool(drill+192),autoFlag:bool(drill+200),automatic:automatic ? integer(i32(object(automatic,5779,56)+24),0,16)!==0 : false,crazy:bool(drill+154),manual,automaticPet,mapAllowed:![1,5,6].includes(i32(zoneInfo+24)) && i32(zoneInfo+44)!==14,toolUsable:usableTool};
     const zoneId = integer(i32(zoneInfo+8),1,65535);
     const equipment = [1,4,7,8,9,22].map(slot => u64(slots.data+slot*8).toString());
     const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,skin,semiAuto,equipment])];
-    if (!previousGeometry || geometryKey.some((v,i) => v !== previousGeometry[i])) { sampleRevision++; previousGeometry = geometryKey; }
-    const snapshot = {version:1,status:"ready",revision:sampleRevision,zone:zoneId,geometry,pointer:{world:pointerWorld,picked,groundHover,overUi:bool(screen+640)},binding,input:{left:actionPressed(pointer(input+16)),right:actionPressed(pointer(input+20)),digHeld:keyButton(binding.dig),runHeld:keyButton(binding.run),modifiers,mode},motion:{own:ownId,fsm:fsmState,path:list(pointer(own+12),5590,16,1024).count,route:u32(screen+372)?list(pointer(screen+372),5590,16,1024).count:0,steering:bool(screen+108)||bool(screen+116),screenHeld:held!==null,targetPending:bool(session+88),heldStop:u32(session+132)!==0,sendArmed:bool(session+89)},combat:{target:nullableId(combat+60),ownAttack:attackTargets.has(ownId),waiting:waiting.has(ownId)||striking.has(ownId),fainted:bool(combat+68),gunWorn,gunArmed:bool(gun+44),gunReady:bool(gun+45),gunState:integer(i32(gun+48),0,5)},dig,actors,portals};
+    const geometryChanged = !previousGeometry || geometryKey.some((v,i) => v !== previousGeometry[i]);
+    // Cached world/pick facts need a later MapPoint probe under the new geometry.
+    const probePosition = vec(screen+620), probeTime = f64(screen+632);
+    if (probeTime < 0) unavailable("routing");
+    const resetProbe = geometryChanged || (previousProbeTime !== null && probeTime < previousProbeTime);
+    const nextFloor = resetProbe ? probeTime : probeFloor;
+    const nextPointerReady = !resetProbe && (pointerGeometryReady || probeTime > nextFloor);
+    const pointerCurrent = nextPointerReady && local && Math.abs(probePosition[0]-(geometry.host[0]+local[0]*Math.fround(geometry.zoom)))<=0.25 && Math.abs(probePosition[1]-(geometry.host[1]+geometry.host[3]-local[1]*Math.fround(geometry.zoom)))<=0.25;
+    const nextRevision = sampleRevision + (geometryChanged ? 1 : 0);
+    const snapshot = {version:1,status:"ready",revision:nextRevision,zone:zoneId,geometry,pointer:{world:pointerCurrent?pointerWorld:null,picked:pointerCurrent?picked:null,groundHover,overUi:bool(screen+640)},binding,input:{left:actionPressed(pointer(input+16)),right:actionPressed(pointer(input+20)),digHeld:keyButton(binding.dig),runHeld:keyButton(binding.run),modifiers,mode},motion:{own:ownId,fsm:fsmState,path:list(pointer(own+12),5590,16,1024).count,route:u32(screen+372)?list(pointer(screen+372),5590,16,1024).count:0,steering:bool(screen+108)||bool(screen+116),screenHeld:held!==null,targetPending:bool(session+88),heldStop:u32(session+132)!==0,sendArmed:bool(session+89)},combat:{target:nullableId(combat+60),ownAttack:attackTargets.has(ownId),waiting:waiting.has(ownId)||striking.has(ownId),fainted:bool(combat+68),gunWorn,gunArmed:bool(gun+44),gunReady:bool(gun+45),gunState:integer(i32(gun+48),0,5)},dig,actors,portals};
     if (module !== globalThis.spinelInstance?.Module || buffer !== module.HEAPU32?.buffer) unavailable("changing");
     const finalRect = canvas.getBoundingClientRect();
     if (module.canvas !== canvas || [finalRect.left,finalRect.top,finalRect.width,finalRect.height].some((v,i)=>v!==geometry.rect[i]) || canvas.width!==geometry.backing[0] || canvas.height!==geometry.backing[1] || globalThis.devicePixelRatio!==geometry.dpr) unavailable("changing");
     for (const {p,kind,value} of reads.values()) if (!Object.is(view[kind](p,true),value)) unavailable("changing");
     if (JSON.stringify(snapshot).length > 60000) unavailable("capacity");
+    sampleRevision=nextRevision;previousGeometry=geometryKey;previousProbeTime=probeTime;probeFloor=nextFloor;pointerGeometryReady=nextPointerReady;
     return snapshot;
   }
   globalThis.__opentricksterNetSampleV1 = (epoch, guard, request, layout) => {

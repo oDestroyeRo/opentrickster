@@ -940,6 +940,31 @@ mod tests {
     }
 
     #[test]
+    fn changed_geometry_waits_for_a_new_source_ui_probe_before_pressing() {
+        for (flag, resample) in [("--stale-zoom", true), ("--fresh-zoom", false)] {
+            let output = Command::new("node")
+                .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/sampler.cjs"))
+                .arg(flag)
+                .output()
+                .expect("invented geometry trace");
+            assert!(output.status.success());
+            let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+            let snapshot = parse_snapshot(&value, Instant::now()).unwrap();
+            let plan = candidate(&snapshot, Action::BasicAttack(e::EntityKey(1)), Some(73))
+                .expect("hover or verified press");
+            assert_eq!(plan.requires_resample, resample);
+            if resample {
+                assert!(
+                    matches!(plan.steps.as_slice(), [NormalInput::PointerMove { x, y }]
+                    if (*x - 211.5).abs() < 1e-8 && (*y - 216.45).abs() < 1e-8)
+                );
+            } else {
+                assert_eq!(plan.steps, vec![NormalInput::LeftDown]);
+            }
+        }
+    }
+
+    #[test]
     fn source_projection_requires_new_hover_and_exact_current_pick() {
         let action = Action::BasicAttack(e::EntityKey(1));
         let mut s = snapshot();
