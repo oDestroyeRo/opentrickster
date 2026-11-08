@@ -1,0 +1,36 @@
+# Implementation evidence
+
+These reports are unchanged copies of their published research commits. Statements
+about a report's original branch, single-file scope and checks describe that
+publication. They do not certify the production adapters or the complete MVP.
+
+The current implementation profile targets build
+`8502ebbf2fc9033d2fba50d02fd92002`. Validate its asset fingerprints before using
+the recovered contracts. Older builds and prototype labels are not interchangeable.
+
+| Contract | Report | Original commit | Evidence and limit |
+| --- | --- | --- | --- |
+| Framing, opcode maps, authentication/bootstrap compatibility | [Current-build revalidation](current-build-protocol-revalidation.md) | `df5fe0a5` | Pinned static joins and synthetic checks; no live acceptance in this report. |
+| Own/entity state, effects, inventory and action-result layouts | [State completion](target-state-completion.md) | `cb587e23` | Current and prior build joins; receipt, result and inventory mutation remain distinct. |
+| Clientless authentication and initial state | [Native startup](native-startup-current-build.md) | `5de55dbf` | One standalone script reached the existing character without Unity. This is not production Rust adapter or gameplay proof. |
+| Full manual dig | [Manual dig control](manual-dig-control.md) | `b1a12a97` | Complete timed controller and serializers; actual tool/spot state and server acceptance require runtime evidence. |
+| Normal gun attack and attribution | [Gun combat control](gun-combat-control.md) | `efccf799` | Equipment, timing, request and own-result paths; live effect baselines and gameplay remain separate. |
+| Actual public definitions and resource formulas | [Game definitions](target-game-definitions.md) | `07bd3daf` | Decoded item/drill/gun/zone tables and checks; catalog rows do not establish current character state or inventory completeness. |
+| Normal embedded input and private read-only state | [Assisted input](assisted-input-control.md) | `6f93a75a` | Source-backed bindings, projection, controller and drain predicates; native delivery and live correspondence still need verification. |
+| Gameplay and quest progression | [Gameplay progression](trickster-gameplay-progression.md) | `4dc02384` | Target guides with explicit classic-game caveats. Quest automation is outside the MVP. |
+
+Earlier framing/authentication/layout reports remain linked by immutable GitHub
+commit URLs inside these reports. Reproduction code uses public artifacts and
+synthetic fixtures; do not commit downloaded game assets, compiled access-bearing
+keys, credentials, private captures or actual account values.
+
+Current remaining contracts are tracked in
+[inventory/weight readiness #31](https://github.com/oDestroyeRo/opentrickster/issues/31),
+[own effect lifecycle #32](https://github.com/oDestroyeRo/opentrickster/issues/32), and
+[assisted sampler #30](https://github.com/oDestroyeRo/opentrickster/issues/30).
+The production adapters, desktop, live integration and package remain under
+[MVP delivery #19](https://github.com/oDestroyeRo/opentrickster/issues/19).
+
+[MVP acceptance](../mvp.md) requires real combat and completed digging in both
+modes, reviewed merged code and a verified macOS app. Static recovery, synthetic
+traces and an embedded title screen each prove a narrower boundary.
