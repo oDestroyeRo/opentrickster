@@ -10,6 +10,32 @@ Run the native account-free fixture:
 cargo run -p opentrickster-desktop -- --verify-embedding
 ```
 
+Run the owned account-free native input fixture:
+
+```sh
+cargo run -p opentrickster-desktop -- --verify-input
+```
+
+This fixture executes no target code. It observes trusted DOM hover, left and
+right button transitions, physical `KeyD` and `KeyX`, CSS viewport coordinates,
+release to the original view after focus changes, and the ordinary cleanup
+watchdog. A queued AppKit event changes the physical-input generation; bot
+native events do not. The report explicitly excludes Unity receipt and gameplay.
+
+To check Desktop against an immutable Net commit without changing this checkout's
+workspace or using another writer's Cargo metadata:
+
+```sh
+python3 crates/desktop/verification/verify_input.py \
+  --net-revision <frozen-net-commit> --output /tmp/opentrickster-input-proof
+```
+
+The output directory must not exist. The script records source hashes, the
+resolved lock hash, commands, logs, and `native/report.json`. It builds an
+outside-Git workspace with its own target directory. Cargo may download missing
+public dependencies before the offline tests. It runs formatting, Desktop tests,
+scoped Clippy with warnings denied, a build, and the native fixture.
+
 Run the official game to its title screen without signing in:
 
 ```sh
@@ -87,9 +113,13 @@ live bindings/manual dig settings, camera and hit geometry, native input and
 actual outbound matching specified in [the source report](https://github.com/oDestroyeRo/opentrickster/blob/6f93a75a23849475c7f88d5f3b099d98a4a6c33e/docs/research/assisted-input-control.md).
 The pure projection tests prove only its algebra. No action capability is granted
 from those tests. Quiescence also requires the combined local/controller/received
-predicate; releasing a button cannot prove it. Until that runtime proof exists,
-assisted action delivery remains unavailable and a drain deadline closes the
-resource rather than inventing an idle barrier.
+predicate; releasing a button cannot prove it. The production executor forwards Net's move, basic-attack, manual-dig and
+quiesce support. Every plan still requires Net's fresh source, binding, routing,
+geometry and pending-ledger checks plus Desktop's session, host, layout, focus,
+physical-input and step fences. Embedded pickup and HP-potion support remain
+masked because their normal-input programs are unavailable. Closing masks all
+actions. An unavailable or uncertain plan never becomes Sent. An unknown drain
+retains the adapter until the engine requests actual resource close.
 
 Goal choices use only received stacks in the engine snapshot. Unknown inventory
 remains distinct from observed-empty inventory; labels stay explicitly unknown
@@ -126,3 +156,20 @@ before any resource opens. CmdQ and window close also await this fence.
 
 The Model the Domain principle kept adapter ownership in one sum type. The Prove
 It Works principle required native event and snapshot checks beyond compilation.
+
+The normal input pump runs every 10 ms. It executes one Net-issued native event
+at a time and reports its actual dispatch `Instant`; it stores no delayed native
+plans. A hover dispatch requests a new guarded sample before the same ticket can
+press. Dispatch invalidates Desktop's outstanding request bookkeeping as well as
+Net's sample generation. Late pre-dispatch replies cannot advance a continuation.
+`Ok(None)` from continuation waits; `active_input() == None` establishes completion
+only after Net's sampled release, source idle and actual pending-ledger drain.
+
+Ordinary presses use a 200 ms cleanup watchdog, capped further by `release_by`.
+Gauge holds follow Net's observed controller policy and require ongoing fresh
+samples within 250 ms. A fence change or failed sampling cancels admission and
+releases only bot-owned controls. If the user holds the same physical control,
+its release token remains until a safe native release can dispatch. Emergency
+releases invalidate sampling and report uncertainty, never a sampled receipt or
+idle result. Resource close waits for these tokens before starting the existing
+socket-close, native neutral-navigation and detach sequence.

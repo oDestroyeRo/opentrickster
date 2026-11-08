@@ -9,7 +9,4 @@
     notify('fullscreen');
     return Promise.reject(new DOMException('Use the application game pane.', 'NotAllowedError'));
   };
-  const yieldInput = event => { if (event.isTrusted) notify('physical-input'); };
-  addEventListener('pointerdown', yieldInput, { capture: true, passive: true });
-  addEventListener('keydown', yieldInput, { capture: true, passive: true });
 })();

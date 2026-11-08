@@ -154,13 +154,14 @@ impl Desktop {
             if let Some(host) = self.host() {
                 let child = host.child.clone();
                 let placement = host.placement.clone();
+                let layout_epoch = host.input.borrow().layout.clone();
                 let focused = self.game_keys;
                 let inbox = self.inbox.clone();
                 let epoch = host.epoch;
                 game = game.child(
                     canvas(
                         move |bounds, _, _| {
-                            if !EmbeddedHost::place(&child, &placement, bounds) {
+                            if !EmbeddedHost::place(&child, &placement, &layout_epoch, bounds) {
                                 super::host::enqueue(
                                     &inbox,
                                     epoch,

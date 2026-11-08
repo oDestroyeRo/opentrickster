@@ -19,6 +19,7 @@ use std::{
 };
 
 pub struct Options {
+    pub input: bool,
     pub application: bool,
     pub target: bool,
     quit: Option<QuitRoute>,
@@ -37,19 +38,26 @@ impl Options {
         let Some(first) = args.next() else {
             return Ok(None);
         };
-        if !["--verify-embedding", "--verify-application"].contains(&first.as_str()) {
+        if ![
+            "--verify-embedding",
+            "--verify-application",
+            "--verify-input",
+        ]
+        .contains(&first.as_str())
+        {
             return Err(
                 "Unknown option. Use --verify-embedding for account-free host verification.",
             );
         }
         let application = first == "--verify-application";
+        let input = first == "--verify-input";
         let mut target = application;
         let mut directory = None;
         let mut quit = None;
         let mut socket_port = None;
         while let Some(arg) = args.next() {
             match arg.as_str() {
-                "--target" => target = true,
+                "--target" if !input => target = true,
                 "--quit-via" if application => {
                     quit = Some(match args.next().as_deref() {
                         Some("native") => QuitRoute::Native,
@@ -92,6 +100,7 @@ impl Options {
             return Err("Verification files already exist. Choose an empty directory.");
         }
         Ok(Some(Self {
+            input,
             application,
             target,
             quit,
@@ -115,6 +124,7 @@ struct QuitProbe {
 }
 
 pub struct Probe {
+    input: Option<super::input_verification::InputProbe>,
     pub options: Options,
     pub host: Option<EmbeddedHost>,
     start: Instant,
@@ -143,8 +153,16 @@ pub struct Probe {
     fixture_socket: Arc<AtomicU8>,
 }
 impl Probe {
+    pub fn input_watchdog(&mut self) {
+        if let (Some(input), Some(host)) = (&mut self.input, &self.host) {
+            input.cleanup(host);
+        }
+    }
     pub fn new(options: Options) -> Self {
         Self {
+            input: options
+                .input
+                .then(super::input_verification::InputProbe::new),
             options,
             host: None,
             start: Instant::now(),
@@ -177,6 +195,9 @@ impl Probe {
         self.failures.push(name);
     }
     pub fn observe(&mut self, event: &HostEvent) {
+        if let Some(input) = &mut self.input {
+            input.observe(event);
+        }
         if let HostEvent::Message(body) = event {
             let Ok(value) = serde_json::from_str::<Value>(body) else {
                 return;
@@ -201,6 +222,32 @@ impl Probe {
         }
     }
     pub fn tick(&mut self, app: &mut Desktop, window: &mut Window, cx: &mut Context<Desktop>) {
+        if let Some(input) = &mut self.input {
+            if let Some(host) = self.host.as_ref()
+                && let Some(report) = input.tick(host, window)
+            {
+                let passed = report["passed"] == true;
+                let written = serde_json::to_vec_pretty(&report)
+                    .ok()
+                    .is_some_and(|bytes| {
+                        fs::write(self.options.directory.join("report.json"), bytes).is_ok()
+                    });
+                self.options.result.set(Some(passed && written));
+                eprintln!(
+                    "OpenTrickster native input verification {}: {}",
+                    if passed && written {
+                        "passed"
+                    } else {
+                        "failed"
+                    },
+                    self.options.directory.display()
+                );
+                host.close();
+                macos_native::allow_termination();
+                cx.quit();
+            }
+            return;
+        }
         if self.finished {
             return;
         }

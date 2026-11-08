@@ -3,6 +3,7 @@ mod adapter;
 use super::{
     controller::Controller,
     credential_load::{CredentialLoad, Revision},
+    embedded_input::EmbeddedInput,
     host::{EmbeddedHost, HostEpoch, HostEvent, HostInbox, HostQueue, HostSource, PageIdentity},
     input::TextInput,
     macos_native,
@@ -78,6 +79,7 @@ enum Adapter {
         session: SessionKey,
         host: EmbeddedHost,
         observer: GameObserver,
+        input: EmbeddedInput,
     },
     Native {
         session: SessionKey,
@@ -90,6 +92,7 @@ enum Adapter {
         session: SessionKey,
         host: EmbeddedHost,
         observer: GameObserver,
+        input: EmbeddedInput,
         stage: CloseStage,
     },
 }
@@ -106,6 +109,7 @@ impl Adapter {
 }
 
 enum CloseStage {
+    Releasing,
     Sockets {
         request: u64,
         started: std::time::Instant,
@@ -214,7 +218,9 @@ impl Desktop {
         app.focus.focus(window);
         app.update_menus(cx);
         if let Some(probe) = app.probe.as_mut().filter(|p| !p.options.application) {
-            let source = if probe.options.target {
+            let source = if probe.options.input {
+                HostSource::InputFixture
+            } else if probe.options.target {
                 HostSource::Official { probe: true }
             } else {
                 HostSource::OfflineFixture
@@ -259,6 +265,25 @@ impl Desktop {
                     .await;
                 if this
                     .update_in(cx, |app, window, cx| app.tick(window, cx))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
+        cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(10))
+                    .await;
+                if this
+                    .update_in(cx, |app, window, cx| {
+                        if let Some(probe) = &mut app.probe {
+                            probe.input_watchdog();
+                        }
+                        app.pump_embedded_input(window, cx);
+                    })
                     .is_err()
                 {
                     break;
@@ -325,6 +350,14 @@ impl Desktop {
         self.message = Some((message, self.ticks + 22));
     }
     pub fn command(&mut self, command: Command, window: &mut Window, cx: &mut Context<Self>) {
+        let starting = matches!(&command, Command::Start) && self.allowed(Control::Start)
+            || matches!(&command, Command::Resume) && self.allowed(Control::Resume);
+        if starting
+            && let Some(host) = self.host()
+            && let Some(web) = host.child.borrow().as_ref()
+        {
+            let _ = web.focus();
+        }
         let revoke = match &command {
             Command::SwitchMode(_) => self.allowed(Control::SwitchMode),
             Command::CancelConnect => self.allowed(Control::CancelConnect),
@@ -503,6 +536,20 @@ impl Desktop {
                 self.command(Command::SwitchMode(mode), window, cx);
             }
         }
+        self.poll_host(window, cx);
+        self.drain(window, cx);
+        if let Some(mut probe) = self.probe.take() {
+            probe.tick(self, window, cx);
+            self.probe = Some(probe);
+        }
+        if self.quit_requested && self.adapter.is_none() {
+            macos_native::badge(false);
+            macos_native::allow_termination();
+            cx.quit();
+        }
+        cx.notify();
+    }
+    fn poll_host(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {
         let events = self.inbox.drain();
         for message in events {
             if !self.host().is_some_and(|host| host.epoch == message.epoch) {
@@ -518,7 +565,7 @@ impl Desktop {
             }
             match event {
                 HostEvent::NetworkPage { origin, json } => {
-                    self.ingest_page(origin, &json, message.ingress)
+                    self.ingest_page(&origin, &json, message.ingress)
                 }
                 HostEvent::Neutralized => self.finish_embedded_close(),
                 HostEvent::FullscreenRequested => {
@@ -527,7 +574,17 @@ impl Desktop {
                 }
                 HostEvent::PhysicalInput => {
                     self.game_keys = true;
-                    if let Some(session) = self.adapter.as_ref().map(Adapter::session)
+                    if let Some(Adapter::Embedded { input, .. }) = &mut self.adapter {
+                        input.fence();
+                    }
+                    if matches!(
+                        self.snapshot().phase,
+                        Phase::Starting
+                            | Phase::Running
+                            | Phase::Pausing
+                            | Phase::Paused(_)
+                            | Phase::Stopping
+                    ) && let Some(session) = self.adapter.as_ref().map(Adapter::session)
                         && let Some(controller) = self.controller_mut()
                     {
                         controller.observe_at(
@@ -556,17 +613,6 @@ impl Desktop {
                 HostEvent::Message(_) => {}
             }
         }
-        self.drain(window, cx);
-        if let Some(mut probe) = self.probe.take() {
-            probe.tick(self, window, cx);
-            self.probe = Some(probe);
-        }
-        if self.quit_requested && self.adapter.is_none() {
-            macos_native::badge(false);
-            macos_native::allow_termination();
-            cx.quit();
-        }
-        cx.notify();
     }
     pub fn switch_mode(&mut self, mode: Mode, window: &mut Window, cx: &mut Context<Self>) {
         if self.snapshot().mode == mode {

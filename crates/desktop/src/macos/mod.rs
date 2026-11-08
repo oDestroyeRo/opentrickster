@@ -2,11 +2,16 @@ mod alerts;
 mod app;
 mod controller;
 mod credential_load;
+mod embedded_input;
 mod host;
 mod input;
+mod input_verification;
 #[allow(unsafe_code)]
 mod macos_native;
+#[allow(unsafe_code)]
+mod native_input;
 mod network;
+mod normal_input;
 mod theme;
 mod verification;
 mod view;

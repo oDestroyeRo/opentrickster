@@ -44,17 +44,17 @@ impl Desktop {
                             failure = Some(error);
                         }
                     }
-                    Some(Adapter::Embedded { observer, .. }) => match op {
+                    Some(Adapter::Embedded { input, host, .. }) => match op {
                         SessionOp::Act(ticket) => {
                             let action = ticket.id;
-                            // No camera mapping or gameplay input is inferred from hosting proof.
-                            let _ = observer;
-                            receipt = Some(Event::Receipt {
-                                action,
-                                delivery: engine::Delivery::NotSent,
-                            });
+                            if input.start(ticket, host).is_err() {
+                                receipt = Some(Event::Receipt {
+                                    action,
+                                    delivery: engine::Delivery::NotSent,
+                                });
+                            }
                         }
-                        SessionOp::Quiesce(_) => {}
+                        SessionOp::Quiesce(barrier) => input.quiesce(barrier, now),
                         _ => failure = Some(NetError::Unsupported),
                     },
                     _ => failure = Some(NetError::WrongPhase),
@@ -112,43 +112,20 @@ impl Desktop {
                 self.adapter = Some(Adapter::Closing { session });
             }
             Some(Adapter::Embedded {
-                host, mut observer, ..
+                host,
+                observer,
+                mut input,
+                ..
             }) => {
-                self.next_close += 1;
-                let request = self.next_close;
-                match observer.close_script(request) {
-                    Ok(script) => {
-                        let submitted = host
-                            .child
-                            .borrow()
-                            .as_ref()
-                            .is_some_and(|web| web.evaluate_script(script.as_str()).is_ok());
-                        self.adapter = Some(Adapter::ClosingEmbedded {
-                            session,
-                            host,
-                            observer,
-                            stage: CloseStage::Sockets {
-                                request,
-                                started: std::time::Instant::now(),
-                            },
-                        });
-                        if !submitted {
-                            self.say("The game has not confirmed that its connections closed. Keep the app open and check the connection.");
-                        }
-                    }
-                    Err(_) => {
-                        self.adapter = Some(Adapter::ClosingEmbedded {
-                            session,
-                            host,
-                            observer,
-                            stage: CloseStage::Sockets {
-                                request,
-                                started: std::time::Instant::now(),
-                            },
-                        });
-                        self.say("Game cleanup could not start. Keep the current session closed before switching modes.");
-                    }
-                }
+                input.close();
+                self.adapter = Some(Adapter::ClosingEmbedded {
+                    session,
+                    host,
+                    observer,
+                    input,
+                    stage: CloseStage::Releasing,
+                });
+                self.advance_embedded_close();
             }
             Some(closing @ Adapter::ClosingEmbedded { .. }) => self.adapter = Some(closing),
             Some(closing @ Adapter::Closing { .. }) => self.adapter = Some(closing),
@@ -254,10 +231,12 @@ impl Desktop {
                             })();
                             match result {
                                 Ok((host, observer)) => {
+                                    let input = EmbeddedInput::new(session, &host);
                                     self.adapter = Some(Adapter::Embedded {
                                         session,
                                         host,
                                         observer,
+                                        input,
                                     })
                                 }
                                 Err(error) => self.net_failure(session, error),
@@ -318,19 +297,29 @@ impl Desktop {
             _ => {}
         }
         for (at, mut observation) in observations {
+            if let Event::Quiescent(barrier) = observation.event {
+                if let Some(Adapter::Embedded { input, .. }) = self.adapter.as_mut() {
+                    if !input.barrier_observed(barrier) {
+                        continue;
+                    }
+                } else if matches!(self.adapter, Some(Adapter::ClosingEmbedded { .. })) {
+                    continue;
+                }
+            }
             if matches!(
                 self.adapter,
                 Some(Adapter::Embedded { .. } | Adapter::ClosingEmbedded { .. })
             ) && let Event::Baseline { support, .. } = &mut observation.event
             {
-                // Passive decoding proves state, but this host has not yet proved
-                // the native input/continuation and drain boundary. Never advertise it.
-                support.move_to = false;
-                support.basic_attack = false;
-                support.dig_cycle = false;
+                // These two actions have no guarded ordinary-input program yet.
                 support.pickup = false;
                 support.hp_potion = false;
-                support.quiesce = false;
+                if matches!(self.adapter, Some(Adapter::ClosingEmbedded { .. })) {
+                    support.move_to = false;
+                    support.basic_attack = false;
+                    support.dig_cycle = false;
+                    support.quiesce = false;
+                }
             }
             if matches!(
                 observation.event,
@@ -366,6 +355,11 @@ impl Desktop {
             _ => return,
         };
         match notice {
+            Ok(Some(opentrickster_net::PageNotice::Sample { request, available })) => {
+                if let Some(Adapter::Embedded { input, .. }) = &mut self.adapter {
+                    input.sample_notice(request, available, captured_at);
+                }
+            }
             Ok(Some(opentrickster_net::PageNotice::Closed { request, sockets })) => {
                 if let Some(Adapter::ClosingEmbedded {
                     host,
@@ -433,16 +427,92 @@ impl Desktop {
             session,
             host,
             mut observer,
+            input,
             ..
         }) = self.adapter.take()
         else {
             return;
         };
+        if !input.controls_released() {
+            self.adapter = Some(Adapter::ClosingEmbedded {
+                session,
+                host,
+                observer,
+                input,
+                stage: CloseStage::Neutralizing,
+            });
+            return;
+        }
         let _ = observer.close();
         host.close();
         if let Some(probe) = &mut self.probe {
             probe.document_neutralized = true;
         }
         self.observe(session, Event::Closed);
+    }
+
+    fn advance_embedded_close(&mut self) {
+        let now = self.controller().map(|c| c.now()).unwrap_or(engine::At(0));
+        if let Some(Adapter::ClosingEmbedded {
+            host,
+            observer,
+            input,
+            stage: CloseStage::Releasing,
+            ..
+        }) = &mut self.adapter
+        {
+            let _ = input.pump(now, host, observer);
+            if !input.controls_released() {
+                return;
+            }
+        } else {
+            return;
+        }
+        self.next_close += 1;
+        let request = self.next_close;
+        if let Some(Adapter::ClosingEmbedded {
+            host,
+            observer,
+            stage,
+            ..
+        }) = &mut self.adapter
+        {
+            *stage = CloseStage::Sockets {
+                request,
+                started: std::time::Instant::now(),
+            };
+            let submitted = observer.close_script(request).ok().is_some_and(|script| {
+                host.child
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|web| web.evaluate_script(script.as_str()).is_ok())
+            });
+            if !submitted {
+                self.say("The game has not confirmed that its connections closed. Keep the app open and check the connection.");
+            }
+        }
+    }
+
+    pub(super) fn pump_embedded_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.poll_host(window, cx);
+        self.poll_network(window);
+        self.drain(window, cx);
+        let now = self.controller().map(|c| c.now()).unwrap_or(engine::At(0));
+        let events = match &mut self.adapter {
+            Some(Adapter::Embedded {
+                session,
+                host,
+                observer,
+                input,
+            }) => Some((*session, input.pump(now, host, observer))),
+            _ => None,
+        };
+        if let Some((session, events)) = events {
+            for event in events {
+                self.observe(session, event);
+            }
+        }
+        self.advance_embedded_close();
+        self.drain(window, cx);
     }
 }

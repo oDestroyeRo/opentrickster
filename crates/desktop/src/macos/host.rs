@@ -1,4 +1,4 @@
-use super::macos_native;
+use super::{macos_native, native_input::NativeInput};
 use crate::layout::{GameRect, game_rect};
 use gpui::{Bounds, Pixels, Window};
 use std::{
@@ -12,7 +12,6 @@ use wry::{
     dpi::{LogicalPosition, LogicalSize},
 };
 
-pub const OFFICIAL_ORIGIN: &str = "https://tr-play.playall.in.th";
 pub const OFFICIAL_URL: &str = "https://tr-play.playall.in.th/";
 const MAX_IPC: usize = 65_536;
 const MAX_INBOX: usize = 256;
@@ -21,12 +20,13 @@ const MAX_INBOX: usize = 256;
 pub enum HostSource {
     Official { probe: bool },
     OfflineFixture,
+    InputFixture,
 }
 pub enum HostEvent {
     PageReady,
     ProcessFailed,
     Neutralized,
-    NetworkPage { origin: &'static str, json: String },
+    NetworkPage { origin: String, json: String },
     Overflow,
     FullscreenRequested,
     PhysicalInput,
@@ -115,6 +115,7 @@ pub struct EmbeddedHost {
     inbox: HostInbox,
     pub child: ChildSlot,
     pub placement: Rc<RefCell<Option<GameRect>>>,
+    pub input: Rc<RefCell<NativeInput>>,
     neutralizing: Rc<Cell<bool>>,
 }
 
@@ -127,7 +128,10 @@ impl EmbeddedHost {
         observer_script: Option<&opentrickster_net::ObserverScript>,
     ) -> Result<Self, &'static str> {
         let PageIdentity { epoch, guard } = identity;
-        let verification = matches!(source, HostSource::OfflineFixture);
+        let verification = matches!(
+            source,
+            HostSource::OfflineFixture | HostSource::InputFixture
+        );
         let probe = matches!(source, HostSource::Official { probe: true });
         inbox.activate(epoch);
         let ipc = inbox.clone();
@@ -194,7 +198,7 @@ impl EmbeddedHost {
                         &ipc,
                         epoch,
                         HostEvent::NetworkPage {
-                            origin: OFFICIAL_ORIGIN,
+                            origin: url.trim_end_matches('/').to_owned(),
                             json: request.into_body(),
                         },
                         captured_at,
@@ -204,9 +208,6 @@ impl EmbeddedHost {
                 match value["kind"].as_str() {
                     Some("fullscreen") => {
                         enqueue_at(&ipc, epoch, HostEvent::FullscreenRequested, captured_at)
-                    }
-                    Some("physical-input") => {
-                        enqueue_at(&ipc, epoch, HostEvent::PhysicalInput, captured_at)
                     }
                     Some("target") if probe => {
                         enqueue(&ipc, epoch, HostEvent::Message(request.into_body()))
@@ -225,7 +226,11 @@ impl EmbeddedHost {
             builder
         };
         let builder = if verification {
-            builder.with_html(include_str!("../../verification/embedding.html"))
+            builder.with_html(if matches!(source, HostSource::InputFixture) {
+                include_str!("../../verification/input.html")
+            } else {
+                include_str!("../../verification/embedding.html")
+            })
         } else {
             builder.with_url(OFFICIAL_URL)
         };
@@ -235,11 +240,16 @@ impl EmbeddedHost {
         if !macos_native::is_child(&web, window) {
             return Err("The game view has no application parent.");
         }
+        let manual_inbox = inbox.clone();
+        let input = NativeInput::new(epoch.0, &web, move |at| {
+            enqueue_at(&manual_inbox, epoch, HostEvent::PhysicalInput, at);
+        })?;
         Ok(Self {
             epoch,
             inbox,
             child: Rc::new(RefCell::new(Some(web))),
             placement: Rc::new(RefCell::new(None)),
+            input: Rc::new(RefCell::new(input)),
             neutralizing,
         })
     }
@@ -247,6 +257,7 @@ impl EmbeddedHost {
     pub fn place(
         child: &ChildSlot,
         placement: &Rc<RefCell<Option<GameRect>>>,
+        layout: &Cell<u64>,
         bounds: Bounds<Pixels>,
     ) -> bool {
         let rect = game_rect(
@@ -258,6 +269,7 @@ impl EmbeddedHost {
         if *placement.borrow() == rect {
             return true;
         }
+        layout.set(layout.get().saturating_add(1));
         let borrowed = child.borrow();
         let Some(web) = borrowed.as_ref() else {
             return true;
