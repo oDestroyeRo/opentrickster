@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenTrickster UI prototype</title>
+<!--
+  PROTOTYPE for issue #9. Throwaway, never ship. One app, three layout variants
+  (?variant=A|B|C), both operating modes, every session state. All game values
+  are sample data, not target-server evidence.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+:root[data-theme="dark"]{--desk:#07080A;--desk-glow:#18232B;--shadow:0 0 0 1px rgba(0,0,0,.6),0 26px 70px rgba(0,0,0,.55)}
+:root[data-theme="light"]{--desk:#B9C0C9;--desk-glow:#DDE3EA;--shadow:0 0 0 1px rgba(0,0,0,.16),0 26px 60px rgba(30,40,55,.30)}
+body{font-family:var(--font-ui);font-size:var(--fs-body);line-height:var(--lh-body);color:var(--text-primary);background:var(--desk);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,select{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:default}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:14px;height:14px}
+.ic.lg{width:20px;height:20px}
+.spin{animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--font-mono);font-size:12px}
+.muted{color:var(--text-muted)}
+.secondary{color:var(--text-secondary)}
+
+.desk{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:22px 22px 86px;background:radial-gradient(1100px 680px at 28% 18%,var(--desk-glow),transparent 70%),var(--desk)}
+.bare .desk{padding:14px}
+.window{position:relative;container:window/inline-size;width:min(1560px,100%);height:min(960px,100%);display:flex;flex-direction:column;border-radius:var(--radius-window);overflow:hidden;background:var(--surface-base);box-shadow:var(--shadow)}
+
+.tone-neutral{--tone:var(--status-neutral);--tone-subtle:var(--status-neutral-subtle)}
+.tone-accent{--tone:var(--accent-default);--tone-subtle:var(--accent-subtle)}
+.tone-good{--tone:var(--status-good);--tone-subtle:var(--status-good-subtle)}
+.tone-warning{--tone:var(--status-warning);--tone-subtle:var(--status-warning-subtle)}
+.tone-serious{--tone:var(--status-serious);--tone-subtle:var(--status-serious-subtle)}
+.tone-critical{--tone:var(--status-critical);--tone-subtle:var(--status-critical-subtle)}
+
+.toolbar{height:var(--size-toolbar);flex:none;display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--surface-panel);border-bottom:1px solid var(--line-subtle)}
+.traffic{display:flex;gap:8px;margin-right:6px}
+.traffic i{width:12px;height:12px;border-radius:50%;display:block}
+.traffic i:nth-child(1){background:#FF5F57}.traffic i:nth-child(2){background:#FEBC2E}.traffic i:nth-child(3){background:#28C840}
+.app-title{font-weight:var(--weight-semibold);font-size:var(--fs-title);line-height:var(--lh-title);white-space:nowrap}
+.spacer{flex:1}
+.tb-group{display:flex;align-items:center;gap:8px}
+.tb-sep{width:1px;height:22px;background:var(--line-subtle)}
+
+.btn{height:var(--size-control);padding:0 12px;border-radius:var(--radius-control);border:1px solid var(--line-control);background:var(--surface-raised);display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:var(--weight-medium);white-space:nowrap}
+.btn:hover:not(:disabled){background:var(--surface-hover)}
+.btn:disabled{opacity:.42}
+.btn.primary{background:var(--accent-default);border-color:transparent;color:var(--text-on-accent)}
+.btn.primary:hover:not(:disabled){background:var(--accent-hover)}
+.btn.primary:disabled{background:var(--surface-raised);border-color:var(--line-subtle);color:var(--text-muted);opacity:1}
+.btn.proto{border-style:dashed;background:transparent;color:var(--text-secondary)}
+.btn.sm{height:var(--size-control-small);padding:0 9px;font-size:var(--fs-small);border-radius:6px}
+.btn.icon-only{width:var(--size-control);padding:0}
+.btn .kbd{font-weight:var(--weight-regular);font-size:var(--fs-caption);opacity:.7}
+.btn.stop .ic{color:var(--status-critical)}
+.btn.primary .ic{color:inherit}
+:focus-visible{outline:var(--size-focus-ring) solid var(--accent-default);outline-offset:2px}
+.link{background:none;border:0;padding:0;color:var(--accent-default);font-weight:var(--weight-medium)}
+
+.seg{display:inline-flex;padding:2px;gap:2px;border-radius:8px;background:var(--surface-base);border:1px solid var(--line-subtle)}
+.seg button{height:24px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--text-secondary);display:inline-flex;align-items:center;gap:6px;font-weight:var(--weight-medium);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface-selected);color:var(--text-primary);box-shadow:inset 0 0 0 1px var(--line-control)}
+.seg button:disabled{opacity:.45}
+.seg.sm button{height:20px;padding:0 8px;font-size:var(--fs-small)}
+.seg.full{display:flex}.seg.full button{flex:1;justify-content:center}
+
+.pill{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px 0 9px;border-radius:var(--radius-pill);background:var(--tone-subtle);font-weight:var(--weight-semibold);white-space:nowrap;max-width:100%}
+.pill .ic{color:var(--tone)}
+.pill .detail{font-weight:var(--weight-regular);color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.toolbar .pill{min-width:0}
+.pill.big{height:34px;font-size:var(--fs-title);line-height:var(--lh-title);padding:0 14px 0 11px}
+
+.pulse{height:var(--size-pulse);flex:none;position:relative;overflow:hidden;background:var(--line-subtle)}
+.pulse.live{background:color-mix(in srgb,var(--tone) 32%,transparent)}
+.pulse.live .beat{position:absolute;top:0;bottom:0;width:22%;left:-22%;background:linear-gradient(90deg,transparent,var(--tone),transparent);animation:beat var(--motion-pulse) var(--motion-easing) forwards}
+@keyframes beat{to{left:100%}}
+.pulse.hatch{background:repeating-linear-gradient(135deg,var(--tone) 0 6px,transparent 6px 11px)}
+.pulse.march{background:repeating-linear-gradient(90deg,var(--tone) 0 12px,transparent 12px 20px);background-size:20px 100%;animation:march 700ms linear infinite}
+@keyframes march{to{background-position:20px 0}}
+.pulse.solid{background:var(--tone)}
+.pulse.sweep::after{content:"";position:absolute;top:0;bottom:0;width:30%;background:var(--tone);animation:sweep 1.3s var(--motion-easing) infinite}
+@keyframes sweep{from{left:-30%}to{left:100%}}
+
+.body{flex:1;min-height:0;display:flex}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.main.fit{container-type:size}
+.main.fit>.stage{flex:none;height:min(calc(100cqw * 9 / 16 + 6px),calc(100cqh - 150px))}
+.main.fit>.strip{flex:1;height:auto;min-height:150px}
+
+.stage{position:relative;flex:1;min-height:0;container-type:size;display:grid;place-items:center;background:var(--surface-letterbox);padding:3px}
+.stage.kbd-game{box-shadow:inset 0 0 0 2px var(--accent-default)}
+.game{position:relative;width:min(100cqw - 6px,(100cqh - 6px) * 16 / 9);aspect-ratio:16/9;overflow:hidden;border-radius:2px}
+.scene{position:absolute;inset:0;background:
+  radial-gradient(60% 50% at 70% 30%,rgba(255,236,190,.18),transparent 70%),
+  linear-gradient(180deg,#3E6E8E 0%,#5B8FA8 34%,#C9B37F 35%,#D7C08C 70%,#C4A86F 100%)}
+.scene::before{content:"";position:absolute;inset:35% 0 0 0;background-image:linear-gradient(rgba(60,40,10,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(60,40,10,.12) 1px,transparent 1px);background-size:44px 22px;transform:perspective(500px) rotateX(38deg);transform-origin:top}
+.scene .mk{position:absolute;transform:translate(-50%,-50%);border-radius:50%}
+.scene .me{width:22px;height:22px;background:#F7F3E8;box-shadow:0 0 0 3px rgba(20,30,40,.55)}
+.scene .foe{width:18px;height:18px;background:#7A3B2E;box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+.scene .foe.t{box-shadow:0 0 0 2px #fff,0 0 0 6px rgba(255,255,255,.25)}
+.scene .spot{width:34px;height:20px;border-radius:50%;border:2px dashed rgba(70,40,10,.75);background:rgba(90,60,20,.18)}
+.game-tag{position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;background:rgba(10,12,14,.62);color:#E9EDF1;font-size:11px;line-height:16px}
+.game-splash{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(160deg,#1E2A36,#0E141A);color:#DCE4EC;text-align:center}
+.game-splash .bar{width:260px;height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;margin:14px auto 8px}
+.game-splash .bar i{display:block;height:100%;background:#E9EDF1}
+.game-splash .ttl{font-size:22px;font-weight:600;letter-spacing:.01em}
+.login-card{width:300px;padding:18px;border-radius:12px;background:rgba(255,255,255,.08);text-align:left}
+.login-card .fake{height:30px;border-radius:6px;background:rgba(255,255,255,.12);margin:8px 0}
+.gpui-panel{position:absolute;inset:0;display:grid;place-items:center;background:var(--surface-panel);text-align:center;padding:24px}
+.gpui-panel .inner{max-width:420px}
+.gpui-panel h3{margin:10px 0 6px;font-size:var(--fs-heading);line-height:var(--lh-heading);font-weight:600}
+.gpui-panel p{margin:0 0 14px;color:var(--text-secondary)}
+
+.rail{width:var(--size-rail);flex:none;display:flex;flex-direction:column;min-height:0;background:var(--surface-panel);border-left:1px solid var(--line-subtle)}
+.rail-head{padding:14px 16px 12px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid var(--line-subtle)}
+.controls{display:flex;gap:8px}
+.controls .btn{flex:1}
+.why-blocked{font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary);display:flex;gap:6px;align-items:flex-start}
+.why-blocked .ic{color:var(--status-warning);margin-top:1px}
+.tabs{display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--line-subtle);flex:none}
+.tablist{display:flex;gap:4px}
+.tabs-aside{margin-left:auto;padding-right:4px}
+.status-line{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary)}
+.tab{height:36px;padding:0 8px;border:0;background:none;color:var(--text-secondary);border-bottom:2px solid transparent;display:inline-flex;align-items:center;gap:6px;font-weight:var(--weight-medium)}
+.tab[aria-selected="true"]{color:var(--text-primary);border-bottom-color:var(--accent-default)}
+.tab .kbd{font-size:var(--fs-caption);color:var(--text-muted);font-weight:400}
+.scroll{flex:1;min-height:0;overflow:auto}
+.section{padding:14px 16px;border-bottom:1px solid var(--line-subtle)}
+.section:last-child{border-bottom:0}
+.sec-title{font-size:var(--fs-small);line-height:var(--lh-small);font-weight:var(--weight-semibold);color:var(--text-secondary);margin:0 0 10px;display:flex;align-items:center;gap:6px}
+.sec-title .aside{margin-left:auto;font-weight:400;color:var(--text-muted)}
+.foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;border-top:1px solid var(--line-subtle);font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary);white-space:nowrap;overflow:hidden}
+.foot .ic{color:var(--text-muted)}
+.build-bad{display:inline-flex;align-items:center;gap:5px;color:var(--text-primary)}
+.build-bad .ic{color:var(--tone)}
+
+.banner{display:flex;gap:10px;padding:12px 14px;margin:12px 16px 0;border-radius:var(--radius-panel);background:var(--tone-subtle);box-shadow:inset 3px 0 0 var(--tone)}
+.banner>.ic{color:var(--tone);margin-top:2px}
+.banner b{display:block;font-weight:var(--weight-semibold)}
+.banner p{margin:2px 0 0;color:var(--text-secondary);font-size:var(--fs-small);line-height:var(--lh-small)}
+.banner-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.banner.flush{margin:0;border-radius:0}
+
+.meter{display:flex;flex-direction:column;gap:5px}
+.meter+.meter{margin-top:11px}
+.meter-head{display:flex;align-items:baseline;gap:8px;font-size:var(--fs-small);line-height:var(--lh-small)}
+.meter-head .label{font-weight:var(--weight-semibold)}
+.meter-head .state{display:inline-flex;align-items:center;gap:4px;color:var(--text-secondary)}
+.meter-head .state .ic{color:var(--tone)}
+.meter-head .value{margin-left:auto;font-variant-numeric:tabular-nums}
+.meter-head .value .max{color:var(--text-muted)}
+.track{position:relative;height:6px;border-radius:var(--radius-meter);background:var(--meter-track)}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:var(--radius-meter);background:var(--meter-fill);transition:width var(--motion-base) var(--motion-easing)}
+.meter.tone-warning .track,.meter.tone-critical .track,.meter.tone-accent .track{background:var(--tone-subtle)}
+.meter.tone-warning .fill,.meter.tone-critical .fill,.meter.tone-accent .fill{background:var(--tone)}
+.track .tick{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:var(--meter-tick);opacity:.75}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+.tile .t-label{font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary)}
+.tile .t-value{font-size:var(--fs-heading);line-height:var(--lh-heading);font-weight:var(--weight-semibold)}
+.tile .t-value small{font-size:var(--fs-small);font-weight:400;color:var(--text-muted);margin-left:2px}
+.caption{font-size:var(--fs-caption);line-height:var(--lh-caption);color:var(--text-muted);margin-top:12px;display:flex;gap:5px;align-items:center}
+
+.counts{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:var(--fs-small);line-height:var(--lh-small)}
+.counts span{display:inline-flex;align-items:center;gap:5px;color:var(--text-secondary);white-space:nowrap}
+.counts b{color:var(--text-primary);font-weight:600;font-variant-numeric:tabular-nums}
+
+.act-line{display:flex;align-items:center;gap:8px;font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary)}
+.act-title{display:flex;align-items:baseline;gap:8px;margin:2px 0 10px}
+.act-title b{font-size:var(--fs-heading);line-height:var(--lh-heading);font-weight:600}
+.act-title span{color:var(--text-secondary)}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:4px 0 12px}
+.step{display:flex;flex-direction:column;gap:5px;font-size:var(--fs-caption);line-height:var(--lh-caption);color:var(--text-muted)}
+.step i{display:block;height:4px;border-radius:2px;background:var(--meter-track)}
+.step.done i{background:var(--meter-fill)}
+.step.now{color:var(--text-primary);font-weight:600}
+.step.now i{background:var(--accent-default)}
+
+.checks{display:flex;flex-direction:column;gap:9px}
+.check{display:grid;grid-template-columns:16px 1fr;gap:8px;font-size:var(--fs-small);line-height:var(--lh-small)}
+.check .ic{margin-top:1px}
+.check.ok .ic{color:var(--status-good)}
+.check.block .ic{color:var(--status-critical)}
+.check.unknown .ic{color:var(--text-muted)}
+.check b{font-weight:600}
+.check span{color:var(--text-secondary)}
+
+.log{display:flex;flex-direction:column}
+.log-row{display:grid;grid-template-columns:60px 16px minmax(0,1fr);gap:8px;align-items:start;height:var(--size-log-row);padding:3px 16px;font-size:var(--fs-small);line-height:var(--lh-small)}
+.log-row time{color:var(--text-muted);font-variant-numeric:tabular-nums}
+.log-row>span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-row .ic{margin-top:2px}
+.log-row.sent{color:var(--text-secondary)}
+.log-row.sent .ic{color:var(--text-muted)}
+.log-row.ok .ic{color:var(--status-good)}
+.log-row.warn .ic{color:var(--status-warning)}
+.log-row.error .ic{color:var(--status-critical)}
+.log-row.info .ic{color:var(--accent-default)}
+.log-row:hover{background:var(--surface-hover)}
+.log-tools{display:flex;align-items:center;gap:8px;padding:10px 16px 8px}
+
+.strip{height:150px;flex:none;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);background:var(--surface-panel);border-top:1px solid var(--line-subtle)}
+.strip>div{padding:12px 16px;min-width:0;overflow:hidden}
+.strip>div+div{border-left:1px solid var(--line-subtle);padding:12px 0 0}
+
+.lanes{position:relative;display:grid;grid-template-columns:72px 1fr;row-gap:2px;font-size:var(--fs-caption);line-height:var(--lh-caption)}
+.lanes .lane-label{color:var(--text-secondary);height:22px;display:flex;align-items:center}
+.lane{position:relative;height:22px;border-bottom:1px solid var(--line-subtle)}
+.lane .m{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%}
+.lane .m.sent{border:1.5px solid var(--text-muted);background:var(--surface-panel)}
+.lane .m.confirmed{background:var(--accent-default)}
+.lane .m.rejected{width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:0;background:transparent;color:var(--status-critical)}
+.lane .m.rejected::before,.lane .m.rejected::after{content:"";position:absolute;left:50%;top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:currentColor;transform:rotate(45deg)}
+.lane .m.rejected::after{transform:rotate(-45deg)}
+.lane .m:hover{transform:scale(1.5)}
+.axis{grid-column:2;display:flex;justify-content:space-between;color:var(--text-muted);padding-top:3px}
+.tip{position:absolute;z-index:5;transform:translate(-50%,-100%);margin-top:-8px;padding:6px 9px;border-radius:7px;background:var(--surface-selected);box-shadow:0 0 0 1px var(--line-control),0 6px 18px rgba(0,0,0,.3);font-size:var(--fs-small);line-height:var(--lh-small);white-space:nowrap;pointer-events:none}
+
+.board{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--line-subtle);gap:1px;overflow:auto;container:board/inline-size}
+.board>*{background:var(--surface-panel)}
+.char{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(220px,300px) minmax(220px,300px);gap:20px;align-items:center;padding:16px 20px}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface-selected);font-size:20px;font-weight:600;line-height:30px}
+.char .meter{margin-top:0}
+@container board (width < 900px){.char{grid-template-columns:auto minmax(0,1fr) minmax(0,1fr);row-gap:12px}.char>.avatar{grid-row:span 2}.char>:nth-child(2){grid-column:2 / span 2}}
+.char-name{font-size:var(--fs-display);line-height:var(--lh-display);font-weight:600}
+.char-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary);margin-top:2px}
+.char-meta span{display:inline-flex;gap:5px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:var(--radius-chip);background:var(--tone-subtle);font-size:var(--fs-small);font-weight:500;white-space:nowrap}
+.chip .ic{color:var(--tone)}
+.board-row{display:grid;gap:1px;background:var(--line-subtle)}
+.board-row>*{background:var(--surface-panel);min-width:0}
+.hero{padding:18px 20px}
+.hero .act-title b{font-size:var(--fs-display);line-height:var(--lh-display)}
+.dim{opacity:.55}
+
+.connect{flex:1;display:grid;place-items:center;background:var(--surface-panel);padding:24px;overflow:auto}
+.connect-card{width:min(440px,100%)}
+.connect-card h2{font-size:var(--fs-display);line-height:var(--lh-display);margin:0 0 6px;font-weight:600}
+.connect-card>p{color:var(--text-secondary);margin:0 0 20px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label,.field .lbl{font-size:var(--fs-small);line-height:var(--lh-small);font-weight:600;color:var(--text-secondary)}
+.input{height:var(--size-control);border-radius:var(--radius-control);border:1px solid var(--line-control);background:var(--surface-raised);padding:0 10px;min-width:0}
+select.input{padding-right:6px}
+.input.num{width:76px;text-align:right;font-variant-numeric:tabular-nums}
+.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.check-row{display:flex;align-items:center;gap:8px;font-size:var(--fs-small);line-height:var(--lh-small)}
+.check-row input{accent-color:var(--accent-default);width:14px;height:14px;margin:0}
+.flow{list-style:none;padding:0;margin:20px 0 0;display:flex;flex-direction:column;gap:10px}
+.flow li{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:start}
+.flow .n{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;background:var(--surface-selected);color:var(--text-secondary)}
+.flow li.done .n{background:var(--status-good-subtle);color:var(--status-good)}
+.flow li.now .n{background:var(--accent-default);color:var(--text-on-accent)}
+.pick{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.pick button{display:flex;justify-content:space-between;align-items:center;height:36px;padding:0 12px;border-radius:var(--radius-control);border:1px solid var(--line-control);background:var(--surface-raised);text-align:left}
+.pick button:hover{background:var(--surface-hover)}
+
+.setup{padding:4px 0 8px}
+.setup.cols{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:0}
+.setup.cols .section{border-bottom:0;border-right:1px solid var(--line-subtle)}
+.setup .section .field:last-child{margin-bottom:0}
+.lockbar{display:flex;gap:8px;align-items:center;margin:12px 16px 0;padding:8px 12px;border-radius:var(--radius-control);background:var(--surface-raised);font-size:var(--fs-small);line-height:var(--lh-small);color:var(--text-secondary)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.tag{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 4px 0 9px;border-radius:var(--radius-chip);background:var(--surface-selected);font-size:var(--fs-small)}
+.tag button{border:0;background:none;width:18px;height:18px;display:grid;place-items:center;border-radius:4px;color:var(--text-secondary)}
+.tag button:hover{background:var(--surface-hover)}
+.hint{font-size:var(--fs-caption);line-height:var(--lh-caption);color:var(--text-muted)}
+.slot{display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:center;height:30px;padding:0 8px;border-radius:6px;background:var(--surface-raised);border:1px solid var(--line-subtle);font-size:var(--fs-small)}
+.slot+.slot{margin-top:6px}
+.slot .key{font-weight:600;color:var(--text-secondary)}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+fieldset:disabled{opacity:.55}
+
+.dock{height:var(--size-dock);flex:none;display:flex;flex-direction:column;background:var(--surface-panel);border-top:1px solid var(--line-subtle);min-height:0}
+.dock .tabs{padding:0 12px}
+.dock-cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,.95fr) minmax(0,1.5fr);gap:1px;background:var(--line-subtle)}
+.dock-cols>*{background:var(--surface-panel);overflow:auto;min-width:0}
+.dock-cols.no-log{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,.95fr)}
+.dock .seg.full{max-width:420px}
+.dock-cols .section{border-bottom:0}
+.dock .banner{margin:10px 12px 0}
+.dock-body{flex:1;min-height:0;display:flex;flex-direction:column}
+
+.hud{gap:10px}
+.minis{display:flex;align-items:center;gap:10px;flex:none}
+@container window (width < 1232px){.minis{display:none}}
+.mini{display:flex;flex-direction:column;gap:3px;width:92px;flex:none}
+.mini .mh{display:flex;justify-content:space-between;font-size:var(--fs-caption);line-height:var(--lh-caption);color:var(--text-secondary)}
+.mini .mh b{color:var(--text-primary);font-weight:600}
+.mini .track{height:4px}
+.act-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:var(--radius-control);background:var(--surface-raised);border:1px solid var(--line-subtle);font-size:var(--fs-small);white-space:nowrap;max-width:260px;overflow:hidden}
+.act-chip b{font-weight:600}
+.drawer{width:var(--size-drawer);flex:none;display:flex;flex-direction:column;min-height:0;background:var(--surface-panel);border-left:1px solid var(--line-subtle)}
+.ticker{height:34px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;background:var(--surface-panel);border-top:1px solid var(--line-subtle);font-size:var(--fs-small);white-space:nowrap;overflow:hidden}
+.ticker .ic{color:var(--tone)}
+.ticker .msg{overflow:hidden;text-overflow:ellipsis;color:var(--text-secondary)}
+.ticker b{color:var(--text-primary);font-weight:600}
+
+.kbd-badge{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:var(--radius-control);border:1px solid var(--line-subtle);background:transparent;color:var(--text-secondary);font-size:var(--fs-small);white-space:nowrap}
+.kbd-badge b{color:var(--text-primary);font-weight:600}
+.kbd-badge.game{border-color:var(--accent-default);background:var(--accent-subtle)}
+.kbd-badge.game .ic{color:var(--accent-default)}
+
+.sheet-veil{position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:20}
+.sheet{position:absolute;z-index:21;top:var(--size-toolbar);left:50%;transform:translateX(-50%);width:420px;padding:20px;border-radius:0 0 12px 12px;background:var(--surface-raised);box-shadow:0 0 0 1px var(--line-control),0 18px 50px rgba(0,0,0,.45);animation:drop 220ms var(--motion-easing)}
+@keyframes drop{from{transform:translate(-50%,-14px);opacity:0}}
+.sheet h3{margin:12px 0 6px;font-size:var(--fs-title);line-height:var(--lh-title)}
+.sheet p{margin:0 0 16px;color:var(--text-secondary);font-size:var(--fs-small);line-height:var(--lh-small)}
+.sheet .row{display:flex;justify-content:flex-end;gap:8px}
+.app-icon{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(160deg,var(--accent-default),#0A5551);color:#fff}
+.app-icon .ic{width:26px;height:26px}
+
+.note{display:flex;gap:6px;align-items:flex-start;padding:6px 9px;border:1px dashed var(--accent-default);border-radius:7px;background:color-mix(in srgb,var(--surface-panel) 88%,var(--accent-default));color:var(--text-primary);font-size:var(--fs-caption);line-height:var(--lh-caption);max-width:360px}
+.note .ic{color:var(--accent-default);margin-top:1px}
+.note.float{position:absolute;z-index:6}
+.note-wrap{margin:8px 16px 0}
+
+.pbar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:6px;padding:6px;border-radius:14px;background:#F4F6F8;color:#14171A;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 12px 32px rgba(0,0,0,.45);font-size:12px;line-height:16px;font-family:-apple-system,system-ui,sans-serif;max-width:calc(100vw - 24px)}
+.pbar button,.pbar select{height:28px;border-radius:8px;border:0;background:transparent;padding:0 9px;display:inline-flex;align-items:center;gap:5px;color:#14171A;font-family:inherit;font-size:12px}
+.pbar button:hover{background:#E1E5EA}
+.pbar button[aria-pressed="true"]{background:#14171A;color:#fff}
+.pbar .ic{width:15px;height:15px}
+.pbar .v{min-width:150px;justify-content:center;font-weight:600}
+.pbar .sep{width:1px;height:20px;background:#C9CED6}
+.pbar .tagp{padding:0 8px;color:#5A616B}
+.pbar select{background:#E7EAEE}
+.pbar .stepcap{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#3A4048}
+.simmenu{position:fixed;z-index:51;bottom:66px;left:50%;transform:translateX(-50%);width:min(860px,calc(100vw - 24px));max-height:min(520px,calc(100vh - 100px));overflow:auto;padding:12px;border-radius:14px;background:#F4F6F8;color:#14171A;box-shadow:0 0 0 1px rgba(0,0,0,.25),0 16px 40px rgba(0,0,0,.5);font-family:-apple-system,system-ui,sans-serif;font-size:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.simmenu h4{margin:0 0 6px;font-size:11px;color:#5A616B;font-weight:600}
+.simmenu button{display:block;width:100%;text-align:left;height:26px;border:0;border-radius:6px;background:transparent;padding:0 8px;color:#14171A;font-family:inherit;font-size:12px}
+.simmenu button:hover:not(:disabled){background:#E1E5EA}
+.simmenu button:disabled{color:#9AA1AA}
+.flash{display:flex;align-items:center;gap:6px;margin-top:10px;padding:6px 10px;border-radius:var(--radius-control);background:var(--surface-raised);border:1px solid var(--line-control);color:var(--text-primary);font-size:var(--fs-small);line-height:var(--lh-small)}
+.flash .ic{color:var(--text-secondary);flex:none}
+.tabs-aside .flash{margin:0;padding:2px 10px}
+.ticker .flash{margin:0;padding:0;border:0;background:none;min-width:0}
+
+@media (prefers-reduced-motion:reduce){
+  .spin,.pulse.march,.pulse.sweep::after{animation:none}
+  .pulse.live .beat{animation:blink var(--motion-pulse) linear forwards;left:0;width:100%}
+  @keyframes blink{from{opacity:1}to{opacity:0}}
+  .sheet{animation:none}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/preact@10.24.3/dist/preact.umd.js"></script>
+<script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+<script>
+const { h, render } = preact;
+const html = htm.bind(h);
+
+/* ---------- small helpers ---------- */
+const P = new URLSearchParams(location.search);
+const SYSTEM_DARK = matchMedia('(prefers-color-scheme: dark)');
+const FREEZE = P.get('freeze') === '1';
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : fmt(n));
+const pct = (a, b) => (b ? Math.max(0, Math.min(100, (a / b) * 100)) : 0);
+const pad2 = (n) => String(n).padStart(2, '0');
+const duration = (sec) => { const s = Math.floor(sec); return `${Math.floor(s / 3600)}:${pad2(Math.floor((s % 3600) / 60))}:${pad2(s % 60)}`; };
+const T0 = FREEZE ? Date.parse('2026-11-08T20:44:00') : Date.now() - 1000 * 1000;
+const clockAt = (vt) => { const d = new Date(T0 + vt * 1000); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+let rng = seeded(7);
+
+const ICON = {
+  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
+  pause: '<rect x="6.5" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
+  spinner: '<path d="M12 3a9 9 0 1 0 9 9"/>',
+  dot: '<circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none"/>',
+  octagon: '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M12 7.5v5.5M12 16.5v.01"/>',
+  warn: '<path d="M12 3.5 2.8 19.5h18.4z"/><path d="M12 9.5v4.5M12 17v.01"/>',
+  unplug: '<path d="M3.5 3.5l17 17"/><path d="M9 3.5v4M15 3.5v4M7 8h10v3.5a5 5 0 0 1-1.1 3.2M8.2 14.9A5 5 0 0 1 7 11.5V8M12 16.5V21"/>',
+  reconnect: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+  sent: '<path d="M4 12h14M13 6.5l5.5 5.5-5.5 5.5"/>',
+  combat: '<path d="M19.5 4.5 9 15M14.5 4.5h5v5M5 13.5l5.5 5.5M3.5 20.5l3-3"/>',
+  dig: '<path d="M12 3v4.5M7.5 7.5h9l-2.2 5.5H9.7z"/><path d="M10 13l2 8 2-8"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c.6-4 4-6 8-6s7.4 2 8 6"/>',
+  client: '<rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/>',
+  clientless: '<path d="M7.5 18.5a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18.4 9.3a4.6 4.6 0 0 1-.9 9.2z"/>',
+  keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/>',
+  sidebar: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M15 4.5v15"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/>',
+  list: '<path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
+  gauge: '<path d="M4 18a8.5 8.5 0 1 1 16 0"/><path d="M12 15l4-4.5"/>',
+  bag: '<path d="M5.5 8.5h13l-1 11.5h-11z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>',
+  flask: '<path d="M9.5 3.5h5M10.5 3.5v5l-5 8.5a2 2 0 0 0 1.7 3h9.6a2 2 0 0 0 1.7-3l-5-8.5v-5"/><path d="M7.5 14.5h9"/>',
+  coin: '<circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.5a3 3 0 1 0 0 5h-2v-2"/>',
+  pin: '<path d="M12 21s6.5-5.6 6.5-11a6.5 6.5 0 0 0-13 0c0 5.4 6.5 11 6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/>',
+  left: '<path d="M14.5 6l-6 6 6 6"/>',
+  right: '<path d="M9.5 6l6 6-6 6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  note: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.5M12 16.8v.01"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  bolt: '<path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/>',
+};
+const Ic = ({ n, c = '' }) => html`<svg class=${'ic ' + c + (n === 'spinner' ? ' spin' : '')} viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML=${{ __html: ICON[n] }}></svg>`;
+
+/* ---------- sample world (all values are sample data) ---------- */
+const SUPPORTED_BUILD = 'f5e972fa';
+const NEW_BUILD = '7c21e0b4';
+const CHARACTER = { name: 'ข้าวเหนียว', account: 'sample-account' };
+const PLACES = { combat: { map: 'Desert Beach Field 3', x: 132, y: 88 }, digging: { map: 'Coral Beach Field 1', x: 61, y: 140 } };
+const MAPS = ['Coral Beach Field 1', 'Coral Beach Field 2', 'Coral Beach Field 3', 'Desert Beach Field 1', 'Desert Beach Field 2', 'Desert Beach Field 3', 'Desert Beach Field 4'];
+const DIG_STEPS = ['Pick spot', 'Move', 'Detect', 'Dig', 'Collect'];
+const CONNECT_STEPS = ['Signing in', 'Choose a world', 'Choose a character', 'Entering the world'];
+const VARIANTS = { A: 'Side rail', B: 'Bottom dock', C: 'Focus HUD' };
+
+function defaultConfig() {
+  return {
+    combat: { map: 'Desert Beach Field 3', boundary: 'radius', radius: 12, targetMode: 'only', targets: ['Sand Demon'], skipEngaged: true, rotation: [{ slot: 'F1', skill: 'Power Shot', mp: 18 }, { slot: 'F2', skill: 'Basic attack', mp: 0 }], hpAt: 45, mpAt: 30, loot: 'only', lootList: ['Legendary Recipe', 'HP Potion', 'Galder'], goalOn: true, goalItem: 'Legendary Recipe', goalQty: 1, weightAt: 85, noDropKills: 30, timeLimit: 0 },
+    digging: { map: 'Coral Beach Field 1', spotMode: 'bot', radius: 10, durabilityAt: 50, onAttacked: 'pause', goalOn: true, goalItem: 'Tanning Oil', goalQty: 2, weightAt: 85, timeLimit: 0 },
+    alerts: { attention: true, disconnect: true, goal: true, dock: true },
+  };
+}
+function defaultWorld(activity) {
+  return {
+    level: 24, exp: 63.2, tm: 12, tmExp: 41.7, galder: 18420,
+    hp: 812, hpMax: 1040, mp: 211, mpMax: 480, weight: 412, weightMax: 640,
+    potions: { hp: 37, mp: 12 },
+    drill: { name: 'Basic Drill', depth: 20, dur: 412, durMax: 600 },
+    place: { ...PLACES[activity] },
+    target: { name: 'Sand Demon', hp: 62, inRange: 3 },
+    combatStep: 'attack',
+    dig: { step: 3, depth: 9, spot: { x: 66, y: 133 } },
+    freshMs: 210, stale: false,
+  };
+}
+function newRun(activity) {
+  return { activity, elapsed: 0, kills: 0, finds: 0, empties: 0, exp: 0, tm: 0, galder: 0, items: {}, sent: 0, acked: 0, confirmed: 0, rejected: 0, noDrop: 0 };
+}
+
+/* ========== Session model: pure, liftable into the #8 contract work ========== */
+const RUN_PHASES = new Set(['starting', 'running', 'pausing', 'paused', 'stopping']);
+function initialSession(mode, activity) {
+  return { mode, activity, phase: mode === 'client' ? 'client-absent' : 'offline', progress: 0, connectStep: 0, attempt: 0, maxAttempts: 5, reason: null, halt: null, run: null, lastRun: null, authError: false };
+}
+const haltWith = (code) => (s, e = {}) => ({ ...s, phase: 'error', halt: { code, why: e.why }, lastRun: s.run || s.lastRun, run: null, reason: null });
+const pauseFor = (code) => (s) => ({ ...s, phase: 'pausing', reason: { code } });
+const loseLink = (s) => ({ ...s, phase: 'reconnecting', attempt: 1 });
+const switchMode = (s) => ({ ...initialSession(s.mode === 'client' ? 'clientless' : 'client', s.activity), lastRun: s.run || s.lastRun });
+const setActivity = (s, e) => ({ ...s, activity: e.activity });
+const stopNow = (s) => ({ ...s, phase: 'stopping' });
+const endRun = (s) => ({ ...s, lastRun: s.run || s.lastRun, run: null, reason: null });
+const T = {
+  'client-absent': { LoadGame: (s) => ({ ...s, phase: 'client-loading', progress: 0 }), SwitchMode: switchMode, SetActivity: setActivity },
+  'client-loading': { GameProgress: (s, e) => ({ ...s, progress: e.p }), GameLoaded: (s) => ({ ...s, phase: 'awaiting-login' }), GameFailed: haltWith('client-failed'), SwitchMode: switchMode },
+  'awaiting-login': { CharacterSeen: (s) => ({ ...s, phase: 'ready' }), GameFailed: haltWith('client-failed'), BuildChanged: haltWith('build-changed'), SwitchMode: switchMode, SetActivity: setActivity },
+  offline: { Connect: (s) => ({ ...s, phase: 'connecting', connectStep: 0, authError: false }), SwitchMode: switchMode, SetActivity: setActivity },
+  connecting: { ConnectStep: (s) => (s.connectStep >= 3 ? { ...s, phase: 'ready' } : { ...s, connectStep: s.connectStep + 1 }), AuthFailed: (s) => ({ ...s, phase: 'offline', authError: true }), Cancel: (s) => ({ ...s, phase: 'offline' }) },
+  ready: { Start: (s) => ({ ...s, phase: 'starting', run: newRun(s.activity), lastRun: null }), SetActivity: setActivity, SwitchMode: switchMode, Lost: loseLink, BuildChanged: haltWith('build-changed'), Replaced: haltWith('session-replaced'), GameFailed: haltWith('client-failed'), MapForbidden: haltWith('map-forbidden') },
+  starting: { Started: (s) => ({ ...s, phase: 'running' }), Stop: stopNow, Lost: loseLink, BuildChanged: haltWith('build-changed'), GameFailed: haltWith('client-failed') },
+  running: {
+    Pause: pauseFor('user'), Stop: stopNow, Limit: (s, e) => pauseFor(e.kind)(s), Goal: pauseFor('goal'), Fainted: pauseFor('fainted'), NoDrops: pauseFor('no-drops'), Stale: pauseFor('uncertain'),
+    Lost: loseLink, BuildChanged: haltWith('build-changed'), Replaced: haltWith('session-replaced'), GameFailed: haltWith('client-failed'), Rejected: haltWith('actions-rejected'), MapForbidden: haltWith('map-forbidden'),
+  },
+  pausing: { Settled: (s) => ({ ...s, phase: 'paused' }), Stop: stopNow, Lost: loseLink, BuildChanged: haltWith('build-changed'), GameFailed: haltWith('client-failed'), Replaced: haltWith('session-replaced') },
+  paused: { Resume: (s) => ({ ...s, phase: 'running', reason: null }), Stop: stopNow, Lost: loseLink, BuildChanged: haltWith('build-changed'), GameFailed: haltWith('client-failed'), Replaced: haltWith('session-replaced') },
+  stopping: { Settled: (s) => ({ ...s, phase: 'ready', reason: null, lastRun: s.run, run: null }), Lost: loseLink, GameFailed: haltWith('client-failed'), BuildChanged: haltWith('build-changed') },
+  reconnecting: {
+    RetryFailed: (s) => (s.attempt >= s.maxAttempts ? { ...s, phase: 'disconnected' } : { ...s, attempt: s.attempt + 1 }),
+    ResumeOk: (s) => (s.run ? { ...s, phase: 'paused', reason: { code: 'reconnected', attempts: s.attempt } } : { ...s, phase: 'ready' }),
+    EndRun: endRun, Replaced: haltWith('session-replaced'),
+  },
+  disconnected: { Reconnect: (s) => ({ ...s, phase: 'reconnecting', attempt: 1 }), EndRun: endRun, SwitchMode: switchMode },
+  error: {
+    ReloadGame: (s) => ({ ...s, phase: 'client-loading', progress: 0, halt: null }),
+    Reconnect: (s) => ({ ...s, phase: 'connecting', connectStep: 0, halt: null }),
+    Dismiss: (s) => ({ ...s, phase: 'ready', halt: null }),
+    LogInAgain: (s) => ({ ...s, phase: 'awaiting-login', halt: null }),
+    SwitchMode: switchMode,
+  },
+};
+function canSession(s, type) {
+  if (!T[s.phase] || !T[s.phase][type]) return false;
+  if (s.phase === 'error') return HALTS[s.halt.code].actions(s.mode).some((a) => a.ev.type === type) || type === 'SwitchMode';
+  return true;
+}
+function reduceSession(s, e) { return canSession(s, e.type) ? T[s.phase][e.type](s, e) : s; }
+
+/* ---------- presentation tables ---------- */
+const REASONS = {
+  user: { tone: 'neutral', short: 'By you', title: 'Paused by you', body: () => 'The character is idle. Resume continues this run with the same counters.' },
+  'hp-potions': { tone: 'warning', short: 'Out of HP potions', title: 'Out of HP potions', body: () => 'HP potions reached 0 while HP was below your 45% potion line. Restock in the game, then resume. OpenTrickster does not buy items.' },
+  weight: { tone: 'warning', short: 'Bag weight limit', title: 'Bag weight limit reached', body: (S) => `Weight is ${Math.round(pct(S.world.weight, S.world.weightMax))}% of capacity, at or above your ${S.config[S.session.activity].weightAt}% limit. Free space in the game, then resume.` },
+  drill: { tone: 'warning', short: 'Drill durability', title: 'Drill durability at your limit', body: (S) => `${S.world.drill.name} durability is ${S.world.drill.dur}. Your limit is ${S.config.digging.durabilityAt}. Repair or replace the drill in the game, then resume.` },
+  depth: { tone: 'warning', short: 'Drill too shallow', title: 'This spot needs a deeper drill', body: () => 'The game reported that a deeper drill is needed. Equip a deeper drill or choose another area.' },
+  goal: { tone: 'good', short: 'Goal reached', title: 'Goal reached', body: (S) => { const c = S.config[S.session.activity]; return `${c.goalItem} ${c.goalQty} of ${c.goalQty} collected. Turn in the quest yourself in the game. OpenTrickster does not accept or complete quests.`; } },
+  fainted: { tone: 'warning', short: 'Character fainted', title: 'Character fainted', body: (S) => `HP reached 0 at ${S.world.place.map}. Revive in the game, then resume. OpenTrickster never revives the character.` },
+  'no-drops': { tone: 'warning', short: 'No drops', title: 'No drops for 30 kills', body: () => 'Monsters still give EXP, but nothing dropped for 30 kills. Check your loot list and the map, then resume.' },
+  uncertain: { tone: 'warning', short: 'State uncertain', title: 'No fresh game state', body: () => 'No state update for 15 seconds, so the bot stopped sending actions. Resume when the state is live again.' },
+  reconnected: { tone: 'warning', short: 'Check after reconnect', title: 'Reconnected', body: (S) => `The session resumed after ${S.session.reason.attempts || 2} attempts. Check the character before you resume. Nothing was resent automatically.` },
+};
+const HALTS = {
+  'build-changed': { live: false, short: 'Game updated', title: 'The game was updated', body: () => `The game now runs build ${NEW_BUILD}. This version of OpenTrickster supports build ${SUPPORTED_BUILD} only, so automation stays off.`, actions: (m) => [m === 'client' ? { label: 'Reload game', ev: { type: 'ReloadGame' } } : { label: 'Reconnect', ev: { type: 'Reconnect' } }] },
+  'client-failed': { live: false, short: 'Game client stopped', title: 'The game client stopped', body: (S) => CLIENT_FAILURES[S.session.halt.why || 'webkit'].body, actions: () => [{ label: 'Reload game', ev: { type: 'ReloadGame' }, primary: true }] },
+  'session-replaced': { live: false, short: 'Signed in elsewhere', title: 'Signed in elsewhere', body: () => 'The account signed in from another place, so this session ended. The run stopped.', actions: (m) => [m === 'client' ? { label: 'Log in again', ev: { type: 'LogInAgain' } } : { label: 'Reconnect', ev: { type: 'Reconnect' } }] },
+  'actions-rejected': { live: true, short: 'Actions rejected', title: 'The game rejected 3 actions in a row', body: () => 'Power Shot on Sand Demon was rejected 3 times. The run stopped instead of repeating a failing action.', actions: () => [{ label: 'Dismiss', ev: { type: 'Dismiss' } }] },
+  'map-forbidden': { live: true, short: 'Map blocks automation', title: 'Automation is not allowed on this map', body: (S) => `${S.world.place.map} does not allow automation. Move the character to another map, then start again.`, actions: () => [{ label: 'Dismiss', ev: { type: 'Dismiss' } }] },
+};
+const CLIENT_FAILURES = {
+  network: { label: 'Network', body: 'tr-play.playall.in.th did not respond. Check the connection, then reload the game.' },
+  navigation: { label: 'Page load', body: 'The game page returned HTTP 503. Reload the game when the service is back.' },
+  unity: { label: 'Game start-up', body: 'The game page loaded but the game did not start. The page reported that WebGL 2 is not available in this WebKit.' },
+  webkit: { label: 'WebKit process', body: 'The WebKit content process ended, so the game closed. The run stopped. Reload the game and log in again.' },
+};
+
+function statusOf(S) {
+  const s = S.session;
+  switch (s.phase) {
+    case 'client-absent': return { tone: 'neutral', icon: 'client', label: 'Game not loaded' };
+    case 'client-loading': return { tone: 'accent', icon: 'spinner', label: 'Loading game', detail: `${Math.round(s.progress * 100)}%` };
+    case 'awaiting-login': return { tone: 'neutral', icon: 'user', label: 'Log in to the game' };
+    case 'offline': return { tone: 'neutral', icon: 'unplug', label: 'Not connected' };
+    case 'connecting': return { tone: 'accent', icon: 'spinner', label: 'Connecting', detail: CONNECT_STEPS[s.connectStep] };
+    case 'ready': return { tone: 'neutral', icon: 'dot', label: 'Ready' };
+    case 'starting': return { tone: 'good', icon: 'spinner', label: 'Starting' };
+    case 'running': return { tone: 'good', icon: 'play', label: 'Running', detail: s.activity === 'combat' ? 'Combat' : 'Digging' };
+    case 'pausing': return { tone: 'neutral', icon: 'spinner', label: 'Pausing', detail: 'Finishing this action' };
+    case 'paused': { const r = REASONS[s.reason.code]; return { tone: r.tone, icon: 'pause', label: 'Paused', detail: r.short }; }
+    case 'stopping': return { tone: 'neutral', icon: 'spinner', label: 'Stopping', detail: 'Finishing this action' };
+    case 'reconnecting': return { tone: 'serious', icon: 'reconnect', label: 'Reconnecting', detail: `Attempt ${s.attempt} of ${s.maxAttempts}` };
+    case 'disconnected': return { tone: 'serious', icon: 'unplug', label: 'Disconnected' };
+    case 'error': return { tone: 'critical', icon: 'octagon', label: HALTS[s.halt.code].short };
+  }
+}
+function pulseOf(S) {
+  const p = S.session.phase;
+  if (p === 'running' || p === 'starting') return 'live';
+  if (p === 'paused' || p === 'pausing') return 'hatch';
+  if (p === 'reconnecting') return 'march';
+  if (p === 'disconnected' || p === 'error') return 'solid';
+  if (p === 'client-loading' || p === 'connecting') return 'sweep';
+  return 'flat';
+}
+function liveState(s) { return !['reconnecting', 'disconnected'].includes(s.phase) && !(s.phase === 'error' && !HALTS[s.halt.code].live); }
+const AUTH_ERROR = { tone: 'critical', icon: 'octagon', title: 'Sign-in failed', body: 'The game service rejected the ID or password. Nothing was stored.', actions: [] };
+function bannerOf(S) {
+  const s = S.session;
+  if (s.phase === 'paused') {
+    const r = REASONS[s.reason.code];
+    const actions = [];
+    const pf = preflight(S); const blocked = pf.find((x) => x.level === 'block');
+    if (['hp-potions', 'weight', 'drill', 'fainted'].includes(s.reason.code)) actions.push({ label: 'Simulate the fix in the game', ev: { type: 'proto/fix' }, proto: true });
+    return { tone: r.tone, icon: r.tone === 'good' ? 'check' : 'pause', title: r.title, body: r.body(S), actions, blockedBy: blocked };
+  }
+  if (s.phase === 'reconnecting') return { tone: 'serious', icon: 'reconnect', title: 'Connection lost', body: `Reconnecting, attempt ${s.attempt} of ${s.maxAttempts}. The run is held, and no actions are sent until the session resumes.`, actions: [] };
+  if (s.phase === 'disconnected') return { tone: 'serious', icon: 'unplug', title: 'Disconnected', body: `${s.maxAttempts} reconnect attempts failed. ${s.run ? 'The run is held with its counters.' : ''} Check the network or the game service status.`, actions: [{ label: 'Reconnect', ev: { type: 'Reconnect' }, primary: true }] };
+  if (s.phase === 'error' && s.halt.code === 'client-failed' && s.mode === 'client') return null;
+  if (s.phase === 'error') { const hd = HALTS[s.halt.code]; return { tone: 'critical', icon: 'octagon', title: hd.title, body: hd.body(S), actions: hd.actions(s.mode).map((a, i) => ({ ...a, primary: i === 0 })) }; }
+  return null;
+}
+function preflight(S) {
+  const s = S.session, w = S.world, c = S.config[s.activity];
+  const ok = (label, detail) => ({ level: 'ok', label, detail });
+  const block = (label, detail, unlock) => ({ level: 'block', label, detail, unlock });
+  const list = [ok('Character in the world', `${CHARACTER.name} on ${w.place.map}`), ok('Supported game build', SUPPORTED_BUILD), { level: 'unknown', label: 'Map allows automation', detail: 'Cannot be checked yet' }];
+  if (s.activity === 'combat') {
+    list.push(c.targets.length ? ok('Targets', c.targets.join(', ')) : block('Targets', 'Choose at least one monster', 'a target is chosen'));
+    list.push(w.potions.hp > 0 ? ok('HP potions', `${w.potions.hp} in the bag`) : block('HP potions', 'None in the bag', 'the bag has HP potions again'));
+    if (w.hp <= 0) list.push(block('Character', 'Fainted. Revive in the game.', 'the character is revived'));
+  } else {
+    list.push(w.drill ? ok('Drill equipped', `${w.drill.name}, depth ${w.drill.depth}`) : block('Drill equipped', 'No drill equipped', 'a drill is equipped'));
+    list.push(w.drill.dur > c.durabilityAt ? ok('Drill durability', `${w.drill.dur} of ${w.drill.durMax}, limit ${c.durabilityAt}`) : block('Drill durability', `${w.drill.dur}, at or below your limit of ${c.durabilityAt}`, 'durability is above your limit'));
+  }
+  const wp = Math.round(pct(w.weight, w.weightMax));
+  list.push(wp < c.weightAt ? ok('Bag weight', `${wp}%, limit ${c.weightAt}%`) : block('Bag weight', `${wp}%, at or above your ${c.weightAt}% limit`, 'bag weight is below your limit'));
+  return list;
+}
+
+/* ---------- simulation: invents plausible sample events while running ---------- */
+function simulate(S, quiet) {
+  const s = S.session, c = S.config[s.activity];
+  const w = structuredClone(S.world), run = structuredClone(s.run);
+  let vt = S.vt + 1.5, seq = S.seq, beats = 0;
+  const logs = [], tl = [], events = [];
+  const sent = (text) => { const id = ++seq; logs.push({ t: vt, kind: 'sent', text }); tl.push({ id, t: vt, lane: 'sent', text }); run.sent++; return id; };
+  const ok = (text, pair, dt = 0.45) => { logs.push({ t: vt + dt, kind: 'ok', text }); tl.push({ id: ++seq, pair, t: vt + dt, lane: 'confirmed', text }); run.confirmed++; if (pair) run.acked++; beats++; };
+  const gain = (name, n = 1) => { run.items[name] = (run.items[name] || 0) + n; w.weight += 3 * n; };
+  const goalCheck = (name) => { if (c.goalOn && name === c.goalItem && (run.items[name] || 0) >= c.goalQty) events.push({ type: 'Goal' }); };
+  if (s.activity === 'combat') {
+    const hpP = pct(w.hp, w.hpMax);
+    if (hpP <= c.hpAt && w.potions.hp > 0) {
+      const id = sent('Use HP Potion (F5)'); w.potions.hp--; w.hp = Math.min(w.hpMax, w.hp + 330);
+      ok(`HP back to ${Math.round(pct(w.hp, w.hpMax))}%. ${w.potions.hp} potions left`, id);
+    } else if (hpP <= c.hpAt) {
+      events.push({ type: 'Limit', kind: 'hp-potions' });
+    } else if (pct(w.mp, w.mpMax) <= c.mpAt && w.potions.mp > 0) {
+      const id = sent('Use MP Potion (F6)'); w.potions.mp--; w.mp = Math.min(w.mpMax, w.mp + 220);
+      ok(`MP back to ${Math.round(pct(w.mp, w.mpMax))}%. ${w.potions.mp} potions left`, id);
+    } else if (w.combatStep === 'approach') {
+      const id = sent(`Move toward ${w.target.name}`); w.combatStep = 'attack'; ok(`In range of ${w.target.name}`, id, 0.9);
+    } else {
+      const sk = c.rotation[0];
+      const id = sent(`${sk.skill} on ${w.target.name}`);
+      const dmg = 16 + Math.floor(rng() * 22);
+      w.target.hp = Math.max(0, w.target.hp - dmg); w.mp = Math.max(0, w.mp - sk.mp);
+      if (rng() < 0.6) w.hp = Math.max(1, w.hp - (30 + Math.floor(rng() * 60)));
+      ok(`Hit ${w.target.name} for ${fmt(dmg * 7)}`, id);
+      if (w.target.hp === 0) {
+        const exp = 1180 + Math.floor(rng() * 60);
+        run.kills++; run.exp += exp; run.tm += 36; w.exp += 0.42; w.tmExp += 0.6;
+        ok(`Defeated ${w.target.name}. +${fmt(exp)} EXP, +36 TM`, null, 0.8);
+        const r = rng();
+        if (r < 0.09) { gain('Legendary Recipe'); run.noDrop = 0; ok(`Picked up Legendary Recipe. Goal ${run.items['Legendary Recipe']} of ${c.goalQty}`, null, 1.1); goalCheck('Legendary Recipe'); }
+        else if (r < 0.48) { const g = 90 + Math.floor(rng() * 80); run.galder += g; w.galder += g; run.noDrop = 0; ok(`Picked up ${g} Galder`, null, 1.1); }
+        else if (r < 0.6) { gain('HP Potion'); w.potions.hp++; run.noDrop = 0; ok('Picked up HP Potion', null, 1.1); }
+        else { run.noDrop++; logs.push({ t: vt + 1.1, kind: 'info', text: 'No drop' }); }
+        w.target = { name: 'Sand Demon', hp: 100, inRange: 1 + Math.floor(rng() * 4) }; w.combatStep = 'approach';
+      }
+    }
+    w.mp = Math.min(w.mpMax, w.mp + 7);
+  } else {
+    const d = w.dig;
+    if (d.step === 0) { d.spot = { x: 50 + Math.floor(rng() * 40), y: 120 + Math.floor(rng() * 40) }; const id = sent(`Pick spot x ${d.spot.x}, y ${d.spot.y}`); ok('Spot accepted', id, 0.4); d.step = 1; }
+    else if (d.step === 1) { const id = sent('Move to the spot'); ok(`Arrived at x ${d.spot.x}, y ${d.spot.y}`, id, 1); d.step = 2; }
+    else if (d.step === 2) { if (rng() < 0.28) { run.empties++; ok('Empty spot detected. No drill wear', null, 0.6); d.step = 0; } else { ok('Item signal detected', null, 0.6); d.step = 3; d.depth = 0; } }
+    else if (d.step === 3) {
+      const id = sent('Dig, one press'); w.drill.dur -= 1; d.depth = Math.min(w.drill.depth, d.depth + 6 + Math.floor(rng() * 3));
+      ok(`Depth ${d.depth} of ${w.drill.depth}. Durability ${w.drill.dur}`, id, 0.7);
+      if (d.depth >= 14) d.step = 4;
+      if (w.drill.dur <= c.durabilityAt) events.push({ type: 'Limit', kind: 'drill' });
+    } else {
+      const r = rng(); const item = r < 0.45 ? 'Tanning Oil' : r < 0.75 ? 'Pebble' : 'Seashell';
+      gain(item); run.finds++; run.tm += 14; w.tmExp += 0.35;
+      ok(item === c.goalItem ? `Found ${item}. Goal ${run.items[item]} of ${c.goalQty}` : `Found ${item}`, null, 0.5);
+      goalCheck(item); d.step = 0;
+    }
+  }
+  if (pct(w.weight, w.weightMax) >= c.weightAt) events.push({ type: 'Limit', kind: 'weight' });
+  if (w.exp >= 100) { w.exp -= 100; w.level++; logs.push({ t: vt + 1.2, kind: 'info', text: `Level ${w.level} reached` }); }
+  w.freshMs = 140 + Math.floor(rng() * 260);
+  run.elapsed += 1.5;
+  return { ...S, vt, seq, world: w, session: { ...s, run }, log: [...logs.reverse(), ...S.log].slice(0, 400), timeline: [...S.timeline, ...tl].filter((e) => e.t > vt - 75), beat: S.beat + (beats ? 1 : 0), pending: quiet ? [] : events };
+}
+
+/* ---------- app store ---------- */
+function bootState() {
+  const mode = P.get('mode') === 'clientless' ? 'clientless' : 'client';
+  const activity = P.get('activity') === 'digging' ? 'digging' : 'combat';
+  const variant = VARIANTS[P.get('variant')] ? P.get('variant') : 'A';
+  let S = {
+    ui: { variant, theme: ['light', 'dark'].includes(P.get('theme')) ? P.get('theme') : SYSTEM_DARK.matches ? 'dark' : 'light', themeSet: P.has('theme'), tab: P.get('tab') || 'run', kbd: 'dashboard', notes: P.get('notes') === '1', sheet: false, logFilter: 'all', drawer: P.get('drawer') !== '0', rail: P.get('rail') !== '0', sim: false, scenario: '', stepIx: 0, hover: null, flash: '', reconnectFails: false, chrome: P.get('chrome') !== '0' },
+    session: initialSession(mode, activity), world: defaultWorld(activity), config: defaultConfig(), log: [], timeline: [], vt: 1000, seq: 0, beat: 0, pending: [],
+  };
+  return applyScenario(S, P.get('state') || 'running');
+}
+function seedRun(S) {
+  const a = S.session.activity;
+  const run = { ...newRun(a), elapsed: 2480, kills: a === 'combat' ? 17 : 0, finds: a === 'digging' ? 9 : 0, empties: a === 'digging' ? 4 : 0, exp: a === 'combat' ? 20450 : 0, tm: a === 'combat' ? 612 : 126, galder: a === 'combat' ? 1840 : 0, items: a === 'combat' ? { 'HP Potion': 3 } : { 'Tanning Oil': 1, Pebble: 4, Seashell: 4 }, sent: 212, acked: 205, confirmed: 296, rejected: 0 };
+  return { ...S, session: { ...S.session, phase: 'running', run, reason: null, halt: null } };
+}
+function fastForward(S, n) { for (let i = 0; i < n; i++) S = simulate(S, true); return { ...S, beat: 0 }; }
+function withPhase(S, patch) { return { ...S, session: { ...S.session, ...patch } }; }
+function ffRun(S, activity) {
+  if (activity) S = { ...S, session: { ...S.session, activity }, world: defaultWorld(activity) };
+  rng = seeded(7);
+  S = fastForward(seedRun(S), 40);
+  const goal = S.config[S.session.activity];
+  if (goal.goalOn && (S.session.run.items[goal.goalItem] || 0) >= goal.goalQty) S.session.run.items[goal.goalItem] = goal.goalQty - 1;
+  S.log = [...S.log, { t: S.vt - 2490, kind: 'info', text: `Run started: ${S.session.activity} on ${S.world.place.map}` }];
+  return S;
+}
+const SCENARIOS = {
+  absent: (S) => withPhase(S, { mode: 'client', phase: 'client-absent' }),
+  loading: (S) => withPhase(S, { mode: 'client', phase: 'client-loading', progress: 0.64 }),
+  login: (S) => withPhase(S, { mode: 'client', phase: 'awaiting-login' }),
+  connect: (S) => withPhase(S, { mode: 'clientless', phase: 'offline' }),
+  'auth-failed': (S) => withPhase(S, { mode: 'clientless', phase: 'offline', authError: true }),
+  connecting: (S) => withPhase(S, { mode: 'clientless', phase: 'connecting', connectStep: 2 }),
+  ready: (S) => ({ ...withPhase(S, { phase: 'ready' }), log: [{ t: 990, kind: 'info', text: `${CHARACTER.name} entered ${S.world.place.map}` }] }),
+  'ready-blocked': (S) => { S = SCENARIOS.ready(S); S.world.potions.hp = 0; return S; },
+  'ready-after-run': (S) => { S = ffRun(S); return withPhase(S, { phase: 'ready', lastRun: S.session.run, run: null }); },
+  running: (S) => ffRun(S),
+  pausing: (S) => withPhase(ffRun(S), { phase: 'pausing', reason: { code: 'user' } }),
+  paused: (S) => withPhase(ffRun(S), { phase: 'paused', reason: { code: 'user' } }),
+  'paused-potions': (S) => { S = ffRun(S); S.world.potions.hp = 0; S.world.hp = 402; return withPhase(S, { phase: 'paused', reason: { code: 'hp-potions' } }); },
+  'paused-weight': (S) => { S = ffRun(S); S.world.weight = 548; return withPhase(S, { phase: 'paused', reason: { code: 'weight' } }); },
+  'paused-fainted': (S) => { S = ffRun(S); S.world.hp = 0; return withPhase(S, { phase: 'paused', reason: { code: 'fainted' } }); },
+  'paused-uncertain': (S) => { S = ffRun(S); S.world.stale = true; S.world.freshMs = 15400; return withPhase(S, { phase: 'paused', reason: { code: 'uncertain' } }); },
+  'paused-reconnected': (S) => withPhase(ffRun(S), { phase: 'paused', reason: { code: 'reconnected', attempts: 2 } }),
+  'paused-drill': (S) => { S = ffRun(S, 'digging'); S.world.drill.dur = 50; return withPhase(S, { phase: 'paused', reason: { code: 'drill' } }); },
+  'paused-depth': (S) => withPhase(ffRun(S, 'digging'), { phase: 'paused', reason: { code: 'depth' } }),
+  'paused-goal': (S) => { S = ffRun(S, 'digging'); S.session.run.items['Tanning Oil'] = 2; return withPhase(S, { phase: 'paused', reason: { code: 'goal' } }); },
+  reconnecting: (S) => withPhase(ffRun(S), { phase: 'reconnecting', attempt: 2 }),
+  disconnected: (S) => withPhase(ffRun(S), { phase: 'disconnected', attempt: 5 }),
+  'error-build': (S) => { S = ffRun(S); return withPhase(S, { phase: 'error', halt: { code: 'build-changed' }, lastRun: S.session.run, run: null }); },
+  'error-client': (S) => { S = ffRun(S); return withPhase(S, { mode: 'client', phase: 'error', halt: { code: 'client-failed', why: 'webkit' }, lastRun: S.session.run, run: null }); },
+  'error-rejected': (S) => { S = ffRun(S); return withPhase(S, { phase: 'error', halt: { code: 'actions-rejected' }, lastRun: S.session.run, run: null }); },
+  'switch-sheet': (S) => ({ ...withPhase(S, { phase: 'ready' }), ui: { ...S.ui, sheet: true } }),
+};
+function applyScenario(S, name) {
+  const f = SCENARIOS[name] || SCENARIOS.running;
+  S = f(S);
+  if (PLACES[S.session.activity].map !== S.world.place.map) S = { ...S, world: { ...S.world, place: { ...PLACES[S.session.activity] } } };
+  return S;
+}
+
+const WALKTHROUGHS = {
+  'Client-assisted happy path': { start: 'absent', steps: [['Load the game', { type: 'LoadGame' }], ['Wait for the game to load', null], ['Log in inside the game', { type: 'CharacterSeen' }], ['Start the run', { type: 'Start' }], ['Pause', { type: 'Pause' }], ['Resume', { type: 'Resume' }], ['Stop', { type: 'Stop' }]] },
+  'Resource limit and recovery': { start: 'running', steps: [['HP potions run out', { type: 'Limit', kind: 'hp-potions' }], ['Try to resume while potions are 0', { type: 'Resume' }], ['Restock in the game', { type: 'proto/fix' }], ['Resume', { type: 'Resume' }]] },
+  'Disconnect and resume': { start: 'running', steps: [['Connection drops', { type: 'Lost' }], ['Watch it retry, then resume the session', null], ['Resume after checking the character', { type: 'Resume' }]] },
+  'Game update blocks automation': { start: 'running', steps: [['Game build changes', { type: 'BuildChanged' }], ['Reload the game', { type: 'ReloadGame' }]] },
+  'Clientless sign-in to goal': { start: 'connect', activity: 'digging', steps: [['Sign in', { type: 'Connect' }], ['Wait for sign-in', null], ['Choose a world', { type: 'ConnectStep' }], ['Choose a character', { type: 'ConnectStep' }], ['Start digging', { type: 'Start' }], ['Goal reached', { type: 'Goal' }], ['Stop after turning in', { type: 'Stop' }]] },
+  'Switch mode is blocked while running': { start: 'running', steps: [['Try to switch mode', { type: 'proto/switch' }], ['Stop the run', { type: 'Stop' }], ['Wait for the stop to finish', null], ['Switch mode', { type: 'proto/switch' }]] },
+};
+
+let S = bootState();
+let timer = null;
+const ALL_SESSION = new Set(Object.values(T).flatMap((x) => Object.keys(x)));
+
+function transitionLog(prev, next, ev) {
+  const t = S.vt;
+  const e = (kind, text) => ({ t, kind, text });
+  if (next.phase === prev.phase && next.attempt === prev.attempt) return null;
+  if (next.phase === 'running' && prev.phase === 'starting') return e('info', `Run started: ${next.activity} on ${S.world.place.map}`);
+  if (next.phase === 'running' && prev.phase === 'paused') return e('info', 'Run resumed');
+  if (next.phase === 'pausing') return e(next.reason.code === 'user' ? 'info' : 'warn', `Pausing: ${REASONS[next.reason.code].title}`);
+  if (next.phase === 'ready' && prev.phase === 'stopping') return e('info', 'Run stopped');
+  if (next.phase === 'reconnecting') return e('warn', `Connection lost. Reconnect attempt ${next.attempt} of ${next.maxAttempts}`);
+  if (next.phase === 'disconnected') return e('error', 'Reconnect failed. Disconnected');
+  if (next.phase === 'error') return e('error', `${HALTS[next.halt.code].title}. Run stopped`);
+  if (next.phase === 'ready' && prev.phase === 'awaiting-login') return e('info', `${CHARACTER.name} entered ${S.world.place.map}`);
+  if (next.phase === 'ready' && prev.phase === 'connecting') return e('info', `Connected. ${CHARACTER.name} entered ${S.world.place.map}`);
+  return null;
+}
+
+function dispatch(ev) {
+  const prev = S;
+  S = step(S, ev);
+  effects(prev, S);
+  paint();
+  if (S.pending && S.pending.length) { const [first] = S.pending; S = { ...S, pending: [] }; dispatch(first); }
+}
+function modeSwitchBlock(s) { return RUN_PHASES.has(s.phase) ? 'Stop' : s.run ? 'End' : null; }
+const REFUSED_VERB = { Start: 'start', Resume: 'resume', Pause: 'pause', Stop: 'stop', EndRun: 'end the run' };
+function flash(msg) { S = { ...S, ui: { ...S.ui, flash: msg } }; paint(); clearTimeout(flash.t); flash.t = setTimeout(() => { S = { ...S, ui: { ...S.ui, flash: '' } }; paint(); }, 2200); }
+
+function step(S, ev) {
+  const ui = S.ui;
+  switch (ev.type) {
+    case 'ui': return { ...S, ui: { ...ui, ...ev.patch } };
+    case 'ui/config': { const c = structuredClone(S.config); c[ev.act][ev.key] = ev.value; return { ...S, config: c }; }
+    case 'sim/tick': return S.session.phase === 'running' ? simulate(S) : S;
+    case 'proto/fix': {
+      const w = structuredClone(S.world);
+      if (w.potions.hp === 0) w.potions.hp = 20;
+      if (w.hp <= 0 || pct(w.hp, w.hpMax) < 50) w.hp = w.hpMax;
+      if (pct(w.weight, w.weightMax) >= 80) w.weight = 300;
+      if (w.drill.dur <= S.config.digging.durabilityAt) w.drill.dur = w.drill.durMax;
+      return { ...S, world: w, log: [{ t: S.vt, kind: 'info', text: 'Observed: resources changed in the game' }, ...S.log] };
+    }
+    case 'proto/switch': {
+      const block = modeSwitchBlock(S.session);
+      if (block) { setTimeout(() => flash(`Mode switch is off during a run. ${block} the run first.`), 0); return S; }
+      return { ...S, ui: { ...ui, sheet: true } };
+    }
+    case 'proto/auth-failed': return step(step(S, { type: 'Connect' }), { type: 'AuthFailed' });
+  }
+  if (!ALL_SESSION.has(ev.type)) return S;
+  if (ev.type === 'Start' || ev.type === 'Resume') {
+    const blocked = preflight(S).find((x) => x.level === 'block');
+    if (blocked && canSession(S.session, ev.type)) { setTimeout(() => flash(`${ev.type} is locked until ${blocked.unlock}.`), 0); return S; }
+  }
+  if (!canSession(S.session, ev.type)) { setTimeout(() => flash(`Can't ${REFUSED_VERB[ev.type] || ev.type} while the status is ${statusOf(S).label}.`), 0); return S; }
+  let next = { ...S, session: reduceSession(S.session, ev) };
+  if (ev.type === 'SwitchMode') next = { ...next, ui: { ...ui, sheet: false, kbd: 'dashboard' }, world: defaultWorld(next.session.activity), timeline: [] };
+  if (ev.type === 'SetActivity') next = { ...next, world: { ...S.world, place: { ...PLACES[ev.activity] } } };
+  if (ev.type === 'Start') next = { ...next, timeline: [] };
+  if (ev.type === 'Limit' && ev.kind === 'hp-potions') next = { ...next, world: { ...next.world, potions: { ...next.world.potions, hp: 0 }, hp: Math.min(next.world.hp, 402) } };
+  if (ev.type === 'Fainted') next = { ...next, world: { ...next.world, hp: 0 } };
+  if (ev.type === 'Stale') next = { ...next, world: { ...next.world, stale: true, freshMs: 15400 } };
+  if (ev.type === 'Resume') next = { ...next, world: { ...next.world, stale: false, freshMs: 220 } };
+  if (ev.type === 'Goal' && next.session.run) { const c = S.config[S.session.activity]; next.session.run.items[c.goalItem] = c.goalQty; }
+  const entry = transitionLog(S.session, next.session, ev);
+  if (entry) next = { ...next, log: [entry, ...next.log] };
+  return next;
+}
+
+function effects(prev, now) {
+  if (FREEZE) return;
+  const a = prev.session, b = now.session;
+  if (a.phase === b.phase && a.attempt === b.attempt && a.connectStep === b.connectStep && a.progress === b.progress) return;
+  clearTimeout(timer);
+  if (b.phase === 'client-loading') timer = setTimeout(() => dispatch(b.progress >= 1 ? { type: 'GameLoaded' } : { type: 'GameProgress', p: Math.min(1, +(b.progress + 0.12).toFixed(2)) }), 240);
+  if (b.phase === 'starting') timer = setTimeout(() => dispatch({ type: 'Started' }), 700);
+  if (b.phase === 'pausing' || b.phase === 'stopping') timer = setTimeout(() => dispatch({ type: 'Settled' }), 1000);
+  if (b.phase === 'connecting' && (b.connectStep === 0 || b.connectStep === 3)) timer = setTimeout(() => dispatch({ type: 'ConnectStep' }), 1100);
+  if (b.phase === 'reconnecting') timer = setTimeout(() => dispatch({ type: !now.ui.reconnectFails && b.attempt >= 2 ? 'ResumeOk' : 'RetryFailed' }), 1500);
+  if (b.phase === 'client-absent' && a.mode !== b.mode) timer = setTimeout(() => dispatch({ type: 'LoadGame' }), 500);
+}
+if (!FREEZE) setInterval(() => { if (S.session.phase === 'running') dispatch({ type: 'sim/tick' }); }, 1500);
+
+/* ---------- shared components ---------- */
+const go = (ev) => () => dispatch(ev);
+const ui = (patch) => () => dispatch({ type: 'ui', patch });
+
+function Pill({ big }) {
+  const st = statusOf(S);
+  return html`<span class=${`pill tone-${st.tone}${big ? ' big' : ''}`} role="status" aria-live="polite"><${Ic} n=${st.icon} />${st.label}${st.detail ? html`<span class="detail">${st.detail}</span>` : ''}</span>`;
+}
+function Pulse() {
+  const st = statusOf(S); const k = pulseOf(S);
+  return html`<div class=${`pulse ${k} tone-${st.tone}`} title="Beats once for each result the game confirmed">${k === 'live' && S.beat ? html`<i class="beat" key=${S.beat}></i>` : ''}</div>`;
+}
+function startInfo() {
+  const s = S.session; const resume = s.phase === 'paused'; const type = resume ? 'Resume' : 'Start';
+  const can = canSession(s, type); const blocked = preflight(S).find((x) => x.level === 'block');
+  return { resume, enabled: can && !blocked, blocked: can ? blocked : null, label: type };
+}
+function stopEv() { const s = S.session; return ['reconnecting', 'disconnected'].includes(s.phase) ? { type: 'EndRun' } : { type: 'Stop' }; }
+function canStop() { const s = S.session; const ev = stopEv(); return canSession(s, ev.type) && (ev.type !== 'EndRun' || !!s.run); }
+function RunControls({ variant }) {
+  const si = startInfo(); const s = S.session; const iconOnly = variant === 'C';
+  const startBtn = html`<button class=${'btn primary' + (iconOnly ? ' icon-only' : '')} disabled=${!si.enabled} title=${`${si.label} (⌘R)`} onClick=${go({ type: si.resume ? 'Resume' : 'Start' })}><${Ic} n="play" />${iconOnly ? '' : html`${si.label}<span class="kbd">⌘R</span>`}</button>`;
+  const pauseBtn = html`<button class=${'btn' + (iconOnly ? ' icon-only' : '')} disabled=${!canSession(s, 'Pause')} title="Pause (⌘P)" onClick=${go({ type: 'Pause' })}><${Ic} n="pause" />${iconOnly ? '' : html`Pause<span class="kbd">⌘P</span>`}</button>`;
+  const stopBtn = html`<button class=${'btn stop' + (iconOnly ? ' icon-only' : '')} disabled=${!canStop()} title="Stop (⌘.)" onClick=${go(stopEv())}><${Ic} n="stop" />${iconOnly ? '' : html`${['reconnecting', 'disconnected'].includes(s.phase) ? 'End run' : 'Stop'}<span class="kbd">⌘.</span>`}</button>`;
+  return html`<div class="controls">${s.phase === 'running' || s.phase === 'pausing' ? pauseBtn : startBtn}${stopBtn}</div>`;
+}
+function blockedText() { const si = startInfo(); return si.blocked ? `${si.label} is unavailable. ${si.blocked.label}: ${si.blocked.detail}.` : ''; }
+function WhyBlocked() {
+  const t = blockedText();
+  return t ? html`<div class="why-blocked"><${Ic} n="warn" c="sm" /><span>${t}</span></div>` : null;
+}
+function ModeSwitch({ small }) {
+  const s = S.session; const block = modeSwitchBlock(s); const locked = !!block;
+  const pick = (m) => () => { if (m === s.mode) return; if (locked) return flash(`Mode switch is off during a run. ${block} the run first.`); if (['client-absent', 'offline'].includes(s.phase)) return dispatch({ type: 'SwitchMode' }); dispatch({ type: 'ui', patch: { sheet: true } }); };
+  return html`<div class=${'seg' + (small ? ' sm' : '')} role="group" aria-label="Operating mode" title=${locked ? `${block} the run to switch modes` : 'Operating mode'}>
+    <button aria-pressed=${s.mode === 'client'} onClick=${pick('client')}><${Ic} n="client" c="sm" />Client-assisted</button>
+    <button aria-pressed=${s.mode === 'clientless'} onClick=${pick('clientless')}><${Ic} n="clientless" c="sm" />Clientless</button>
+  </div>`;
+}
+function PanelToggle() {
+  const open = S.ui.rail;
+  return html`<button class="btn" aria-expanded=${open} aria-controls="rail" onClick=${ui({ rail: !open })}><${Ic} n="sidebar" />${open ? 'Hide panel' : 'Show panel'}<span class="kbd">⌘\\</span></button>`;
+}
+function KbdBadge() {
+  if (S.session.mode !== 'client') return null;
+  const g = S.ui.kbd === 'game';
+  return html`<button class=${'kbd-badge' + (g ? ' game' : '')} title="Move keyboard focus between the game and the dashboard (⌃Tab)" onClick=${ui({ kbd: g ? 'dashboard' : 'game' })}><${Ic} n="keyboard" c="sm" />Keys go to <b>${g ? 'Game' : 'Dashboard'}</b><span class="muted">⌃Tab</span></button>`;
+}
+function Note({ children, float, style }) {
+  if (!S.ui.notes) return null;
+  return html`<div class=${'note' + (float ? ' float' : '')} style=${style}><${Ic} n="note" c="sm" /><span>${children}</span></div>`;
+}
+function Meter({ label, value, max, tone = 'neutral', ticks = [], text, state }) {
+  const p = pct(value, max);
+  return html`<div class=${`meter tone-${tone}`}>
+    <div class="meter-head"><span class="label">${label}</span>${state ? html`<span class="state"><${Ic} n=${tone === 'critical' ? 'octagon' : 'warn'} c="sm" />${state}</span>` : ''}<span class="value">${text || html`${fmt(value)} <span class="max">/ ${fmt(max)}</span>`}</span></div>
+    <div class="track" role="meter" aria-label=${label} aria-valuenow=${Math.round(value)} aria-valuemin="0" aria-valuemax=${max}><div class="fill" style=${{ width: p + '%' }}></div>${ticks.map((t) => html`<i class="tick" style=${{ left: t.at + '%' }} title=${t.title}></i>`)}</div>
+  </div>`;
+}
+function hpTone(w, c) { const p = pct(w.hp, w.hpMax); return p <= 20 ? 'critical' : p <= c.hpAt ? 'warning' : 'neutral'; }
+function Vitals({ compact }) {
+  const w = S.world, a = S.session.activity, c = S.config[a], cc = S.config.combat;
+  const hpT = hpTone(w, cc); const mpT = pct(w.mp, w.mpMax) <= cc.mpAt ? 'warning' : 'neutral';
+  const wp = pct(w.weight, w.weightMax); const wT = wp >= c.weightAt ? 'critical' : wp >= c.weightAt - 10 ? 'warning' : 'neutral';
+  const dT = w.drill.dur <= S.config.digging.durabilityAt ? 'critical' : w.drill.dur <= S.config.digging.durabilityAt * 2 ? 'warning' : 'neutral';
+  return html`<div>
+    <${Meter} label="HP" value=${w.hp} max=${w.hpMax} tone=${hpT} state=${hpT === 'critical' ? (w.hp <= 0 ? 'Fainted' : 'Low') : hpT === 'warning' ? 'Below potion line' : ''} ticks=${[{ at: cc.hpAt, title: `HP potion at ${cc.hpAt}%` }]} />
+    <${Meter} label="MP" value=${w.mp} max=${w.mpMax} tone=${mpT} ticks=${[{ at: cc.mpAt, title: `MP potion at ${cc.mpAt}%` }]} />
+    <${Meter} label="Weight" value=${w.weight} max=${w.weightMax} tone=${wT} state=${wT === 'critical' ? 'At limit' : ''} ticks=${[{ at: c.weightAt, title: `Pause at ${c.weightAt}%` }]} />
+    ${a === 'digging' ? html`<${Meter} label=${w.drill.name} value=${w.drill.dur} max=${w.drill.durMax} tone=${dT} state=${dT === 'critical' ? 'At limit' : ''} ticks=${[{ at: pct(S.config.digging.durabilityAt, w.drill.durMax), title: `Pause at ${S.config.digging.durabilityAt}` }]} />` : ''}
+    <div class="counts">
+      <span><${Ic} n="flask" c="sm" />HP potions <b>${w.potions.hp}</b></span>
+      <span><${Ic} n="flask" c="sm" />MP potions <b>${w.potions.mp}</b></span>
+      ${compact ? '' : html`<span><${Ic} n="coin" c="sm" />Galder <b>${fmt(w.galder)}</b></span>`}
+    </div>
+  </div>`;
+}
+function RunStats() {
+  const s = S.session; const run = s.run || s.lastRun; const a = s.activity; const c = S.config[a];
+  if (!run) return html`<p class="muted" style="margin:0">No run yet.</p>`;
+  const hours = Math.max(run.elapsed / 3600, 1 / 60);
+  return html`<div>
+    <div class="tiles">
+      <div class="tile"><div class="t-label">Time</div><div class="t-value">${duration(run.elapsed)}</div></div>
+      ${a === 'combat'
+        ? html`<div class="tile"><div class="t-label">Kills</div><div class="t-value">${fmt(run.kills)}</div></div>`
+        : html`<div class="tile"><div class="t-label">Finds</div><div class="t-value">${fmt(run.finds)}<small>${fmt(run.empties)} empty</small></div></div>`}
+      ${a === 'combat'
+        ? html`<div class="tile"><div class="t-label">EXP per hour</div><div class="t-value">${compact(run.exp / hours)}</div></div>`
+        : html`<div class="tile"><div class="t-label">TM per hour</div><div class="t-value">${compact(run.tm / hours)}</div></div>`}
+      <div class="tile"><div class="t-label">${c.goalOn ? `Goal, ${c.goalItem}` : 'Galder'}</div><div class="t-value">${c.goalOn ? html`${run.items[c.goalItem] || 0}<small>of ${c.goalQty}</small>` : fmt(run.galder)}</div></div>
+    </div>
+    <div class="caption"><${Ic} n="check" c="sm" />Counts include only results the game confirmed. The game confirmed ${fmt(run.acked)} of ${fmt(run.sent)} actions sent.</div>
+  </div>`;
+}
+function hasCharacter(s) { return !['client-absent', 'client-loading', 'awaiting-login', 'offline', 'connecting'].includes(s.phase); }
+function Freshness() {
+  const s = S.session, w = S.world;
+  if (!liveState(s)) return html`<span class="chip tone-serious"><${Ic} n="unplug" c="sm" />No live state</span>`;
+  if (!hasCharacter(s)) return html`<span class="chip tone-neutral"><${Ic} n="user" c="sm" />No character yet</span>`;
+  if (w.stale) return html`<span class="chip tone-warning"><${Ic} n="clock" c="sm" />State ${(w.freshMs / 1000).toFixed(0)} s old</span>`;
+  return html`<span class="chip tone-good"><${Ic} n="dot" c="sm" />Live, ${(w.freshMs / 1000).toFixed(1)} s old</span>`;
+}
+function ActivityNow({ big }) {
+  const s = S.session, w = S.world, a = s.activity, c = S.config[a];
+  const live = ['running', 'pausing', 'starting'].includes(s.phase);
+  if (a === 'combat') {
+    return html`<div class=${live ? '' : 'dim'}>
+      <div class="act-line"><${Ic} n="combat" c="sm" />${live ? 'Fighting' : 'Last target'}</div>
+      <div class="act-title"><b>${w.target.name}</b><span>${w.combatStep === 'approach' ? 'moving into range' : `${c.rotation[0].skill} (${c.rotation[0].slot})`}</span></div>
+      <${Meter} label="Target HP" value=${w.target.hp} max=${100} text=${`${w.target.hp}%`} />
+      <div class="counts"><span><${Ic} n="target" c="sm" />In range <b>${w.target.inRange}</b></span><span><${Ic} n="pin" c="sm" />${w.place.map}</span></div>
+    </div>`;
+  }
+  const d = w.dig;
+  return html`<div class=${live ? '' : 'dim'}>
+    <div class="act-line"><${Ic} n="dig" c="sm" />${live ? 'Digging' : 'Last dig'}</div>
+    <div class="act-title"><b>${DIG_STEPS[d.step]}</b><span>at x ${d.spot.x}, y ${d.spot.y}</span></div>
+    <div class="steps" role="list" aria-label="Dig cycle">${DIG_STEPS.map((n, i) => html`<div role="listitem" class=${'step' + (i < d.step ? ' done' : i === d.step ? ' now' : '')}><i></i>${n}</div>`)}</div>
+    <${Meter} label="Depth" value=${d.depth} max=${w.drill.depth} tone="accent" text=${`${d.depth} of ${w.drill.depth}`} />
+    ${big ? '' : html`<div class="counts"><span><${Ic} n="pin" c="sm" />${w.place.map}</span></div>`}
+  </div>`;
+}
+function Preflight() {
+  const pf = preflight(S);
+  return html`<div class="checks">${pf.map((x) => html`<div class=${'check ' + x.level}><${Ic} n=${x.level === 'ok' ? 'check' : x.level === 'block' ? 'x' : 'info'} c="sm" /><div><b>${x.label}</b> <span>${x.detail}</span></div></div>`)}</div>`;
+}
+function Banner({ b = bannerOf(S), flush }) {
+  if (!b) return null;
+  return html`<div class=${`banner tone-${b.tone}${flush ? ' flush' : ''}`} role="alert">
+    <${Ic} n=${b.icon} />
+    <div style="min-width:0"><b>${b.title}</b><p>${b.body}</p>
+      ${b.blockedBy ? html`<p><${Ic} n="lock" c="sm" /> Resume unlocks when ${b.blockedBy.unlock}.</p>` : ''}
+      ${b.actions.length ? html`<div class="banner-actions">${b.actions.map((a) => html`<button class=${'btn sm' + (a.primary ? ' primary' : '') + (a.proto ? ' proto' : '')} disabled=${a.disabled} onClick=${go(a.ev)} title=${a.proto ? 'Prototype only. Stands in for fixing it in the game.' : ''}>${a.label}</button>`)}</div>` : ''}
+    </div>
+  </div>`;
+}
+function LogList({ limit }) {
+  const f = S.ui.logFilter;
+  const rows = S.log.filter((r) => f === 'all' || (f === 'results' ? r.kind === 'ok' : r.kind === 'warn' || r.kind === 'error')).slice(0, limit || 200);
+  const icon = { sent: 'sent', ok: 'check', warn: 'warn', error: 'octagon', info: 'dot' };
+  return html`<div class="log" role="log">${rows.map((r) => html`<div class=${'log-row ' + r.kind}><time>${clockAt(r.t)}</time><${Ic} n=${icon[r.kind]} c="sm" /><span>${r.text}</span></div>`)}${rows.length ? '' : html`<div class="log-row info"><span></span><span></span><span class="muted">Nothing here yet.</span></div>`}</div>`;
+}
+function LogTools() {
+  const f = S.ui.logFilter;
+  const b = (k, l) => html`<button aria-pressed=${f === k} onClick=${ui({ logFilter: k })}>${l}</button>`;
+  return html`<div class="log-tools"><div class="seg sm">${b('all', 'All')}${b('results', 'Confirmed')}${b('problems', 'Problems')}</div><span class="hint">Arrows mark actions sent. Checks mark results the game confirmed.</span></div>`;
+}
+function Lanes() {
+  const now = S.vt + 1; const span = 60; const x = (t) => ((t - (now - span)) / span) * 100;
+  const ev = S.timeline.filter((e) => e.t > now - span);
+  const hover = S.ui.hover;
+  const mark = (e) => html`<i class=${'m ' + e.lane} style=${{ left: x(e.t) + '%' }} onMouseEnter=${ui({ hover: { ...e, x: x(e.t) } })} onMouseLeave=${ui({ hover: null })}></i>`;
+  return html`<div class="lanes" aria-label="Actions sent and results confirmed in the last minute">
+    <span class="lane-label">Sent</span><div class="lane">${ev.filter((e) => e.lane === 'sent').map(mark)}</div>
+    <span class="lane-label">Confirmed</span><div class="lane">${ev.filter((e) => e.lane !== 'sent').map(mark)}${hover ? html`<div class="tip" style=${{ left: hover.x + '%', top: '0' }}>${clockAt(hover.t)} ${hover.text}</div>` : ''}</div>
+    <div class="axis"><span>1 min ago</span><span>45 s</span><span>30 s</span><span>15 s</span><span>Now</span></div>
+  </div>`;
+}
+function SessionLines() {
+  const s = S.session; const m = s.mode;
+  const conn = s.phase === 'reconnecting' ? `Reconnecting, attempt ${s.attempt} of ${s.maxAttempts}` : s.phase === 'disconnected' ? 'Disconnected' : m === 'client' ? 'Game page tr-play.playall.in.th' : 'Connected to the game service';
+  return html`<div class="checks">
+    <div class="check unknown"><${Ic} n=${m === 'client' ? 'client' : 'clientless'} c="sm" /><div><b>${m === 'client' ? 'Client-assisted' : 'Clientless'}</b> <span>${conn}</span></div></div>
+    <div class="check unknown"><${Ic} n="user" c="sm" /><div><b>${CHARACTER.name}</b> <span>${m === 'clientless' ? `${CHARACTER.account}, password in Keychain` : 'Logged in through the game client'}</span></div></div>
+  </div>`;
+}
+function SetupPanel({ cols = 1 }) {
+  const s = S.session, a = s.activity, c = S.config[a];
+  const running = s.phase === 'running' || s.phase === 'starting';
+  const runActive = RUN_PHASES.has(s.phase) || (['reconnecting', 'disconnected'].includes(s.phase) && s.run);
+  const set = (key) => (e) => dispatch({ type: 'ui/config', act: a, key, value: e.target.type === 'checkbox' ? e.target.checked : e.target.type === 'number' ? +e.target.value : e.target.value });
+  const setv = (key, value) => () => dispatch({ type: 'ui/config', act: a, key, value });
+  const seg = (key, opts) => html`<div class="seg full">${opts.map(([v, l]) => html`<button aria-pressed=${c[key] === v} onClick=${setv(key, v)}>${l}</button>`)}</div>`;
+  const num = (key, unit, min = 0, max = 100) => html`<span class="inline"><input class="input num" type="number" min=${min} max=${max} value=${c[key]} onInput=${set(key)} aria-label=${key} /><span class="secondary">${unit}</span></span>`;
+  const mapSel = html`<select class="input" value=${c.map} onChange=${set('map')}>${MAPS.map((m) => html`<option value=${m}>${m}</option>`)}</select>`;
+  const chips = (key) => html`<div class="chips">${c[key].map((t) => html`<span class="tag">${t}<button aria-label=${'Remove ' + t} onClick=${setv(key, c[key].filter((x) => x !== t))}><${Ic} n="x" c="sm" /></button></span>`)}<button class="btn sm">Add</button></div>`;
+  const goal = html`<div class="field"><span class="lbl">Goal</span>
+      <label class="check-row"><input type="checkbox" checked=${c.goalOn} onChange=${set('goalOn')} />Pause when the bag holds</label>
+      <span class="inline"><input class="input num" type="number" min="1" value=${c.goalQty} onInput=${set('goalQty')} aria-label="Goal quantity" /><select class="input" value=${c.goalItem} onChange=${set('goalItem')}>${(a === 'combat' ? ['Legendary Recipe', 'HP Potion'] : ['Tanning Oil', 'Pebble', 'Seashell']).map((m) => html`<option>${m}</option>`)}</select></span>
+      <span class="hint">You accept and turn in quests yourself.</span></div>`;
+  const sections = a === 'combat' ? [
+    html`<div class="section"><h4 class="sec-title">Where</h4>
+      <div class="field"><span class="lbl">Map</span>${mapSel}</div>
+      <div class="field"><span class="lbl">Movement boundary</span>${seg('boundary', [['map', 'Whole map'], ['radius', 'Radius']])}${c.boundary === 'radius' ? html`<span class="inline">${num('radius', 'cells from the start point', 1, 60)}</span>` : ''}</div>
+      <${Note}>Boundary units and leash rules are open in #6.<//></div>`,
+    html`<div class="section"><h4 class="sec-title">Targets</h4>
+      <div class="field">${seg('targetMode', [['only', 'Only these'], ['except', 'All except these']])}</div>
+      <div class="field">${chips('targets')}</div>
+      <label class="check-row"><input type="checkbox" checked=${c.skipEngaged} onChange=${set('skipEngaged')} />Skip monsters another player is fighting</label></div>`,
+    html`<div class="section"><h4 class="sec-title">Attacks and recovery</h4>
+      <div class="field"><span class="lbl">Skill order</span>${c.rotation.map((r) => html`<div class="slot"><span class="key">${r.slot}</span><span>${r.skill}</span><span class="muted">${r.mp ? r.mp + ' MP' : ''}</span></div>`)}</div>
+      <div class="field"><span class="lbl">Use HP potion at</span>${num('hpAt', '% HP')}</div>
+      <div class="field"><span class="lbl">Use MP potion at</span>${num('mpAt', '% MP')}</div>
+      <span class="hint">The run pauses when HP potions run out. This is always on.</span></div>`,
+    html`<div class="section"><h4 class="sec-title">Loot and limits</h4>
+      <div class="field"><span class="lbl">Pick up</span>${seg('loot', [['all', 'All'], ['only', 'Only these'], ['none', 'Nothing']])}</div>
+      ${c.loot === 'only' ? html`<div class="field">${chips('lootList')}</div>` : ''}
+      ${goal}
+      <div class="field"><span class="lbl">Pause at bag weight</span>${num('weightAt', '%', 10, 90)}</div>
+      <div class="field"><span class="lbl">Pause after kills without a drop</span>${num('noDropKills', 'kills', 0, 500)}</div></div>`,
+  ] : [
+    html`<div class="section"><h4 class="sec-title">Where</h4>
+      <div class="field"><span class="lbl">Map</span>${mapSel}<span class="hint">Pick a map where you can dig in the game.</span></div>
+      <div class="field"><span class="lbl">Spot selection</span>${seg('spotMode', [['bot', 'Bot picks'], ['semi', 'Game semi-auto'], ['pet', 'Pet auto-dig']])}</div>
+      ${c.spotMode === 'bot' ? html`<div class="field"><span class="lbl">Search radius</span>${num('radius', 'cells', 1, 60)}</div>` : ''}
+      <${Note}>Spot selection and its control route are open in #7.<//></div>`,
+    html`<div class="section"><h4 class="sec-title">Drill</h4>
+      <div class="slot"><span class="key"><${Ic} n="dig" c="sm" /></span><span>${S.world.drill.name}, depth ${S.world.drill.depth}</span><span class="muted num">${S.world.drill.dur} / ${S.world.drill.durMax}</span></div>
+      <div class="field" style="margin-top:12px"><span class="lbl">Pause when durability reaches</span>${num('durabilityAt', '', 0, 2000)}</div>
+      <div class="field"><span class="lbl">When attacked while digging</span>${seg('onAttacked', [['pause', 'Pause'], ['fight', 'Fight back']])}</div>
+      <${Note}>Interruption handling is open in #7. Pause is the safe default.<//></div>`,
+    html`<div class="section"><h4 class="sec-title">Limits</h4>${goal}
+      <div class="field"><span class="lbl">Pause at bag weight</span>${num('weightAt', '%', 10, 90)}</div></div>`,
+  ];
+  const alerts = html`<div class="section"><h4 class="sec-title">Alerts</h4>
+    ${[['attention', 'Notify me when a run pauses for a reason'], ['disconnect', 'Notify me when the connection drops'], ['goal', 'Notify me when a goal is reached'], ['dock', 'Show a badge on the Dock icon']].map(([k, l]) => html`<label class="check-row" style="margin-bottom:8px"><input type="checkbox" checked=${S.config.alerts[k]} onChange=${(e) => dispatch({ type: 'ui/config', act: 'alerts', key: k, value: e.target.checked })} />${l}</label>`)}</div>`;
+  return html`<div>
+    <div class="section" style="padding-bottom:12px"><div class="field" style="margin:0"><span class="lbl">Activity</span>
+      <div class="seg full" title=${runActive ? 'Stop the run to change the activity' : ''}>
+        <button aria-pressed=${a === 'combat'} disabled=${runActive} onClick=${go({ type: 'SetActivity', activity: 'combat' })}><${Ic} n="combat" c="sm" />Combat</button>
+        <button aria-pressed=${a === 'digging'} disabled=${runActive} onClick=${go({ type: 'SetActivity', activity: 'digging' })}><${Ic} n="dig" c="sm" />Digging</button>
+      </div></div></div>
+    ${running ? html`<div class="lockbar"><${Ic} n="lock" c="sm" />Pause the run to change setup. Changes apply when you resume.</div>` : ''}
+    <fieldset disabled=${running}><div class=${'setup' + (cols > 1 ? ' cols' : '')} style=${{ '--cols': cols }}>${sections}${alerts}</div></fieldset>
+  </div>`;
+}
+function Guidance() {
+  const s = S.session;
+  if (s.phase === 'client-absent') return html`<div class="section"><h4 class="sec-title">Get started</h4><ol class="flow"><li class="now"><span class="n">1</span><div>Load the game client.</div></li><li><span class="n">2</span><div>Log in inside the game.</div></li><li><span class="n">3</span><div>Choose an activity and start.</div></li></ol></div>`;
+  if (s.phase === 'client-loading' || s.phase === 'awaiting-login') return html`<div class="section"><h4 class="sec-title">Get started</h4><ol class="flow"><li class=${s.phase === 'client-loading' ? 'now' : 'done'}><span class="n">${s.phase === 'client-loading' ? '1' : html`<${Ic} n="check" c="sm" />`}</span><div>Load the game client.${s.phase === 'client-loading' ? html`<div class="muted">The game page is loading, ${Math.round(s.progress * 100)}%.</div>` : ''}</div></li><li class=${s.phase === 'awaiting-login' ? 'now' : ''}><span class="n">2</span><div>Log in inside the game.${s.phase === 'awaiting-login' ? html`<div class="muted">The bot starts reading state when your character enters the world. It never sees your password.</div>` : ''}</div></li><li><span class="n">3</span><div>Choose an activity and start.</div></li></ol></div>`;
+  if (s.phase === 'offline') return html`<div class="section"><h4 class="sec-title">Get started</h4><p class="secondary" style="margin:0">Sign in on the left. The bot connects without the game client and controls one character.</p></div>`;
+  if (s.phase === 'connecting') return html`<div class="section"><h4 class="sec-title">Get started</h4><p class="secondary" style="margin:0">Choose a world and a character on the left. Setup is available now.</p></div>`;
+  return null;
+}
+function RunTab({ withActivity = true, withSession = false }) {
+  const s = S.session; const g = Guidance();
+  if (g) return g;
+  const hasRun = !!s.run;
+  return html`<div>
+    ${withActivity && (hasRun || ['pausing', 'stopping'].includes(s.phase)) ? html`<div class="section"><${ActivityNow} /></div>` : ''}
+    <div class="section"><h4 class="sec-title">Vitals</h4><${Vitals} compact=${true} /></div>
+    ${hasRun ? html`<div class="section"><h4 class="sec-title">This run</h4><${RunStats} /></div>` : ''}
+    ${s.phase === 'ready' ? html`<div class="section"><h4 class="sec-title">Before you start<span class="aside">${s.activity === 'combat' ? 'Combat' : 'Digging'}</span></h4><${Preflight} /></div>` : ''}
+    ${!hasRun && s.lastRun ? html`<div class="section"><h4 class="sec-title">Last run<span class="aside">ended</span></h4><${RunStats} /></div>` : ''}
+    ${withSession ? html`<div class="section"><h4 class="sec-title">Session</h4><${SessionLines} /></div>` : ''}
+  </div>`;
+}
+
+/* ---------- game pane and clientless board ---------- */
+function GamePane() {
+  const s = S.session; const p = s.phase;
+  let inner;
+  if (p === 'client-absent') {
+    inner = html`<div class="gpui-panel"><div class="inner"><${Ic} n="client" c="lg" /><h3>The game client is not loaded</h3><p>Load the game to show it here. OpenTrickster opens tr-play.playall.in.th inside this window.</p><button class="btn primary" onClick=${go({ type: 'LoadGame' })}>Load game</button></div></div>`;
+  } else if (p === 'error' && s.halt.code === 'client-failed') {
+    const f = CLIENT_FAILURES[s.halt.why || 'webkit'];
+    inner = html`<div class="gpui-panel"><div class="inner"><span class="chip tone-critical"><${Ic} n="octagon" c="sm" />${f.label}</span><h3>The game client stopped</h3><p>${f.body}</p><button class="btn primary" onClick=${go({ type: 'ReloadGame' })}>Reload game</button></div></div>`;
+  } else if (p === 'client-loading') {
+    inner = html`<div class="game-splash"><div><div class="ttl">Game loading screen</div><div class="bar"><i style=${{ width: Math.round(s.progress * 100) + '%' }}></i></div><div style="font-size:12px;opacity:.7">Drawn by the game page, not by OpenTrickster</div></div></div>`;
+  } else if (p === 'awaiting-login') {
+    inner = html`<div class="game-splash"><div class="login-card"><div style="font-weight:600">Game login screen</div><div style="font-size:12px;opacity:.7;margin-top:2px">Drawn by the game page. The bot cannot read what you type here.</div><div class="fake"></div><div class="fake"></div><button class="btn sm proto" style="margin-top:6px" onClick=${go({ type: 'CharacterSeen' })}>Enter the world (simulated)</button></div></div>`;
+  } else {
+    const t = S.world.target; const dig = s.activity === 'digging';
+    inner = html`<div class="scene">
+      <i class="mk me" style="left:46%;top:62%"></i>
+      ${dig ? html`<i class="mk spot" style="left:58%;top:70%"></i>` : html`<i class="mk foe t" style="left:57%;top:56%"></i><i class="mk foe" style="left:70%;top:73%"></i><i class="mk foe" style="left:30%;top:80%"></i>`}
+      <span class="game-tag"><${Ic} n="client" c="sm" />Game client placeholder. The real game renders here in a WKWebView.</span>
+    </div>`;
+  }
+  return html`<section class=${'stage' + (S.ui.kbd === 'game' ? ' kbd-game' : '')} onMouseDown=${() => { if (S.ui.kbd !== 'game') dispatch({ type: 'ui', patch: { kbd: 'game' } }); }} aria-label="Game client">
+    <div class="game">${inner}</div>
+    <${Note} float style="left:14px;top:12px">This rectangle is a native WKWebView. It sits outside GPUI clipping and paint order (#4), so tooltips, banners, and the focus ring stay outside it. Menus and dialogs over it still need proof in #11.<//>
+  </section>`;
+}
+function Strip() {
+  const last = S.log.find((r) => r.kind === 'ok');
+  return html`<div class="strip">
+    <div><h4 class="sec-title">Last minute<span class="aside">${last ? 'Last confirmed ' + clockAt(last.t) : ''}</span></h4><${Lanes} /></div>
+    <div style="display:flex;flex-direction:column"><h4 class="sec-title" style="padding:0 16px">Recent</h4><div class="scroll"><${LogList} limit=${6} /></div></div>
+  </div>`;
+}
+function ConnectPanel() {
+  const s = S.session; const st = s.phase === 'connecting' ? s.connectStep : -1;
+  if (s.phase === 'offline') {
+    return html`<div class="connect"><div class="connect-card">
+      <h2>Connect without the game client</h2>
+      <p>OpenTrickster signs in to the game service directly and controls one character. The game client stays closed.</p>
+      ${s.authError ? html`<div style="margin-bottom:14px"><${Banner} b=${AUTH_ERROR} flush /></div>` : ''}
+      <div class="field"><label for="acc">Game ID</label><input id="acc" class="input" value=${CHARACTER.account} /></div>
+      <div class="field"><label for="pw">Password</label><input id="pw" class="input" type="password" value="sample-pass" /></div>
+      <label class="check-row" style="margin:4px 0 16px"><input type="checkbox" checked />Store the password in macOS Keychain</label>
+      <div class="inline"><button class="btn primary" onClick=${go({ type: 'Connect' })}>Sign in</button><button class="btn proto" onClick=${go({ type: 'proto/auth-failed' })} title="Prototype only">Simulate a rejected password</button></div>
+      <${Note}>Clientless transport is unproven (#3). Client metadata names a LoginServer ticket, a GameServer handoff, and a second-password hint. These are leads, not verified steps, so this flow may need a second password step.<//>
+    </div></div>`;
+  }
+  return html`<div class="connect"><div class="connect-card">
+    <h2>Connecting</h2><p>Signed in as ${CHARACTER.account}. The game client stays closed.</p>
+    <ol class="flow">${CONNECT_STEPS.map((n, i) => html`<li class=${i < st ? 'done' : i === st ? 'now' : ''}><span class="n">${i < st ? html`<${Ic} n="check" c="sm" />` : i + 1}</span><div><div>${n}</div>
+      ${i === st && i === 1 ? html`<div class="pick"><button onClick=${go({ type: 'ConnectStep' })}><span>World 1</span><span class="muted">Normal</span></button><button onClick=${go({ type: 'ConnectStep' })}><span>World 2</span><span class="muted">Busy</span></button></div>` : ''}
+      ${i === st && i === 2 ? html`<div class="pick"><button onClick=${go({ type: 'ConnectStep' })}><span><b>${CHARACTER.name}</b></span><span class="muted">Lv 24, ${PLACES[s.activity].map}</span></button><button disabled><span>Second slot</span><span class="muted">Empty</span></button></div>` : ''}
+      ${i === st && (i === 0 || i === 3) ? html`<div class="muted"><${Ic} n="spinner" c="sm" /> Working</div>` : ''}
+    </div></li>`)}</ol>
+    <div style="margin-top:18px"><button class="btn" onClick=${go({ type: 'Cancel' })}>Cancel</button></div>
+  </div></div>`;
+}
+function CharacterHeader() {
+  const w = S.world;
+  return html`<div class="char">
+    <div class="avatar" aria-hidden="true">${CHARACTER.name[0]}</div>
+    <div style="min-width:0"><div class="char-name">${CHARACTER.name}</div>
+      <div class="char-meta"><span><${Ic} n="pin" c="sm" />${w.place.map}</span><span class="mono">x ${w.place.x}  y ${w.place.y}</span><span><${Ic} n="coin" c="sm" />${fmt(w.galder)} Galder</span></div></div>
+    <${Meter} label=${`Level ${w.level}`} value=${w.exp} max=${100} tone="accent" text=${`${w.exp.toFixed(1)}%`} />
+    <${Meter} label=${`TM ${w.tm}`} value=${w.tmExp} max=${100} tone="accent" text=${`${w.tmExp.toFixed(1)}%`} />
+  </div>`;
+}
+function Board({ parts }) {
+  const s = S.session;
+  if (s.phase === 'offline' || s.phase === 'connecting') return html`<${ConnectPanel} />`;
+  const live = liveState(s);
+  const heroBody = s.run || s.lastRun || ['running', 'paused', 'pausing'].includes(s.phase)
+    ? html`<${ActivityNow} big=${true} />`
+    : html`<div><div class="act-line"><${Ic} n=${s.activity === 'combat' ? 'combat' : 'dig'} c="sm" />Ready</div><div class="act-title"><b>${s.activity === 'combat' ? 'Combat' : 'Digging'}</b><span>on ${S.world.place.map}</span></div><${Preflight} /></div>`;
+  return html`<section class="board" aria-label="Information dashboard">
+    <${CharacterHeader} />
+    <div class="board-row" style=${{ gridTemplateColumns: parts.session ? 'minmax(0,1.3fr) minmax(0,1fr)' : '1fr' }}>
+      <div class="hero">${heroBody}</div>
+      ${parts.session ? html`<div class="section" style="border:0"><h4 class="sec-title">Session</h4><${SessionLines} /></div>` : ''}
+    </div>
+    <div class="section" style="border:0"><h4 class="sec-title">Last minute<span class="aside">${live ? 'Each mark is one action or one result' : 'Last known, no live game state'}</span></h4><${Lanes} /></div>
+    ${parts.vitals ? html`<div class="board-row" style="grid-template-columns:repeat(2,minmax(0,1fr))"><div class="section" style="border:0"><h4 class="sec-title">Vitals</h4><${Vitals} /></div><div class="section" style="border:0"><h4 class="sec-title">${s.run ? 'This run' : 'Last run'}</h4><${RunStats} /></div></div>` : ''}
+    ${parts.log ? html`<div style="flex:1;min-height:200px;display:flex;flex-direction:column"><${LogTools} /><div class="scroll"><${LogList} /></div></div>` : ''}
+  </section>`;
+}
+
+/* ---------- toolbar pieces, sheet ---------- */
+function Traffic() { return html`<div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>`; }
+function Sheet() {
+  if (!S.ui.sheet) return null;
+  const to = S.session.mode === 'client' ? 'clientless' : 'client-assisted';
+  return html`<div class="sheet-veil" onClick=${ui({ sheet: false })}></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Switch mode">
+    <div class="app-icon"><${Ic} n=${to === 'clientless' ? 'clientless' : 'client'} /></div>
+    <h3>Switch to ${to} mode?</h3>
+    <p>${to === 'clientless' ? `The game client closes and OpenTrickster signs in to ${CHARACTER.name} directly. The character may leave the world and come back.` : `OpenTrickster signs out of the game service and loads the game client. Log in inside the game to continue with ${CHARACTER.name}.`}</p>
+    <${Note}>This is a system prompt (NSAlert sheet), a separate window. It should draw over the game view, but dialogs over the game rectangle still need proof in #11.<//>
+    <div class="row" style="margin-top:12px"><button class="btn" onClick=${ui({ sheet: false })}>Cancel</button><button class="btn primary" onClick=${go({ type: 'SwitchMode' })}>Switch</button></div>
+  </div>`;
+}
+function Tabs({ names, aside }) {
+  const t = S.ui.tab;
+  const items = [['run', names[0], 'gauge', '⌘1'], ['setup', 'Setup', 'sliders', '⌘2'], ['log', 'Log', 'list', '⌘3']];
+  return html`<div class="tabs"><div class="tablist" role="tablist">${items.map(([k, l, i, kb]) => html`<button class="tab" role="tab" aria-selected=${t === k} onClick=${ui({ tab: k })}><${Ic} n=${i} c="sm" />${l}<span class="kbd">${kb}</span></button>`)}</div>${aside ? html`<div class="tabs-aside">${aside}</div>` : ''}</div>`;
+}
+function BuildLabel() {
+  const s = S.session;
+  if (s.phase === 'error' && s.halt.code === 'build-changed') return html`<span class="build-bad tone-critical"><${Ic} n="octagon" c="sm" />Build <span class="mono">${NEW_BUILD}</span> not supported</span>`;
+  return html`<span class="muted">Build <span class="mono">${SUPPORTED_BUILD}</span></span>`;
+}
+function Flash() { return S.ui.flash ? html`<div class="flash" role="status"><${Ic} n="info" c="sm" /><span>${S.ui.flash}</span></div>` : null; }
+function StatusLine() { return html`<span class="status-line"><${BuildLabel} /><${Freshness} /></span>`; }
+function Foot() { return html`<div class="foot"><${BuildLabel} /><${Freshness} /></div>`; }
+
+/* ---------- variant A: side rail ---------- */
+function VariantA() {
+  const s = S.session; const t = S.ui.tab;
+  if (!S.ui.rail) return html`<div class="window">
+    <div class="toolbar hud"><${Traffic} /><${Pill} />${hasCharacter(s) ? html`<${Minis} />` : ''}<span class="spacer"></span><${RunControls} variant="A" /><${KbdBadge} /><${PanelToggle} /></div>
+    <${Pulse} />
+    <div class="body"><div class="main">${s.mode === 'client' ? html`<${GamePane} />` : html`<${Board} parts=${{ session: true, vitals: true, log: true }} />`}</div></div>
+    <${Ticker} />
+    <${Sheet} />
+  </div>`;
+  return html`<div class="window">
+    <div class="toolbar"><${Traffic} /><span class="app-title">OpenTrickster</span><span class="tb-sep"></span><${ModeSwitch} /><span class="spacer"></span><${KbdBadge} /><${PanelToggle} /></div>
+    <${Pulse} />
+    <div class="body">
+      <div class=${'main' + (s.mode === 'client' ? ' fit' : '')}>${s.mode === 'client' ? html`<${GamePane} /><${Strip} />` : html`<${Board} parts=${{ session: true, vitals: false, log: true }} />`}</div>
+      <aside class="rail" id="rail" onMouseDown=${() => { if (S.ui.kbd !== 'dashboard') dispatch({ type: 'ui', patch: { kbd: 'dashboard' } }); }}>
+        <div class="rail-head"><${Pill} big=${true} /><${RunControls} variant="A" />${S.ui.flash ? html`<${Flash} />` : bannerOf(S) ? '' : html`<${WhyBlocked} />`}</div>
+        <div style="flex:none"><${Banner} /></div>
+        <div style="height:12px;flex:none"></div>
+        <${Tabs} names=${['Run']} />
+        <div class="scroll">${t === 'run' ? html`<${RunTab} withActivity=${s.mode === 'client'} />` : t === 'setup' ? html`<${SetupPanel} cols=${1} />` : html`<${LogTools} /><${LogList} />`}</div>
+        <${Foot} />
+      </aside>
+    </div>
+    <${Sheet} />
+  </div>`;
+}
+
+/* ---------- variant B: bottom dock ---------- */
+function VariantB() {
+  const s = S.session; const t = S.ui.tab; const hasRun = !!(s.run || s.lastRun);
+  const overview = html`<div class="dock-body">
+    <${Banner} />
+    <div class=${'dock-cols' + (s.mode === 'clientless' ? ' no-log' : '')} style=${{ marginTop: bannerOf(S) ? '10px' : '0' }}>
+      <div class="section">${Guidance() || (s.mode === 'clientless' ? html`<h4 class="sec-title">Session</h4><${SessionLines} />` : s.phase === 'ready' ? html`<h4 class="sec-title">Before you start</h4><${Preflight} />` : html`<${ActivityNow} />`)}</div>
+      <div class="section"><h4 class="sec-title">Vitals</h4><${Vitals} compact=${true} /></div>
+      <div class="section"><h4 class="sec-title">${s.run ? 'This run' : 'Last run'}</h4>${hasRun ? html`<${RunStats} />` : html`<p class="muted" style="margin:0">No run yet.</p>`}</div>
+      ${s.mode === 'client' ? html`<div style="display:flex;flex-direction:column"><h4 class="sec-title" style="padding:14px 16px 0">Log<span class="aside">newest first</span></h4><div class="scroll"><${LogList} /></div></div>` : ''}
+    </div></div>`;
+  return html`<div class="window">
+    <div class="toolbar"><${Traffic} /><span class="app-title">OpenTrickster</span><span class="tb-sep"></span><${ModeSwitch} /><span class="spacer"></span><${Pill} /><${RunControls} variant="B" /><span class="tb-sep"></span><${KbdBadge} /></div>
+    <${Pulse} />
+    <div class="main">
+      ${s.mode === 'client' ? html`<${GamePane} />` : html`<${Board} parts=${{ session: false, vitals: false, log: true }} />`}
+      <section class="dock" onMouseDown=${() => { if (S.ui.kbd !== 'dashboard') dispatch({ type: 'ui', patch: { kbd: 'dashboard' } }); }}>
+        <${Tabs} names=${['Overview']} aside=${S.ui.flash ? html`<${Flash} />` : html`<${StatusLine} />`} />
+        ${t === 'run' ? overview : t === 'setup' ? html`<div class="scroll"><${SetupPanel} cols=${s.activity === 'combat' ? 5 : 4} /></div>` : html`<div class="scroll"><${LogTools} /><${LogList} /></div>`}
+      </section>
+    </div>
+    <${Sheet} />
+  </div>`;
+}
+
+/* ---------- variant C: focus HUD ---------- */
+function Mini({ label, value, max, tone = 'neutral' }) {
+  return html`<div class=${`mini meter tone-${tone}`}><div class="mh"><span>${label}</span><b class="num">${Math.round(pct(value, max))}%</b></div><div class="track"><div class="fill" style=${{ width: pct(value, max) + '%' }}></div></div></div>`;
+}
+function Minis() {
+  const w = S.world, cc = S.config.combat, c = S.config[S.session.activity]; const wp = pct(w.weight, w.weightMax);
+  return html`<span class="minis"><span class="tb-sep"></span><${Mini} label="HP" value=${w.hp} max=${w.hpMax} tone=${hpTone(w, cc)} /><${Mini} label="MP" value=${w.mp} max=${w.mpMax} tone=${pct(w.mp, w.mpMax) <= cc.mpAt ? 'warning' : 'neutral'} /><${Mini} label="Weight" value=${w.weight} max=${w.weightMax} tone=${wp >= c.weightAt ? 'critical' : wp >= c.weightAt - 10 ? 'warning' : 'neutral'} /></span>`;
+}
+function Ticker({ runControls }) {
+  if (S.ui.flash) return html`<div class="ticker tone-neutral"><${Flash} /></div>`;
+  const s = S.session; const b = bannerOf(S);
+  if (b) {
+    const si = startInfo();
+    const ctl = !runControls ? [] : s.phase === 'paused' ? [{ label: 'Resume', ev: { type: 'Resume' }, primary: true, disabled: !si.enabled }]
+      : canStop() && ['reconnecting', 'disconnected'].includes(s.phase) ? [{ label: 'End run', ev: { type: 'EndRun' } }] : [];
+    return html`<div class=${'ticker tone-' + b.tone} data-banner><${Ic} n=${b.icon} /><b>${b.title}</b><span class="msg">${b.body}</span><span class="spacer"></span>${[...ctl, ...b.actions].map((a) => html`<button class=${'btn sm' + (a.primary ? ' primary' : '') + (a.proto ? ' proto' : '')} disabled=${a.disabled} onClick=${go(a.ev)}>${a.label}</button>`)}</div>`;
+  }
+  const why = blockedText();
+  if (why) return html`<div class="ticker tone-warning"><${Ic} n="warn" /><span class="msg">${why}</span><span class="spacer"></span><${StatusLine} /></div>`;
+  const last = S.log.find((r) => r.kind === 'ok');
+  const st = statusOf(S);
+  const showLast = last && s.phase !== 'error';
+  return html`<div class=${'ticker tone-' + st.tone}><${Ic} n=${showLast ? 'check' : st.icon} />${showLast ? html`<span class="muted num">${clockAt(last.t)}</span><span class="msg">${last.text}</span>` : html`<span class="msg">${st.label}</span>`}<span class="spacer"></span><${StatusLine} /></div>`;
+}
+function VariantC() {
+  const s = S.session, w = S.world, t = S.ui.tab;
+  const open = S.ui.drawer;
+  const actChip = s.run ? (s.activity === 'combat' ? html`<span class="act-chip"><${Ic} n="combat" c="sm" /><b>${w.target.name}</b> ${w.target.hp}%</span>` : html`<span class="act-chip"><${Ic} n="dig" c="sm" /><b>${DIG_STEPS[w.dig.step]}</b> depth ${w.dig.depth}</span>`) : '';
+  return html`<div class="window">
+    <div class="toolbar hud"><${Traffic} /><${Pill} />${actChip}
+      ${hasCharacter(s) ? html`<${Minis} />` : ''}
+      ${s.run ? html`<span class="secondary num" style="font-size:12px"><${Ic} n="clock" c="sm" /> ${duration(s.run.elapsed)}</span>` : ''}
+      <span class="spacer"></span><${ModeSwitch} small=${true} /><${RunControls} variant="C" /><${KbdBadge} />
+      <button class="btn icon-only" aria-pressed=${open} title="Show or hide details (⌘\\)" onClick=${ui({ drawer: !open })}><${Ic} n="sidebar" /></button>
+    </div>
+    <${Pulse} />
+    <div class="body">
+      <div class="main">${s.mode === 'client' ? html`<${GamePane} />` : html`<${Board} parts=${{ session: true, vitals: !open, log: true }} />`}</div>
+      ${open ? html`<aside class="drawer" onMouseDown=${() => { if (S.ui.kbd !== 'dashboard') dispatch({ type: 'ui', patch: { kbd: 'dashboard' } }); }}>
+        <${Tabs} names=${['Details']} />
+        <div class="scroll">${t === 'run' ? html`<${RunTab} withActivity=${s.mode === 'client'} withSession=${s.mode === 'client'} />` : t === 'setup' ? html`<${SetupPanel} cols=${1} />` : html`<${LogTools} /><${LogList} />`}</div>
+      </aside>` : ''}
+    </div>
+    <${Ticker} runControls />
+    <${Sheet} />
+  </div>`;
+}
+
+/* ---------- prototype bar (not part of the design) ---------- */
+const SIM_GROUPS = [
+  ['Game client', [['Load game', { type: 'LoadGame' }], ['Log in (character enters)', { type: 'CharacterSeen' }], ['Game fails: network', { type: 'GameFailed', why: 'network' }], ['Game fails: page load', { type: 'GameFailed', why: 'navigation' }], ['Game fails: start-up', { type: 'GameFailed', why: 'unity' }], ['WebKit process ends', { type: 'GameFailed', why: 'webkit' }], ['Game build changes', { type: 'BuildChanged' }]]],
+  ['Run', [['Start', { type: 'Start' }], ['Pause', { type: 'Pause' }], ['Resume', { type: 'Resume' }], ['Stop', { type: 'Stop' }], ['Switch activity: combat', { type: 'SetActivity', activity: 'combat' }], ['Switch activity: digging', { type: 'SetActivity', activity: 'digging' }], ['Switch mode', { type: 'proto/switch' }]]],
+  ['Run problems', [['HP potions run out', { type: 'Limit', kind: 'hp-potions' }], ['Bag weight limit', { type: 'Limit', kind: 'weight' }], ['Drill durability limit', { type: 'Limit', kind: 'drill' }], ['Drill too shallow', { type: 'Limit', kind: 'depth' }], ['Character faints', { type: 'Fainted' }], ['No drops for 30 kills', { type: 'NoDrops' }], ['State goes stale', { type: 'Stale' }], ['Goal reached', { type: 'Goal' }], ['Actions rejected', { type: 'Rejected' }], ['Map blocks automation', { type: 'MapForbidden' }], ['Fix it in the game', { type: 'proto/fix' }]]],
+  ['Connection', [['Connection drops', { type: 'Lost' }], ['Session resumes', { type: 'ResumeOk' }], ['Reconnect attempt fails', { type: 'RetryFailed' }], ['Reconnect', { type: 'Reconnect' }], ['Signed in elsewhere', { type: 'Replaced' }], ['Sign in (clientless)', { type: 'Connect' }], ['Next connect step', { type: 'ConnectStep' }]]],
+];
+function evAllowed(ev) {
+  if (ev.type.startsWith('proto/')) return true;
+  return canSession(S.session, ev.type);
+}
+function ProtoBar() {
+  if (!S.ui.chrome) return null;
+  const v = S.ui.variant; const keys = Object.keys(VARIANTS);
+  const cycle = (d) => () => setVariant(keys[(keys.indexOf(v) + d + keys.length) % keys.length]);
+  const wt = WALKTHROUGHS[S.ui.scenario]; const ix = S.ui.stepIx;
+  return html`
+  ${S.ui.sim ? html`<div class="simmenu">${SIM_GROUPS.map(([g, items]) => html`<div><h4>${g}</h4>${items.map(([l, ev]) => html`<button disabled=${!evAllowed(ev)} onClick=${() => dispatch(ev)}>${l}</button>`)}${g === 'Connection' ? html`<label style="display:flex;gap:6px;align-items:center;padding:6px 8px"><input type="checkbox" checked=${S.ui.reconnectFails} onChange=${(e) => dispatch({ type: 'ui', patch: { reconnectFails: e.target.checked } })} />Reconnect keeps failing</label>` : ''}</div>`)}</div>` : ''}
+  <div class="pbar" role="toolbar" aria-label="Prototype controls">
+    <button onClick=${cycle(-1)} aria-label="Previous variant"><${Ic} n="left" /></button>
+    <button class="v" onClick=${cycle(1)}>${v} · ${VARIANTS[v]}</button>
+    <button onClick=${cycle(1)} aria-label="Next variant"><${Ic} n="right" /></button>
+    <span class="sep"></span>
+    <button aria-pressed=${S.ui.theme === 'light'} onClick=${() => setTheme(S.ui.theme === 'dark' ? 'light' : 'dark')}><${Ic} n=${S.ui.theme === 'dark' ? 'moon' : 'sun'} />${S.ui.theme === 'dark' ? 'Dark' : 'Light'}</button>
+    <button aria-pressed=${S.ui.notes} onClick=${ui({ notes: !S.ui.notes })}><${Ic} n="note" />Open questions</button>
+    <button aria-pressed=${S.ui.sim} onClick=${ui({ sim: !S.ui.sim })}><${Ic} n="bolt" />Simulate</button>
+    <span class="sep"></span>
+    <select aria-label="Guided scenario" onChange=${(e) => startWalk(e.target.value)} value=${S.ui.scenario}><option value="">Guided scenario…</option>${Object.keys(WALKTHROUGHS).map((k) => html`<option value=${k}>${k}</option>`)}</select>
+    ${wt ? html`<button onClick=${nextStep} disabled=${ix >= wt.steps.length}><${Ic} n="play" />${ix >= wt.steps.length ? 'Done' : `Step ${ix + 1} of ${wt.steps.length}`}</button><span class="stepcap">${ix < wt.steps.length ? wt.steps[ix][0] : 'Scenario finished'}</span>` : ''}
+    <span class="sep"></span><span class="tagp">Sample data</span>
+  </div>`;
+}
+function startWalk(name) {
+  if (!name) { dispatch({ type: 'ui', patch: { scenario: '', stepIx: 0 } }); return; }
+  const wt = WALKTHROUGHS[name];
+  let base = { ...S, session: initialSession(wt.start === 'connect' ? 'clientless' : 'client', wt.activity || 'combat'), world: defaultWorld(wt.activity || 'combat'), log: [], timeline: [], vt: 1000, seq: 0, beat: 0 };
+  base = applyScenario(base, wt.start);
+  S = { ...base, ui: { ...S.ui, scenario: name, stepIx: 0, sheet: false } };
+  paint();
+}
+function nextStep() {
+  const wt = WALKTHROUGHS[S.ui.scenario]; const ix = S.ui.stepIx;
+  if (!wt || ix >= wt.steps.length) return;
+  S = { ...S, ui: { ...S.ui, stepIx: ix + 1 } };
+  if (wt.steps[ix][1]) dispatch(wt.steps[ix][1]); else paint();
+}
+function setVariant(v) { dispatch({ type: 'ui', patch: { variant: v, tab: S.ui.tab } }); syncUrl(); }
+function setTheme(t) { dispatch({ type: 'ui', patch: { theme: t, themeSet: true } }); syncUrl(); }
+function syncUrl() {
+  const q = new URLSearchParams(location.search); q.set('variant', S.ui.variant);
+  if (S.ui.themeSet) q.set('theme', S.ui.theme); else q.delete('theme');
+  history.replaceState(null, '', '?' + q.toString());
+}
+SYSTEM_DARK.addEventListener('change', (e) => { if (!S.ui.themeSet) dispatch({ type: 'ui', patch: { theme: e.matches ? 'dark' : 'light' } }); });
+
+function App() {
+  document.documentElement.dataset.theme = S.ui.theme;
+  document.body.classList.toggle('bare', !S.ui.chrome);
+  const V = { A: VariantA, B: VariantB, C: VariantC }[S.ui.variant];
+  return html`<div class="desk"><${V} /></div><${ProtoBar} />`;
+}
+function paint() { render(html`<${App} />`, document.getElementById('root')); }
+
+addEventListener('keydown', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'select' || tag === 'textarea';
+  const mod = e.metaKey || e.ctrlKey; const k = e.key.toLowerCase();
+  if (mod && k === 'r') { e.preventDefault(); return dispatch({ type: S.session.phase === 'paused' ? 'Resume' : 'Start' }); }
+  if (mod && k === 'p') { e.preventDefault(); return dispatch({ type: 'Pause' }); }
+  if (mod && k === '.') { e.preventDefault(); if (canStop()) dispatch(stopEv()); return; }
+  if (mod && ['1', '2', '3'].includes(k)) { e.preventDefault(); return dispatch({ type: 'ui', patch: { tab: ['run', 'setup', 'log'][+k - 1], rail: true } }); }
+  if (e.ctrlKey && e.key === 'Tab') { e.preventDefault(); return dispatch({ type: 'ui', patch: { kbd: S.ui.kbd === 'game' ? 'dashboard' : 'game' } }); }
+  if (mod && e.key === '\\') { e.preventDefault(); return dispatch({ type: 'ui', patch: S.ui.variant === 'C' ? { drawer: !S.ui.drawer } : { rail: !S.ui.rail } }); }
+  if (e.key === 'Escape' && S.ui.sheet) return dispatch({ type: 'ui', patch: { sheet: false } });
+  if (!typing && !mod && S.ui.kbd !== 'game' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    const keys = Object.keys(VARIANTS); setVariant(keys[(keys.indexOf(S.ui.variant) + (e.key === 'ArrowLeft' ? -1 : 1) + keys.length) % keys.length]);
+  }
+});
+paint();
+</script>
+</body>
+</html>
