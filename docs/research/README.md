@@ -12,6 +12,7 @@ the recovered contracts. Older builds and prototype labels are not interchangeab
 | --- | --- | --- | --- |
 | Framing, opcode maps, authentication/bootstrap compatibility | [Current-build revalidation](current-build-protocol-revalidation.md) | `df5fe0a5` | Pinned static joins and synthetic checks; no live acceptance in this report. |
 | Own/entity state, effects, inventory and action-result layouts | [State completion](target-state-completion.md) | `cb587e23` | Current and prior build joins; receipt, result and inventory mutation remain distinct. |
+| Native inventory startup and carried weight | [Inventory baseline](native-inventory-baseline.md) | `ce0cf202` | Exact replay/cache/weight oracle and comparison procedure; the candidate native cutoff remains unaccepted until a passive Unity comparison and serialized native boot pass. |
 | Clientless authentication and initial state | [Native startup](native-startup-current-build.md) | `5de55dbf` | One standalone script reached the existing character without Unity. This is not production Rust adapter or gameplay proof. |
 | Full manual dig | [Manual dig control](manual-dig-control.md) | `b1a12a97` | Complete timed controller and serializers; actual tool/spot state and server acceptance require runtime evidence. |
 | Normal gun attack and attribution | [Gun combat control](gun-combat-control.md) | `efccf799` | Equipment, timing, request and own-result paths; live effect baselines and gameplay remain separate. |
@@ -25,11 +26,11 @@ commit URLs inside these reports. Reproduction code uses public artifacts and
 synthetic fixtures; do not commit downloaded game assets, compiled access-bearing
 keys, credentials, private captures or actual account values.
 
-Remaining inventory/weight and sampler integration work is tracked in
-[inventory/weight readiness #31](https://github.com/oDestroyeRo/opentrickster/issues/31) and
-[assisted sampler #30](https://github.com/oDestroyeRo/opentrickster/issues/30).
-The bounded source investigation for [own effect lifecycle #32](https://github.com/oDestroyeRo/opentrickster/issues/32)
-is complete; production integration and live effect validation remain under
+The [assisted sampler #30](https://github.com/oDestroyeRo/opentrickster/issues/30)
+remains under review and integration. The bounded source investigations for
+[inventory/weight #31](https://github.com/oDestroyeRo/opentrickster/issues/31) and
+[own effect lifecycle #32](https://github.com/oDestroyeRo/opentrickster/issues/32)
+are complete; inventory cutoff acceptance, production integration and live validation remain under
 [#21](https://github.com/oDestroyeRo/opentrickster/issues/21) and
 [#23](https://github.com/oDestroyeRo/opentrickster/issues/23).
 The production adapters, desktop, live integration and package remain under
