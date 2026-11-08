@@ -1,0 +1,52 @@
+[
+  {
+    "file": "IBMPlexSans-Regular.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-Regular.ttf",
+    "sha256": "975dcda37d80f038dcd143c22e33ca2d97a0cc5a929aace1c749153b0fe1afa5"
+  },
+  {
+    "file": "IBMPlexSans-Medium.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-Medium.ttf",
+    "sha256": "331c8639d7598b2cde62a911a71db195e30cb655cd6bdf2e324a7e984955f907"
+  },
+  {
+    "file": "IBMPlexSans-SemiBold.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans/fonts/complete/ttf/IBMPlexSans-SemiBold.ttf",
+    "sha256": "a20caf8286023a6a7a85e40b1d2a4ae9fc3e3b1f9eda8f4c542dd4986af67bb1"
+  },
+  {
+    "file": "IBMPlexSans-OFL.txt",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans/fonts/complete/ttf/license.txt",
+    "sha256": "91c25c350d3cac39da2736d74f7ba37ef648f5237a4e330a240615bc8d8c4360"
+  },
+  {
+    "file": "IBMPlexSansThai-Regular.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans-thai/fonts/complete/ttf/IBMPlexSansThai-Regular.ttf",
+    "sha256": "83e1db8e8bad06bb760981f1dd528f5f209d20dfadebac12b21bf2f12453c8c6"
+  },
+  {
+    "file": "IBMPlexSansThai-Medium.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans-thai/fonts/complete/ttf/IBMPlexSansThai-Medium.ttf",
+    "sha256": "a88c2ecd469b3a29bf9e77e40930aed43644062f0e4d604de3db4e31755a9f59"
+  },
+  {
+    "file": "IBMPlexSansThai-SemiBold.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans-thai/fonts/complete/ttf/IBMPlexSansThai-SemiBold.ttf",
+    "sha256": "c0d88539aa6117a845a19ea4e83c2c0efc56dc43ebe41935b54d316ad2d6c7d5"
+  },
+  {
+    "file": "IBMPlexSansThai-OFL.txt",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-sans-thai/fonts/complete/ttf/license.txt",
+    "sha256": "91c25c350d3cac39da2736d74f7ba37ef648f5237a4e330a240615bc8d8c4360"
+  },
+  {
+    "file": "IBMPlexMono-Regular.ttf",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-mono/fonts/complete/ttf/IBMPlexMono-Regular.ttf",
+    "sha256": "7c6fbddca4b700be918f5f6183d9bd4464fa427fe435f0b480d77fe2bb8c5a43"
+  },
+  {
+    "file": "IBMPlexMono-OFL.txt",
+    "source": "https://raw.githubusercontent.com/IBM/plex/48e8676114c04f29033b4b53da4ec579f8846297/packages/plex-mono/fonts/complete/ttf/license.txt",
+    "sha256": "91c25c350d3cac39da2736d74f7ba37ef648f5237a4e330a240615bc8d8c4360"
+  }
+]
