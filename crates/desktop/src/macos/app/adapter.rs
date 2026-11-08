@@ -326,7 +326,21 @@ impl Desktop {
             }
             _ => {}
         }
-        for (at, observation) in observations {
+        for (at, mut observation) in observations {
+            if matches!(
+                self.adapter,
+                Some(Adapter::Embedded { .. } | Adapter::ClosingEmbedded { .. })
+            ) && let Event::Baseline { support, .. } = &mut observation.event
+            {
+                // Passive decoding proves state, but this host has not yet proved
+                // the native input/continuation and drain boundary. Never advertise it.
+                support.move_to = false;
+                support.basic_attack = false;
+                support.dig_cycle = false;
+                support.pickup = false;
+                support.hp_potion = false;
+                support.quiesce = false;
+            }
             if matches!(
                 observation.event,
                 Event::Failed(engine::Halt::SessionReplaced)
