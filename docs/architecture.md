@@ -53,6 +53,10 @@ requires source and runtime proof before replacing that backend.
 - Preserve an observation's original ingress mark through Aux buffering. A
   successful send supplies a mark from the same adapter ordering domain. Only
   relevant, attributable evidence after that mark can confirm an action.
+- Preserve its original receive time too. Queue draining must not make old game
+  state fresh. The engine's logical clock stays monotonic while freshness and
+  entity stamps use the observation's original time. Runtime submissions use
+  current application time, including time spent waiting in an adapter queue.
 - Buffer a bounded number of relevant early observations until the send receipt
   arrives. Overflow or uncertain attribution pauses automation.
 - Deduplicate stable evidence keys, including out-of-order delivery. A latest
@@ -66,6 +70,10 @@ requires source and runtime proof before replacing that backend.
   A fresh baseline and verified idle state are required before Resume.
 - Keep unknown resources, maxima, inventory and capabilities explicit. Unknown
   is not zero, an empty inventory, a valid target or a completed action.
+- Physical gameplay input fences queued gestures and quarantines ambiguous work
+  before the engine pauses with a manual-input reason. Host work carries page,
+  session, layout and expiry fences. A native mode-switch sheet obtains the
+  operator's choice before submitting the confirmed switch command.
 
 The adapter validates bytes, origins, build profiles and raw identities at its
 boundary. Wire types and platform objects do not enter the engine. Domain labels
@@ -93,8 +101,11 @@ still offers a small controller/snapshot facade to the UI.
 The actor candidate contributes original-ingress watermarks, buffering early
 outcomes until an actual-send receipt, explicit uncertain delivery, and safe
 typed logs. Both candidates agree on one adapter, normal assisted input and no
-raw socket injection. The independent comparison is pending; its findings must
-be reconciled before the foundation PR merges.
+raw socket injection. An independent comparison also selected the reducer base.
+Its additional corrections are explicit manual-input arbitration, native mode
+confirmation, inventory knowledge and concrete resume blockers. Both candidate
+reducers can be tested without asynchronous IO; the choice is about module and
+worker boundaries, rather than whether an actor can contain a pure reducer.
 
 We accept an explicit effect boundary in exchange for deterministic policy
 tests. We accept conservative pauses where attribution or quiescence cannot be
@@ -103,7 +114,13 @@ operating mode from MVP completion.
 
 ## Implementation reconciliation
 
-The initial type scaffold is temporary and is replaced with working code in the
-foundation PR. Shared signature changes must be reconciled here and communicated
-to other implementers before integration. A completed MVP contains no placeholder
+The foundation PR replaces the temporary type scaffold with a working reducer
+and public-boundary trace tests. It adds typed manual input, explicit inventory
+knowledge, concrete blockers, local capability getters and a received inventory
+projection. Queued source-time preservation was reproduced with a failing trace
+and corrected before integration. These changes preserve the original ownership
+and effect boundaries.
+
+Shared signature changes must be reconciled here and communicated to other
+implementers before integration. A completed MVP contains no placeholder
 adapters or synthetic results presented as live gameplay.

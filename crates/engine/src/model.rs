@@ -494,6 +494,8 @@ pub struct Snapshot {
     pub activity: ActivityView,
     pub own: OwnView,
     pub entities: Vec<Entity>,
+    /// Received stacks only; an empty view with unknown inventory is not an empty bag.
+    pub inventory: Vec<Stack>,
     pub totals: Totals,
     pub log: Vec<LogEntry>,
 }

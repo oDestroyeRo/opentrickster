@@ -188,6 +188,7 @@ impl Engine {
             activity,
             own: self.book.own.clone(),
             entities: self.book.entities.values().cloned().collect(),
+            inventory: self.book.bag.values().cloned().collect(),
             totals: self
                 .run
                 .as_ref()
@@ -223,7 +224,7 @@ impl Engine {
             } = input
                 && self.session() == Some(session)
             {
-                self.event(Event::Closed, &mut io);
+                self.event(Event::Closed, now, &mut io);
             }
             return Effects {
                 wake_at: None,
@@ -242,9 +243,9 @@ impl Engine {
                     self.command(command, &mut io);
                 }
             }
-            Input::Observed { observation, .. } => {
+            Input::Observed { at, observation } => {
                 if self.session() == Some(observation.session) {
-                    self.event(observation.event, &mut io);
+                    self.event(observation.event, at, &mut io);
                 }
             }
             Input::Wake(_) => {}
@@ -597,7 +598,7 @@ impl Engine {
         self.record(SafeLog::Refused(refusal));
     }
 
-    fn event(&mut self, event: Event, io: &mut Vec<Effect>) {
+    fn event(&mut self, event: Event, observed_at: At, io: &mut Vec<Effect>) {
         if matches!(self.connection, Connection::Closing { .. }) && !matches!(event, Event::Closed)
         {
             return;
@@ -635,7 +636,7 @@ impl Engine {
                     return;
                 }
                 self.book = Book::new();
-                self.book.apply(facts, IngressMark(0), self.now);
+                self.book.apply(facts, IngressMark(0), observed_at);
                 self.support = Some(support);
                 self.connection = Connection::Online(key);
                 self.choices = Choices::None;
@@ -665,7 +666,7 @@ impl Engine {
                     self.close(AfterClose::Offline(self.mode), io);
                     return;
                 }
-                let mut evidence = self.book.apply(facts, ingress, self.now);
+                let mut evidence = self.book.apply(facts, ingress, observed_at);
                 self.credit_inventory(&mut evidence);
                 let Some(pending) = self.run.as_mut().and_then(|run| run.pending.as_mut()) else {
                     return;
@@ -984,13 +985,13 @@ impl Engine {
             && run.killed.insert((session, key, pending.incarnation))
         {
             run.totals.kills = run.totals.kills.saturating_add(1);
-            self.book.mark_killed(key, evidence.ingress, self.now);
+            self.book.mark_killed(key, evidence.ingress, evidence.at);
         }
         if let Some(key) = picked {
-            self.book.mark_picked(key, evidence.ingress, self.now);
+            self.book.mark_picked(key, evidence.ingress, evidence.at);
         }
         if let Some(point) = arrived {
-            self.book.arrived(point, evidence.ingress, self.now);
+            self.book.arrived(point, evidence.ingress, evidence.at);
         }
         if pending.terminal.is_some() {
             return;

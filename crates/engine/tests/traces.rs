@@ -4,6 +4,34 @@ use std::num::{NonZeroU16, NonZeroU32};
 fn label() -> DisplayText {
     DisplayText::checked("Synthetic fixture".into()).unwrap_or_else(|_| panic!("fixture label"))
 }
+
+#[test]
+fn queued_observation_keeps_its_original_freshness() {
+    let mut h = Harness::new(false);
+    h.wake(20_000);
+    let original_at = At(1_000);
+    let delayed = h.engine.handle(Input::Observed {
+        at: original_at,
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(900),
+                ingress: IngressMark(900),
+                facts: vec![Fact::Hp(gauge(100, 100))],
+            },
+        },
+    });
+
+    assert_eq!(delayed.snapshot.own.last_state_at, Some(original_at));
+    assert!(!delayed.snapshot.allowed.contains(&Control::Start));
+    assert!(
+        delayed
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsFreshObservation(StateKind::WorldState,))
+    );
+    assert!(acts(&delayed).is_empty());
+}
 fn gauge(current: u32, maximum: u32) -> Gauge {
     Gauge {
         current,

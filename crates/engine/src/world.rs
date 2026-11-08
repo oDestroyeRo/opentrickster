@@ -21,6 +21,7 @@ enum Field {
 
 pub(crate) struct Evidence {
     pub ingress: IngressMark,
+    pub at: At,
     pub outcomes: Vec<Outcome>,
     pub gains: BTreeMap<ItemKind, u64>,
 }
@@ -151,7 +152,7 @@ impl Book {
             && let Some((map, _)) = self.own.position
         {
             self.own.position = Some((map, point));
-            self.own.last_state_at = Some(at);
+            self.mark_state_seen(at);
         }
     }
 
@@ -176,6 +177,7 @@ impl Book {
     pub fn apply(&mut self, facts: Vec<Fact>, ingress: IngressMark, now: At) -> Evidence {
         let mut evidence = Evidence {
             ingress,
+            at: now,
             outcomes: Vec::new(),
             gains: BTreeMap::new(),
         };
@@ -292,9 +294,16 @@ impl Book {
             }
         }
         if state {
-            self.own.last_state_at = Some(now);
+            self.mark_state_seen(now);
         }
         evidence
+    }
+
+    fn mark_state_seen(&mut self, at: At) {
+        self.own.last_state_at = Some(At(self
+            .own
+            .last_state_at
+            .map_or(at.0, |old| old.0.max(at.0))));
     }
 
     fn inventory(&mut self, inventory: Inventory, ingress: IngressMark, now: At) -> bool {
