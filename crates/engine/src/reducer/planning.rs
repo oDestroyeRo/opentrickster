@@ -57,7 +57,7 @@ impl Engine {
                         } else if self
                             .book
                             .hp_potion
-                            .and_then(|key| self.book.bag.get(&key))
+                            .and_then(|key| self.book.inventory.stacks.get(&key))
                             .is_none_or(|stack| stack.quantity == 0)
                         {
                             blockers.push(Blocker::NeedsHpPotions);
@@ -152,7 +152,8 @@ impl Engine {
                 .ok_or(Blocker::NeedsObservation(StateKind::HpPotionStack))?;
             if self
                 .book
-                .bag
+                .inventory
+                .stacks
                 .get(&key)
                 .is_none_or(|stack| stack.quantity == 0)
             {

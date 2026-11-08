@@ -63,6 +63,14 @@ requires source and runtime proof before replacing that backend.
   sequence number alone cannot deduplicate independently flushed Aux groups.
 - Keep dig feedback, ground items, pickup feedback and inventory mutations
   distinct. Inventory goals use received inventory changes, not captions.
+- Inventory list rows use `Fact::InventorySnapshot`: merge received rows without
+  clearing absent rows, asserting completeness or granting goal credit. Ordinary
+  mutations retain their original ingress in a bounded source-order journal.
+  `Fact::InventorySettled` proves that every inventory frame through its mark
+  has been delivered, including partial/raw/Aux queues. Only settled deltas after
+  the run's send boundary earn credit. A goal waits for unsettled inventory;
+  metadata alone cannot refresh state. Late mutations behind a proven frontier
+  or journal overflow invalidate inventory until the session is reconstructed.
 - Pause and Stop drain only the current action. A tagged quiescence barrier
   establishes idle state; an old barrier cannot clear a later action. If idle
   cannot be established within the drain deadline, close the adapter.
@@ -118,8 +126,12 @@ The foundation PR replaces the temporary type scaffold with a working reducer
 and public-boundary trace tests. It adds typed manual input, explicit inventory
 knowledge, concrete blockers, local capability getters and a received inventory
 projection. Queued source-time preservation was reproduced with a failing trace
-and corrected before integration. These changes preserve the original ownership
-and effect boundaries.
+and corrected before integration. Independent review also reproduced old-map
+facts, contradictory terminal evidence, reordered inventory updates and lifecycle
+edge cases. Corrections fence map-scoped facts, retain Stop through resource
+closure, reset successful reconnect budgets and settle inventory in source order.
+The inventory snapshot/frontier facts are additive adapter contracts. These
+changes preserve the original ownership and effect boundaries.
 
 Shared signature changes must be reconciled here and communicated to other
 implementers before integration. A completed MVP contains no placeholder

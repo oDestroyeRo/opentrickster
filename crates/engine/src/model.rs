@@ -299,6 +299,11 @@ pub enum Fact {
     Entity(Entity),
     EntityGone(EntityKey),
     Inventory(Inventory),
+    /// Received list rows: merge only, never infer an empty/complete bag or a gain.
+    InventorySnapshot(Vec<Stack>),
+    /// All inventory frames through this original ingress have already been delivered.
+    /// Hold this frontier behind partial frames, raw queues and buffered Aux groups.
+    InventorySettled(IngressMark),
     DigAccepted,
     DigSpot(Point),
     Outcome(Outcome),

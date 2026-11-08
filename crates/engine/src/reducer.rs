@@ -76,6 +76,7 @@ struct Pending {
     finish_by: At,
     sent: Option<IngressMark>,
     terminal: Option<Resolution>,
+    dig_result: Option<DigEnd>,
     quarantined: bool,
     early: Vec<Evidence>,
 }
@@ -188,7 +189,7 @@ impl Engine {
             activity,
             own: self.book.own.clone(),
             entities: self.book.entities.values().cloned().collect(),
-            inventory: self.book.bag.values().cloned().collect(),
+            inventory: self.book.inventory.stacks.values().cloned().collect(),
             totals: self
                 .run
                 .as_ref()
@@ -348,7 +349,7 @@ impl Engine {
                 if self
                     .run
                     .as_ref()
-                    .is_some_and(|run| !matches!(run.stage, Stage::Draining(AfterDrain::Stop))) =>
+                    .is_some_and(|run| matches!(run.stage, Stage::Running)) =>
             {
                 Ok(())
             }
@@ -378,6 +379,14 @@ impl Engine {
 
     fn preflight(&self) -> Vec<Blocker> {
         let mut blockers = self.safety_blockers();
+        if self
+            .setup
+            .as_ref()
+            .is_some_and(|setup| setup.draft().goal.is_some())
+            && self.book.inventory.pending()
+        {
+            blockers.push(Blocker::NeedsObservation(StateKind::Inventory));
+        }
         if blockers.is_empty()
             && matches!(self.connection, Connection::Online(_))
             && let Err(blocker) = self.plan()
@@ -639,6 +648,7 @@ impl Engine {
                 self.book.apply(facts, IngressMark(0), observed_at);
                 self.support = Some(support);
                 self.connection = Connection::Online(key);
+                self.reconnect_attempt = 0;
                 self.choices = Choices::None;
                 self.idle = false;
                 if let Some(run) = &mut self.run {
@@ -748,7 +758,9 @@ impl Engine {
                     self.barrier = None;
                     self.idle = false;
                     if let Some(run) = &mut self.run {
-                        run.stage = Stage::Paused(Pause::Reconnected);
+                        if !matches!(run.stage, Stage::Draining(AfterDrain::Stop)) {
+                            run.stage = Stage::Paused(Pause::Reconnected);
+                        }
                         run.goal_floor = None;
                         if let Some(pending) = &mut run.pending {
                             pending.quarantined = true;
@@ -756,6 +768,13 @@ impl Engine {
                         }
                     }
                     self.notify(Notice::ConnectionLost, io);
+                    if self
+                        .run
+                        .as_ref()
+                        .is_some_and(|run| matches!(run.stage, Stage::Draining(AfterDrain::Stop)))
+                    {
+                        self.close(AfterClose::Offline(self.mode), io);
+                    }
                 }
             }
             Event::Closed => {
@@ -768,7 +787,13 @@ impl Engine {
                 self.idle = false;
                 self.support = None;
                 self.choices = Choices::None;
-                if let Some(run) = &mut self.run {
+                if self
+                    .run
+                    .as_ref()
+                    .is_some_and(|run| matches!(run.stage, Stage::Draining(AfterDrain::Stop)))
+                {
+                    self.finish_run();
+                } else if let Some(run) = &mut self.run {
                     run.pending = None;
                     run.stage = Stage::Paused(Pause::Reconnected);
                 }
@@ -891,10 +916,10 @@ impl Engine {
         let Some(floor) = run.goal_floor else {
             return;
         };
-        for (kind, gain) in std::mem::take(&mut evidence.gains) {
-            if evidence.ingress > floor {
-                let total = run.gains.entry(kind).or_insert(0);
-                *total = total.saturating_add(gain);
+        for gain in std::mem::take(&mut evidence.gains) {
+            if gain.ingress > floor {
+                let total = run.gains.entry(gain.kind).or_insert(0);
+                *total = total.saturating_add(gain.quantity);
             }
         }
         run.totals.goal_gained = self
@@ -948,8 +973,11 @@ impl Engine {
                     killed = Some(actual);
                     confirmed = true;
                 }
-                (Action::DigAt(_), Outcome::DigEnded(end)) if pending.terminal.is_none() => {
-                    if dig_report.is_some_and(|old| old != end) {
+                (Action::DigAt(_), Outcome::DigEnded(end)) => {
+                    if dig_report
+                        .or(pending.dig_result)
+                        .is_some_and(|old| old != end)
+                    {
                         self.uncertain(io);
                         return;
                     }
@@ -971,7 +999,9 @@ impl Engine {
                 _ => {}
             }
         }
-        if rejected.is_some() && confirmed {
+        if (rejected.is_some() && (confirmed || pending.terminal == Some(Resolution::Confirmed)))
+            || (confirmed && pending.terminal == Some(Resolution::Rejected))
+        {
             self.uncertain(io);
             return;
         }
@@ -1010,6 +1040,7 @@ impl Engine {
             }
         } else if confirmed {
             if let Some(end) = dig_report {
+                pending.dig_result = Some(end);
                 run.totals.digs = run.totals.digs.saturating_add(1);
                 run.dig_index = run.dig_index.wrapping_add(1);
                 match end {
@@ -1117,7 +1148,9 @@ impl Engine {
             .as_ref()
             .is_some_and(|barrier| self.now >= barrier.deadline)
         {
-            if let Some(run) = &mut self.run {
+            if let Some(run) = &mut self.run
+                && !matches!(run.stage, Stage::Draining(AfterDrain::Stop))
+            {
                 run.stage = Stage::Paused(Pause::Uncertain);
             }
             self.close(AfterClose::Offline(self.mode), io);
@@ -1166,7 +1199,17 @@ impl Engine {
         {
             return;
         }
-        let action = match self.plan() {
+        let planned = self.plan();
+        if self
+            .setup
+            .as_ref()
+            .is_some_and(|setup| setup.draft().goal.is_some())
+            && self.book.inventory.pending()
+            && !matches!(planned, Ok(Some(Action::HpPotion(_))))
+        {
+            return;
+        }
+        let action = match planned {
             Ok(Some(action)) => action,
             Ok(None) => return,
             Err(blocker) => {
@@ -1190,6 +1233,7 @@ impl Engine {
                 finish_by: receipt_by,
                 sent: None,
                 terminal: None,
+                dig_result: None,
                 quarantined: false,
                 early: Vec::new(),
             });

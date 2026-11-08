@@ -94,6 +94,7 @@ fn baseline() -> Vec<Fact> {
             life: 100,
             depth: 10,
         }),
+        Fact::InventorySettled(IngressMark(0)),
     ]
 }
 fn acts(effects: &Effects) -> Vec<&ActionTicket> {
@@ -199,9 +200,10 @@ impl Harness {
             },
         })
     }
-    fn facts(&mut self, facts: Vec<Fact>) -> Effects {
+    fn facts(&mut self, mut facts: Vec<Fact>) -> Effects {
         self.revision += 1;
         self.ingress += 1;
+        facts.push(Fact::InventorySettled(IngressMark(self.ingress)));
         self.event(Event::Facts {
             revision: EvidenceKey(self.revision),
             ingress: IngressMark(self.ingress),
@@ -1409,4 +1411,514 @@ fn missing_or_empty_verified_potion_stack_blocks_resource_use() {
             Blocker::NeedsObservation(StateKind::HpPotionStack)
         }));
     }
+}
+
+#[test]
+fn review_stop_timeout_ends_the_requested_run() {
+    let mut h = Harness::new(true);
+    h.command(Command::Start);
+    h.command(Command::Stop);
+    let timeout = h.wake(2_000);
+    assert_eq!(closes(&timeout), 1);
+    let closed = h.event(Event::Closed);
+    assert_eq!(closed.snapshot.phase, Phase::Offline);
+    assert_eq!(
+        h.engine.run_key(),
+        None,
+        "Stop must end the run after its adapter closes"
+    );
+    assert!(closed.snapshot.allowed.contains(&Control::SwitchMode));
+}
+
+#[test]
+fn review_successful_reconnect_resets_the_failure_budget() {
+    let mut h = Harness::new(false);
+    h.command(Command::Start);
+    for recovery in 1..=6 {
+        h.event(Event::Lost);
+        let reconnect = h.command(Command::Reconnect);
+        let closed = if closes(&reconnect) > 0 {
+            h.event(Event::Closed)
+        } else {
+            reconnect
+        };
+        let new_session = closed.io.iter().find_map(|effect| match effect {
+            Effect::Open { session, .. } => Some(*session),
+            _ => None,
+        });
+        assert!(
+            new_session.is_some(),
+            "successful prior recoveries must not consume the failure budget; recovery {recovery}"
+        );
+        h.session = new_session.unwrap();
+        let baseline = h.event(Event::Baseline {
+            support: support(),
+            revision: EvidenceKey(1),
+            facts: baseline(),
+            resumed: true,
+        });
+        h.idle(&baseline);
+        let resumed = h.command(Command::Resume);
+        assert_eq!(resumed.snapshot.phase, Phase::Running);
+    }
+}
+
+#[test]
+fn review_quantity_before_put_cannot_leave_a_known_empty_bag() {
+    let mut h = Harness::new(true);
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    h.engine.handle(Input::Observed {
+        at: At(30),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(3),
+                ingress: IngressMark(30),
+                facts: vec![Fact::Inventory(Inventory::Quantity(StackKey(7), 2))],
+            },
+        },
+    });
+    let late_put = h.engine.handle(Input::Observed {
+        at: At(20),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(2),
+                ingress: IngressMark(20),
+                facts: vec![Fact::Inventory(Inventory::Put(Stack {
+                    key: StackKey(7),
+                    kind: ItemKind(7),
+                    quantity: 1,
+                }))],
+            },
+        },
+    });
+    let reconstructed = late_put
+        .snapshot
+        .inventory
+        .iter()
+        .any(|stack| stack.key == StackKey(7) && stack.quantity == 2);
+    assert!(
+        reconstructed,
+        "the delayed identity must reconstruct the newer quantity"
+    );
+    assert_eq!(
+        late_put.snapshot.own.inventory,
+        InventoryKnowledge::Observed
+    );
+}
+
+#[test]
+fn review_confirmed_then_rejected_must_quarantine_the_action() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    h.sent(id);
+    let confirmed = h.facts(vec![Fact::Outcome(Outcome::OwnHit(EntityKey(1)))]);
+    h.facts(vec![Fact::Outcome(Outcome::Rejected {
+        subject: Subject::Target(EntityKey(1)),
+        reason: Rejection::Other,
+    })]);
+    let idle = h.idle(&confirmed);
+    let actions: Vec<_> = acts(&idle).iter().map(|ticket| ticket.action).collect();
+    assert_eq!(
+        idle.snapshot.phase,
+        Phase::Paused(Pause::Uncertain),
+        "contradictory evidence schedules {actions:?}"
+    );
+    assert!(
+        actions.is_empty(),
+        "contradictory evidence must not schedule the next attack"
+    );
+}
+
+#[test]
+fn review_paused_snapshot_does_not_advertise_an_ignored_pause() {
+    let mut h = Harness::new(false);
+    h.command(Command::Start);
+    let paused = h.command(Command::Pause);
+    assert_eq!(paused.snapshot.phase, Phase::Paused(Pause::User));
+    assert!(!paused.snapshot.allowed.contains(&Control::Pause));
+}
+
+#[test]
+fn review_old_map_entity_is_not_eligible_in_the_new_map() {
+    let mut h = Harness::new(false);
+    h.engine.handle(Input::Observed {
+        at: At(100),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(3),
+                ingress: IngressMark(100),
+                facts: vec![Fact::Position {
+                    map: MapKey(2),
+                    point: center(),
+                }],
+            },
+        },
+    });
+    let mut draft = setup(false, None).draft().clone();
+    draft.boundary = Boundary::checked(MapKey(2), center(), NonZeroU16::new(10).unwrap())
+        .unwrap_or_else(|_| panic!("area"));
+    h.now = 100;
+    h.command(Command::Configure(
+        Setup::checked(draft).unwrap_or_else(|_| panic!("setup")),
+    ));
+    h.engine.handle(Input::Observed {
+        at: At(90),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(2),
+                ingress: IngressMark(90),
+                facts: vec![
+                    entity(7, center(), Some(false)),
+                    Fact::Drop(Drop {
+                        key: DropKey(7),
+                        kind: ItemKind(7),
+                        position: center(),
+                        quantity: 1,
+                    }),
+                ],
+            },
+        },
+    });
+    let started = h.command(Command::Start);
+    let actions: Vec<_> = acts(&started).iter().map(|ticket| ticket.action).collect();
+    assert!(
+        actions.is_empty(),
+        "map-1 observation must not authorize an attack in map 2: {actions:?}"
+    );
+}
+
+#[test]
+fn inventory_snapshot_rows_never_clear_or_grant() {
+    let mut facts = baseline();
+    facts.push(Fact::Inventory(Inventory::Put(Stack {
+        key: StackKey(7),
+        kind: ItemKind(7),
+        quantity: 1,
+    })));
+    facts.push(Fact::Inventory(Inventory::Put(Stack {
+        key: StackKey(8),
+        kind: ItemKind(8),
+        quantity: 3,
+    })));
+    let mut h = Harness::with(
+        true,
+        support(),
+        facts,
+        Some(Goal {
+            item: ItemKind(7),
+            gained: 1,
+        }),
+    );
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    let snapshot = h.facts(vec![Fact::InventorySnapshot(vec![Stack {
+        key: StackKey(7),
+        kind: ItemKind(7),
+        quantity: 9,
+    }])]);
+    assert_eq!(snapshot.snapshot.totals.goal_gained, 0);
+    assert_eq!(snapshot.snapshot.inventory.len(), 2);
+    let delta = h.facts(vec![Fact::Inventory(Inventory::Quantity(StackKey(7), 10))]);
+    assert_eq!(delta.snapshot.totals.goal_gained, 1);
+    assert_eq!(delta.snapshot.phase, Phase::Pausing);
+}
+
+#[test]
+fn settlement_metadata_does_not_refresh_state() {
+    let mut h = Harness::new(false);
+    let original = h
+        .facts(vec![Fact::InventorySnapshot(vec![])])
+        .snapshot
+        .own
+        .last_state_at;
+    h.wake(20_000);
+    let metadata = h.event(Event::Facts {
+        revision: EvidenceKey(900),
+        ingress: IngressMark(900),
+        facts: vec![Fact::InventorySettled(IngressMark(900))],
+    });
+    assert_eq!(metadata.snapshot.own.last_state_at, original);
+    assert!(
+        metadata
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsFreshObservation(StateKind::WorldState))
+    );
+}
+
+#[test]
+fn inventory_mutation_behind_a_proven_frontier_invalidates_knowledge() {
+    let mut h = Harness::new(false);
+    h.facts(vec![Fact::Inventory(Inventory::Put(Stack {
+        key: StackKey(7),
+        kind: ItemKind(7),
+        quantity: 2,
+    }))]);
+    let late = h.event(Event::Facts {
+        revision: EvidenceKey(900),
+        ingress: IngressMark(5),
+        facts: vec![Fact::Inventory(Inventory::Quantity(StackKey(7), 99))],
+    });
+    assert_eq!(late.snapshot.own.inventory, InventoryKnowledge::Unknown);
+    assert_eq!(late.snapshot.inventory[0].quantity, 2);
+    assert!(!late.snapshot.allowed.contains(&Control::Start));
+}
+
+#[test]
+fn inventory_gap_waits_before_the_next_cycle() {
+    let mut facts = baseline();
+    facts.push(Fact::Inventory(Inventory::Put(Stack {
+        key: StackKey(7),
+        kind: ItemKind(7),
+        quantity: 1,
+    })));
+    let mut h = Harness::with(
+        true,
+        support(),
+        facts,
+        Some(Goal {
+            item: ItemKind(7),
+            gained: 10,
+        }),
+    );
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    h.event(Event::Facts {
+        revision: EvidenceKey(3),
+        ingress: IngressMark(30),
+        facts: vec![Fact::Inventory(Inventory::Quantity(StackKey(7), 2))],
+    });
+    let result = h.event(Event::Facts {
+        revision: EvidenceKey(2),
+        ingress: IngressMark(20),
+        facts: vec![
+            Fact::Outcome(Outcome::DigEnded(DigEnd::Empty)),
+            Fact::InventorySettled(IngressMark(20)),
+        ],
+    });
+    let waiting = h.idle(&result);
+    assert_eq!(waiting.snapshot.phase, Phase::Running);
+    assert!(acts(&waiting).is_empty());
+    assert!(
+        waiting
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsObservation(StateKind::Inventory))
+    );
+    let settled = h.event(Event::Facts {
+        revision: EvidenceKey(4),
+        ingress: IngressMark(40),
+        facts: vec![Fact::InventorySettled(IngressMark(30))],
+    });
+    assert_eq!(settled.snapshot.totals.goal_gained, 1);
+    assert_eq!(acts(&settled).len(), 1);
+}
+
+#[test]
+fn waiting_for_goal_inventory_keeps_verified_potion_use_available() {
+    let mut facts = baseline();
+    facts.extend([
+        Fact::Inventory(Inventory::Put(Stack {
+            key: StackKey(7),
+            kind: ItemKind(7),
+            quantity: 2,
+        })),
+        Fact::HpPotionStack(Some(StackKey(7))),
+    ]);
+    let mut capabilities = support();
+    capabilities.hp_potion = true;
+    let mut h = Harness::with(
+        true,
+        capabilities,
+        facts,
+        Some(Goal {
+            item: ItemKind(9),
+            gained: 10,
+        }),
+    );
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    h.event(Event::Facts {
+        revision: EvidenceKey(3),
+        ingress: IngressMark(30),
+        facts: vec![Fact::Inventory(Inventory::Put(Stack {
+            key: StackKey(9),
+            kind: ItemKind(9),
+            quantity: 1,
+        }))],
+    });
+    let result = h.event(Event::Facts {
+        revision: EvidenceKey(2),
+        ingress: IngressMark(20),
+        facts: vec![
+            Fact::Hp(gauge(20, 100)),
+            Fact::Outcome(Outcome::DigEnded(DigEnd::Empty)),
+            Fact::InventorySettled(IngressMark(20)),
+        ],
+    });
+    let heal = h.idle(&result);
+    assert_eq!(acts(&heal).len(), 1);
+    assert_eq!(acts(&heal)[0].action, Action::HpPotion(StackKey(7)));
+    assert_eq!(heal.snapshot.totals.goal_gained, 0);
+}
+
+#[test]
+fn stop_on_connection_loss_waits_for_resource_closure() {
+    let mut h = Harness::new(true);
+    h.command(Command::Start);
+    h.command(Command::Stop);
+    let lost = h.event(Event::Lost);
+    assert_eq!(lost.snapshot.phase, Phase::Closing);
+    assert!(h.engine.run_key().is_some());
+    assert_eq!(closes(&lost), 1);
+    let closed = h.event(Event::Closed);
+    assert_eq!(closed.snapshot.phase, Phase::Offline);
+    assert!(h.engine.run_key().is_none());
+}
+
+#[test]
+fn conflicting_completed_dig_results_pause_without_another_cycle() {
+    let mut h = Harness::new(true);
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    let first = h.facts(vec![Fact::Outcome(Outcome::DigEnded(DigEnd::Empty))]);
+    h.facts(vec![Fact::Outcome(Outcome::DigEnded(
+        DigEnd::ItemReported(ItemKind(7)),
+    ))]);
+    let paused = h.idle(&first);
+    assert_eq!(paused.snapshot.phase, Phase::Paused(Pause::Uncertain));
+    assert_eq!(paused.snapshot.totals.digs, 1);
+    assert!(acts(&paused).is_empty());
+}
+
+#[test]
+fn excessive_unsettled_inventory_invalidates_knowledge() {
+    let mut h = Harness::new(false);
+    for mark in 100..=356 {
+        h.event(Event::Facts {
+            revision: EvidenceKey(mark),
+            ingress: IngressMark(mark),
+            facts: vec![Fact::Inventory(Inventory::Put(Stack {
+                key: StackKey(7),
+                kind: ItemKind(7),
+                quantity: mark as u32,
+            }))],
+        });
+    }
+    let snapshot = h.engine.snapshot();
+    assert_eq!(snapshot.own.inventory, InventoryKnowledge::Unknown);
+    assert!(!snapshot.allowed.contains(&Control::Start));
+}
+
+#[test]
+fn unsettled_inventory_ages_independently_of_other_state() {
+    let mut h = Harness::new(true);
+    let start = h.command(Command::Start);
+    h.sent(acts(&start)[0].id);
+    h.now = 20;
+    h.event(Event::Facts {
+        revision: EvidenceKey(2),
+        ingress: IngressMark(20),
+        facts: vec![Fact::Inventory(Inventory::Put(Stack {
+            key: StackKey(7),
+            kind: ItemKind(7),
+            quantity: 1,
+        }))],
+    });
+    h.now = 14_000;
+    let fresh_hp = h.event(Event::Facts {
+        revision: EvidenceKey(3),
+        ingress: IngressMark(30),
+        facts: vec![Fact::Hp(gauge(100, 100))],
+    });
+    assert_eq!(fresh_hp.wake_at, Some(At(15_021)));
+    h.now = 15_021;
+    let expired = h.wake(0);
+    assert!(
+        expired
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsFreshObservation(StateKind::Inventory))
+    );
+    assert_eq!(expired.snapshot.phase, Phase::Pausing);
+}
+
+#[test]
+fn review_delayed_pre_send_inventory_is_not_post_send_goal_credit() {
+    let mut facts = baseline();
+    facts.push(Fact::Inventory(Inventory::Put(Stack {
+        key: StackKey(7),
+        kind: ItemKind(7),
+        quantity: 1,
+    })));
+    let mut h = Harness::with(
+        true,
+        support(),
+        facts,
+        Some(Goal {
+            item: ItemKind(7),
+            gained: 1,
+        }),
+    );
+    let start = h.command(Command::Start);
+    let id = acts(&start)[0].id;
+    h.engine.handle(Input::Observed {
+        at: At(10),
+        observation: Observation {
+            session: h.session,
+            event: Event::Receipt {
+                action: id,
+                delivery: Delivery::Sent(IngressMark(10)),
+            },
+        },
+    });
+    let waiting = h.engine.handle(Input::Observed {
+        at: At(20),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(3),
+                ingress: IngressMark(20),
+                facts: vec![Fact::Inventory(Inventory::Quantity(StackKey(7), 3))],
+            },
+        },
+    });
+    assert_eq!(waiting.snapshot.totals.goal_gained, 0);
+    assert_eq!(waiting.snapshot.phase, Phase::Running);
+    let late = h.engine.handle(Input::Observed {
+        at: At(5),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(2),
+                ingress: IngressMark(5),
+                facts: vec![Fact::Inventory(Inventory::Quantity(StackKey(7), 2))],
+            },
+        },
+    });
+    assert_eq!(
+        late.snapshot
+            .inventory
+            .iter()
+            .find(|stack| stack.key == StackKey(7))
+            .unwrap()
+            .quantity,
+        3
+    );
+    assert_eq!(late.snapshot.totals.goal_gained, 0);
+    let settled = h.event(Event::Facts {
+        revision: EvidenceKey(4),
+        ingress: IngressMark(30),
+        facts: vec![Fact::InventorySettled(IngressMark(20))],
+    });
+    assert_eq!(settled.snapshot.phase, Phase::Pausing);
+    assert_eq!(
+        settled.snapshot.totals.goal_gained, 1,
+        "only the change from 2 before send to 3 after send belongs to the run goal"
+    );
 }
