@@ -25,13 +25,13 @@ All target downloads used `User-Agent: Mozilla/5.0`, no account, and no authenti
 
 | Evidence | Public location and observed identity | Inspection |
 | --- | --- | --- |
-| T1 | [Target HTML], [T1], title `Trickster Online - Spinel Project`, company `Playall`, product `Spinel`, product version `1.0` | Full HTML and inline JavaScript, 27,217 received bytes. |
-| T2 | [Unity loader], [T2], filename `877598568ac7f0dc41389b0d6e411b8b.loader.js` | Full loader, 27,914 received bytes. |
-| T3 | [JavaScript framework], [T3], filename `4937d6d47bade23f56e5ad4b5bf2e2b9.framework.js.gz` | Full framework, 386,859 received bytes. Custom bridge functions and browser integration inspected. |
-| T4 | [Unity data package], [T4], filename `9b2286992122d3c1cc081492dc31fee5.data.gz` | 27,239,767 received bytes. Inspected package directory, boot configuration, assembly list, initialization list, and IL2CPP metadata. Did not extract game pictures or other media. |
-| T5 | [WebAssembly module], [T5], filename `657890b2bd8548390dd7c7fad76093be.wasm.gz` | 42,317,618 received bytes. Inspected header, bridge import names, and version strings. No execution or full gameplay disassembly. |
-| T6 | [Deployment version endpoint], [T6] | JSON reported build `f5e972fa2be429602c20d6168013a20f`. The [matching-build request], [T7] returned the same build and `outdated: false`. |
-| T8 | [Owner website], [T8], title `Trickster Rebuild` | Public HTML advertises web play, account registration, and email verification. Its referenced `/static/index-KlvPLZcC.js` returned HTTP 404 during this run, so website form logic was not inspected. |
+| T1 | [Target HTML][T1], title `Trickster Online - Spinel Project`, company `Playall`, product `Spinel`, product version `1.0` | Full HTML and inline JavaScript, 27,217 received bytes. |
+| T2 | [Unity loader][T2], filename `877598568ac7f0dc41389b0d6e411b8b.loader.js` | Full loader, 27,914 received bytes. |
+| T3 | [JavaScript framework][T3], filename `4937d6d47bade23f56e5ad4b5bf2e2b9.framework.js.gz` | Full framework, 386,859 received bytes. Custom bridge functions and browser integration inspected. |
+| T4 | [Unity data package][T4], filename `9b2286992122d3c1cc081492dc31fee5.data.gz` | 27,239,767 received bytes. Inspected package directory, boot configuration, assembly list, initialization list, and IL2CPP metadata. Did not extract game pictures or other media. |
+| T5 | [WebAssembly module][T5], filename `657890b2bd8548390dd7c7fad76093be.wasm.gz` | 42,317,618 received bytes. Inspected header, bridge import names, and version strings. No execution or full gameplay disassembly. |
+| T6 | [Deployment version endpoint][T6] | JSON reported build `f5e972fa2be429602c20d6168013a20f`. The [matching-build request][T7] returned the same build and `outdated: false`. |
+| T8 | [Owner website][T8], title `Trickster Rebuild` | Public HTML advertises web play, account registration, and email verification. Its referenced `/static/index-KlvPLZcC.js` returned HTTP 404 during this run, so website form logic was not inspected. |
 
 The `.gz` suffix does not describe the bytes received in these requests. The framework body was JavaScript text, the data body began with `UnityWebData1.0` plus a null byte, and the WASM body began with `00 61 73 6d 01 00 00 00`. Download caps were 512 KiB for HTML, 8 MiB for each small build resource, 32 MiB for data, and 48 MiB for WASM. All inspected files stayed under those caps. Scratch copies remain outside the repository under `/tmp/opentrickster-issue3`. [T2], [T3], [T4], [T5]
 
