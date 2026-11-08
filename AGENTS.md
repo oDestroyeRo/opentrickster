@@ -16,3 +16,8 @@ Read `docs/agents/triage-labels.md` before triage.
 
 Use a single-context layout.
 Read `docs/agents/domain.md` before exploring domain concepts.
+
+## App design
+
+`DESIGN.md` is the macOS app design reference: confirmed decisions, layout, session states, tokens, and component specs.
+Read it before any UI work. When a change alters the design, update `DESIGN.md` in the same change.
