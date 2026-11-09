@@ -215,14 +215,14 @@ row, the received 512 key, slot-20 Type-29 ammo and Bunch, StartSet 271/518/521,
 live 82/85/523 and own 8/9, effective `LoadSpeed`, own walking, digging, camp
 and own damage. Frames applied before startup readiness (through H) are its
 StartSet. The controller is built right after C5, so its empty 511 key request
-follows C5 like the client's held send. Construction stores `LoadSpeed` 1, as the
-client's constructor does, and only a FastLoad changes it later. An own 7 never
-reaches the client's effect runner or `MyAppear`, so it is never a baseline. A
-FastLoad named before C5 leaves the speed unknown until a complete own 8 or 9
-after C5, because the client may have dropped its write; see the
+follows C5 like the client's held send. Baseline waits up to `ACTION_MS` for the
+answering 512, so a shot right after Baseline finds the gun armed. Construction
+stores `LoadSpeed` 1, as the client's constructor does, and only a FastLoad
+changes it later. An own 7 never reaches the client's effect runner or
+`MyAppear`, so it is never a baseline. A FastLoad named before C5 leaves the
+speed unknown until a complete own 8 or 9 after C5, because the client may have
+dropped its write; see the
 [gun login baseline](../../docs/research/native-gun-login-baseline.md).
-Baseline waits up to `ACTION_MS` for that
-512, because support is fixed at Baseline.
 
 A gun ticket waits for Ready until 250 ms before `not_after`, then sends one 477
 with the actual target, key, Bunch, moveMode and computed critical bit. It shoots
@@ -236,8 +236,13 @@ shooting late. Own Kind-2 firing starts the reload
 and projects the client's local ammo use until an authoritative count replaces
 it. 32, 310 and 525 only release the wait. Outcomes come only from the own
 Strike-bundle attribution above. With a worn gun, `Support.basic_attack`
-requires every prerequisite and a received key; `readiness.missing_gun` names
-the first unknown one.
+requires only the inputs that stay unknown for the session once missing: the own
+baseline, definitions, worn slots, the gun profile, learned skills, ammo loads
+Net could follow, and a `LoadSpeed` that no foreign, detached or unreadable
+FastLoad has written. Support is fixed at Baseline, so a missing key, no loaded
+ammo, a zone that hides the gun, camp, or an own FastLoad that a later own 8 or 9
+can settle gives the ticket `NotSent` instead of refusing Start.
+`readiness.missing_gun` names the first unknown input.
 
 Where source leaves an input unproven, the controller leans toward a later
 Ready: no StartSet 271, or a 523 that could set a flag, makes learned skills
@@ -260,7 +265,7 @@ the source joins.
 | Remaining part of #21/#23 | Current boundary |
 | --- | --- |
 | Sampler review | Root applied the geometry, type, and active-parameter corrections. Independent specification review and live correspondence remain open. |
-| Native gun controller | Controller, session integration and synthetic tests exist for ea1a68bd. Server acceptance of 477, the key's lifetime, live attribution and the live order of 271 and own 8/9 relative to H remain unproven. A gun never falls back to melee. |
+| Native gun controller | Controller, session integration and synthetic tests exist for ea1a68bd. Server acceptance of 477, the key's lifetime, live attribution, the live order of 271 and own 8/9 relative to H, and a live shot after a login whose own player appears only on 7 remain unproven. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
 | Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. Without S282, the HP, MP and weight maxima are `GameParts` plus the packet-fed core, the client's installed steady state, and only while every input is proven. A denied inventory opcode, an unproven worn row or slot, a non-empty imprint list or a page bound after the game login leaves them unknown. Server enforcement is unprovable. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |

@@ -513,6 +513,11 @@ impl LoadSpeed {
             self.stale = true;
         }
     }
+    /// Whether a complete own snapshot can still make the speed known: no FastLoad outside
+    /// the own attached list has written the client's scalar.
+    pub(crate) fn knowable(&self) -> bool {
+        !self.tainted
+    }
     /// The constructor (f24374) stores 1, so without an earlier own list no FastLoad is
     /// attached.
     pub(crate) fn constructed(&mut self) {

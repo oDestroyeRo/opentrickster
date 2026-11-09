@@ -109,7 +109,9 @@ When a frame before C5 named FastLoad, source does not determine the value at C5
 2. Before construction, an own 8 or 9 that lists a FastLoad leaves the speed unknown, and no own 8 or 9 before construction clears that. Only a complete own 8 or 9 after construction settles it.
 3. Every other rule is unchanged. A foreign, detached or unreadable FastLoad leaves the speed unknown for the session, and so does an own 7 that lists one, although the client ignores that list. An own 224/292 FastLoad leaves it unknown until the next complete own 8 or 9 after construction. So do an own 7, own faint, own removal and an end naming the tracked instance while an own FastLoad is tracked.
 
-Synthetic tests in `gun.rs`, `gun_tests.rs` and the session loopback cover the own-7 login and each case before construction.
+`Support.basic_attack` is fixed at Baseline, so it now covers only inputs that stay unknown for the session once missing, such as a tainted `LoadSpeed`. A speed that a later own 8 or 9 can settle holds each shot instead, like a missing key, no loaded ammo, a zone that hides the gun, or camp. The ticket gets `NotSent`, and the engine pauses as Uncertain.
+
+Synthetic tests in `gun.rs`, `gun_tests.rs` and the session loopback cover the own-7 login, each case before construction, and each input that holds a shot.
 
 ## Not established
 

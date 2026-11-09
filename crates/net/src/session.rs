@@ -552,7 +552,8 @@ impl Actor {
         startup.decoder.construct_gun();
         self.request_keys(g, &mut startup.decoder).await?;
         let mut gun_clock = Instant::now();
-        // Support is fixed at Baseline, so a worn gun's first 512 is awaited, boundedly.
+        // A shot right after Baseline needs an armed gun, so a worn gun's first 512 is
+        // awaited, boundedly.
         let key_deadline = gun_clock + Duration::from_millis(e::ACTION_MS);
         while startup.decoder.gun_awaits_key() {
             if *self.cancel.borrow() {
@@ -1478,7 +1479,8 @@ mod tests {
 
     /// Scenario 0 holds a ticket until Ready, shoots once and attributes the own bundle;
     /// 1 holds a walking gun until its window ends; 2 holds one until Quiesce; 3 shoots as 0
-    /// does after a login whose own player appears only on 7.
+    /// does after a login whose own player appears only on 7; 4 supports BasicAttack in a
+    /// zone that hides the gun but never sends the shot.
     #[test]
     fn loopback_gun_ticket_waits_for_ready_and_shoots_once() {
         use crate::codec::{Frames, OpcodeMap};
@@ -1522,7 +1524,7 @@ mod tests {
             .build()
             .unwrap();
         rt.block_on(async {
-            for scenario in 0..4 {
+            for scenario in 0..5 {
                 let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
                 let address = listener.local_addr().unwrap();
                 let server = tokio::spawn(async move {
@@ -1542,10 +1544,10 @@ mod tests {
                     };
                     assert_eq!(read(&mut game, &mut incoming, &mut order).await.opcode, 4);
                     let mut startup = vec![(5, 0, vec![])];
-                    let packets = if scenario == 3 {
-                        fixture::own_7_startup(&[])
-                    } else {
-                        fixture::startup()
+                    let packets = match scenario {
+                        3 => fixture::own_7_startup(&[]),
+                        4 => fixture::town_startup(),
+                        _ => fixture::startup(),
                     };
                     startup.extend(
                         packets
@@ -1631,7 +1633,7 @@ mod tests {
                     let Event::Baseline { support, facts, .. } = next(&event_rx).await else {
                         panic!("baseline first")
                     };
-                    assert!(support.basic_attack, "an armed, fully known gun supports BasicAttack");
+                    assert!(support.basic_attack, "a gun with every session input known supports BasicAttack");
                     let key = facts
                         .iter()
                         .find_map(|fact| match fact {
