@@ -143,6 +143,135 @@ node crates/net/tests/sampler.cjs   # PASS sampler 133 invented-heap cases
 
 The 15 changed pins are the three wait fields, the removed `installing` field and 11 `Hud` fingerprints.
 
+## Live sample refusals
+
+Same build, 2026-11-10. This is static research on the same public assets. It performed no login, game socket, gameplay, account access or target-code execution. The refusals were observed live on an idle in-world character with the drill feature and a worn gun.
+
+**Result.** Every live in-world sample was unavailable. Six reads assumed a client state that the live client does not have. Each read now follows the client code that owns the state. An audit of the other reads found a seventh refusal that could never clear, and fixed it. **No live sample has reached `ready`.**
+
+### Six live refusals
+
+| Refusal | Old read | Live client state | Evidence | Fix |
+| --- | --- | --- | --- | --- |
+| `routing` | `SkillsApi.combatPlaysEsa` (+124) set | A setting that records whether `CombatModel` existed when `SkillsApi` was built | `SkillsApi..ctor` f17848 is the only writer. `OnEvent` f17889 reads it only to skip the API's own ESA playback. | Drop the read and its pin. |
+| `routing` | `Hud.keyMask` (+68) not 0 | `0x7FFFF` from `Hud..ctor` f48528, then masks from `GameUiMode.Masks` f21418 through `set_UiMode` f48477 | `Hud.KeyPasses` f48492 tests the mask through `GameUiMode.KeyOn` f21422. `KeyOn` passes every name that `KeyBit` f21420 gives no bit, and `Dig` and `Run` have none. | Drop the read and its pin. |
+| `type` | `Keyboard.current` of class `Keyboard` 10299 | A `FastKeyboard` 10304 | `Keyboard.MakeCurrent` f34170 stores any `Keyboard`. `FastKeyboard` is the only subclass. It declares no instance fields and keeps the 320-byte instance size. | Accept exactly 10299 and 10304. |
+| `input` | ``InputControl`1.m_CachedValue`` only | Read-value caching off (`InputManager` +736 false) | ``InputControl`1.get_value`` f69067 then computes the value from device state on every call. | Read the device state as the client does. See [Uncached buttons](#uncached-buttons). |
+| `type` | `GunFlowing.infos` (+28) as ``Dictionary`2<i8,ItemInfo>`` | An `ItemMap` 6764 | `ItemMap.TryGetValue` f24927 finds the row index in `slots`, a ``Dictionary`2<i8,i4>``, and returns `rows[index]`. `ItemMap.Add` f24922 is the only writer. | Look up only the worn ids. See [Item lookup](#item-lookup). |
+| `memory` | The `DigKeySettings` TypeInfo cell 0x318318 as a class pointer | The cell still holds its metadata-usage word, 536902459 (kind 1, index 15773) | f2690 replaces the word with the class only when a method that uses the cell first runs. `DigKeySettings.get_SemiAuto` f44679 had not run. | Pin each cell's usage word. See [Unused metadata cells](#unused-metadata-cells). |
+
+`derive.py` fingerprints 21 of the client methods that these fixes rest on: `Hud.KeyPasses`, the `GameUiMode` key methods, six `SkillsApi` methods, the input-state readers, the `ItemMap` methods and `Int64.GetHashCode`. A build that changes one of them fails the migration check.
+
+### Uncached buttons
+
+With caching off, `get_value` f69067 computes each button from device state:
+
+- `get_unprocessedValue` f69068 calls virtual slot 17 on `currentStatePtr` f33851. That pointer is the front buffer that `InputStateBuffers.GetFrontBufferForDevice` f34662 maps from `m_Device.m_DeviceIndex` (`GetDeviceIndex` f33849).
+- `KeyControl` and `ButtonControl` inherit the `AxisControl` reader f34935. It has `BYTE` and `FLT` fast paths. Otherwise it calls `InputStateBlock.ReadFloat` f34653 and an inlined `Preprocess`. Keyboard keys are 1-bit `BIT` fields, read by `MemoryHelpers.ReadSingleBit` f35104.
+- `DiscreteButtonControl` f34957, the class of the keyboard's shift, ctrl and alt controls, tests `MemoryHelpers.ReadMultipleBitsAsUInt` f34958 against `minValue` and `maxValue`.
+- `ProcessValue` f69069 runs `m_ProcessorStack` only when the stack is not empty.
+
+The sampler reads the same bytes and composes wider values from single bytes, because device state can be unaligned. It refuses `input` for a control with processors or preprocessing, a wrapping discrete range, another state format or device, or a device without a front buffer. It keeps the cached path for when caching is on.
+
+### Item lookup
+
+The sampler walks `ItemMap.slots` as ``Dictionary`2.FindEntry`` f64786 does with a null comparer. `Int64.GetHashCode` f71422 gives the hash, and the hash picks a 1-based bucket head. The walk follows `Entry.next` (RGCTX +160) until the id matches. It reads only the probed entries, so a 100,001-item map stays inside the 200,000-read budget that a full scan would exceed. It refuses `generic` when `slots` has a comparer, a chain runs past the entry count, an index falls outside `rows[0, count)`, or a row holds another id. The RGCTX comes from the ``ContainsKey<i8,i4>`` cell, which the prologue of `ItemMap.Add` resolves before the first row exists.
+
+An id that the map lacks has no info. The map is complete before `GunFlowing` exists, because `GunFlowingUi/<Install>d__17` f46675 awaits `ItemIcons.Infos` first. `GunFlowing.HoldsGun` f24383 skips an item without info, and `DrillFeature.get_WornDrill` f20238 returns no drill. The sampler now reports `gunWorn` and `toolUsable` as false in that case. Before, it refused `cold`, and that refusal never cleared.
+
+### Unused metadata cells
+
+A metadata-usage cell holds `(kind << 29) | (index << 1) | 1` until f2690 resolves it. f2690 runs in the prologue of a method that uses the cell, the first time that method runs. `derive.py` now pins each cell's word as `cellWords`. The sampler reads the pinned word as "not used yet". Any other odd or zero word is a wrong pin and refuses `build`.
+
+A class whose cell is unused, or whose `static_fields` is null, still has its default statics:
+
+| Cell | Default statics | Sample |
+| --- | --- | --- |
+| `EditBox` | No focused editor | Continues |
+| `HudCover` | No covering window | Continues |
+| `UiPressOrigin` | No press. `get_LeftOnUi` f50216 and `get_RightOnUi` f50217 return false while `Current` is null. | Continues |
+| `DigKeySettings` and its two ``Nullable`1<bool>`` accessors | No cached setting. `get_SemiAuto` f44679 caches PlayerPrefs `spinel.custom.digKeySemiAuto` on its first call. | Continues with `dig.manual` null |
+| `EventSystem` | No event system | `routing`, as for an empty list |
+| `GameFlow`, `SpinelEngine`, `Keyboard` and the input-system statics | Not loaded | `cold`, as for a null `GameFlow.Current`, `SpinelEngine.Instance` or `Keyboard.current` |
+| Each MethodRef cell, and a null RGCTX | Method not run yet | `cold` |
+
+A null `dig.manual` refuses only dig actions, because `sampler.rs` parses it as `None`. The sampler reads `UiSkins` and `DigKeySettings` only when the drill feature exists without an automatic pet, and `DigKeySettings` only for the Custom skin. The snapshot revision follows `manual`, not the raw skin and setting. Live, the `GameFlow` cell held its usage word (536905459, index 17273) for a moment during loading. A `cold` refusal there is correct.
+
+### Routing fields kept
+
+The routing check keeps four `SkillsApi` fields:
+
+| Field | Why the sampler waits |
+| --- | --- |
+| `target` (+52) | An active skill target pick. `WorldClick` f17899 gives it the next world click. `OnEvent` f17889 clears it on event 243. |
+| `shownTarget` (+56) | `Update` f17908 sets it to `target` each frame, so the two differ for one frame at most. |
+| `UiWait` (+125) | A scene wait that the client's own auto-combat respects. `SetUiWait` f17863 is the only writer. Quest UIs f39697, f41050, f46817 and f47039 pass a scene event's flag. The ESA host methods f45405, f45406 and f45407 pass false. |
+| `heldCast` (+188) | An own cast that waits to play. `OnEvent` f17889 sets it and queues `PlayHeldCast` f17894, which clears it. |
+
+### Audit of the other reads
+
+The audit asked three questions of every other read. Does a read of an interface, abstract or unsealed type accept exactly the classes that the client stores? Can a refusal meant to be transient hold while the character is idle? Does a read need a feature, setting or map property that the client may lack?
+
+| Read | Type or state | Client facts | Verdict |
+| --- | --- | --- | --- |
+| `Keyboard.current` | `Keyboard`, unsealed | `FastKeyboard` 10304 | Fixed above |
+| `GunFlowing.infos` | ``IReadOnlyDictionary`2<i8,ItemInfo>`` | `ItemMap` 6764, the only implementation | Fixed above |
+| Worn item infos | `ItemMap` lookup | A missing id means no info | Fixed above |
+| Keyboard controls | `KeyControl`, `ButtonControl` | `KeyControl` has no subclasses. `button()` accepts exactly `AnyKeyControl` 10580, `ButtonControl` 10583, `DiscreteButtonControl` 10586 and `KeyControl` 10591. The other subclass, `TouchPressControl`, is not a keyboard control. | Already correct |
+| `GameFlow` screen (+84) | `GameFlow.Screen`, abstract | Eight sealed screens. Only `GameplayScreen` 2669 has the world. | Already correct. Another screen refuses `type`. `sampler.rs` maps every reason except `build` to `NetError::Unsupported`, so another reason would change nothing. |
+| `EventSystem.m_EventSystems` entry | `EventSystem`, unsealed | The client creates only `EventSystem` (`GameInput.CreateEventSystem` f36204). `MultiplayerEventSystem` 10405 appears only in `InputSystemUIInputModule` f33316. | Live check. A scene could place a `MultiplayerEventSystem`, which refuses `type`. |
+| Collections and input state | ``Dictionary`2``, ``List`1``, ``OrderedMap`2``, `InputActionState`, `InputManager` | The build defines no subclass that these fields can hold | Already correct |
+| `InputControl.m_Device`, and `session` in `CombatModel`, `GunFlowing` and `DrillFeature` | Interface or base class | Compared by identity with an object that the sampler already checked | Already correct |
+| `UiPressOrigin` press flags (+32, +33) | Transient | `UiPressOrigin.Update` f50219 clears both every frame and sets them only in a press frame. | Already correct |
+| `HudCover` covers | Open windows | `KitWindow.KeepCover` f62791 adds a cover. `OnClosed` f62887 and `OnDestroy` f62888 remove it. The game ignores world input while covered (`get_Covered` f48502 in `GameplayScreen.Advance` f38568 and `OnWorld` f38576). | Correct by design. An open window refuses `routing`. |
+| `EventSystem.m_CurrentSelected` (+36) | Selected UI object | `Selectable.OnPointerDown` f29855 selects. `InputSystemUIInputModule.ProcessPointerButton` f33310 clears it only on a later click elsewhere. | Live check. A UI click can leave an object selected, and every sample then refuses `routing`. |
+| `EventSystem.m_HasFocus` (+40) | Application focus | Persists by design | Already correct |
+| `SkillsApi` and `Hud` waits | Pending input | See [Routing fields kept](#routing-fields-kept) and [Semantics](#semantics) | `combatPlaysEsa` and `keyMask` fixed. The others are already correct. |
+| `RunToggle.Ready` (+24) | Run mode restored | `Restore` f25907 is the only writer, and it only sets the flag. `GameplayScreen/<Enter>d__283` f48925 calls `Restore` for opcode 309 in the session's start set (`0x10340a4`) and registers a handler for later 309 packets (f38370, at `0x103497a`). | Already correct. Until then, `RunToggle.On` lacks the saved mode. |
+| `HotkeyMap.Bindings` `Dig` and `Run` | Catalog actions | `HotkeyMap.MakeCatalog` f24832 builds `Run` (default `KeyR`) and `Dig` (default `KeyD`), neither locked. The constructor f24839 calls `Rebuild` f24840, which stores every catalog action in `Bindings`. | Already correct. Both exist before the deferred drill install. A cleared or multi-key binding refuses `binding`. |
+| `LoadedZone.Warps` (+24) | Portal list | `Portals.WarpRegions` f26766 always returns a new list. `EnterCampScene` f48931 and `ShowLocalScene` f48976 store an empty list. | Already correct on every map |
+| `WorldActor.path` (+12) | Path list | The constructor f26861 allocates it. `Stop` f26872 only clears it. | Already correct |
+| `CombatModel` sets (+104, +124, +128, +136) and `Fsm` (+112) | Readonly fields | Set at construction | Already correct |
+| `UiSkins.started` | Set on first use | `GameplayScreen.Advance` f38568 calls `UiSkins.get_Current` f50226 every frame. | Already correct. The `cold` refusal clears on the first world frame. |
+| `GameplayScreen.probedTime` (+632) | Pointer probe time | Only `MapPoint` f38566 writes it, so it starts at 0. | Already correct. Only a damaged read is negative. |
+
+### Live checks
+
+Static analysis cannot settle these states:
+
+- Digging, combat, open windows and other maps. The live run covered only an idle character.
+- `EventSystem.m_CurrentSelected` after a click on a UI element. If it stays set, every sample refuses `routing`.
+- A scene-placed `MultiplayerEventSystem`. It refuses `type`.
+- `SkillsApi.UiWait` after an interrupted scene. If it stays set, every sample refuses `routing`.
+- `RunToggle.Ready`. If the server never sends opcode 309, every sample refuses `mode`.
+- The Custom skin before the first dig-key press. `dig.manual` stays null, which refuses only dig actions.
+
+### Live-refusal verification
+
+Each fix has cases in `crates/net/tests/sampler.cjs`. A scratch runner replayed each fix's new cases against the commit before the fix, with the read checker off. A mutation pass then broke each fix in a scratch copy of the current `sampler.js`, one change at a time. The full suite failed for every change.
+
+| Fix | Cases | Before the fix | Mutations |
+| --- | --- | --- | --- |
+| `combatPlaysEsa` | "combat ESA playback is a setting, not pending input" | `routing` | 1 of 1 fails. Restoring the read refuses `routing`. |
+| `keyMask` | "HUD key mask N leaves Dig and Run routed" for N of 524287 (`0x7FFFF`), 12289 (`0x3001`) and 0 | `type`, from the earlier keyboard read | 1 of 1 fails. Restoring the read refuses `routing` for 524287 and 12289. |
+| `FastKeyboard` | "FastKeyboard is the current keyboard" and one refusal case | `type` | 1 of 1 fails |
+| Uncached buttons | The 15 cases whose names start with "uncached" | 13 of 15 differ. The other 2 refuse `input` both before and after. | 2 of 2 fail |
+| `ItemMap` | The base sample, 2 gun cases and 6 `ItemMap` cases | `type` for all 9 | 7 of 7 fail |
+| Unused cells | 66 cases, including every pinned cell left unused and given another word | All 66 differ | 14 of 14 fail |
+| Missing item info | "worn item ids missing from the ItemMap" | `cold` | 2 of 2 fail |
+
+The Rust test `manual_dig_arming_hold_acknowledgement_and_cleanup_are_distinct` covers an unknown and a semi-automatic setting. Both refuse dig actions.
+
+```sh
+python3 -I tools/build-migrate/sampler/derive.py --build ea1a68bd89958fae94179f1e0835ffb5 WASM DATA \
+  --expect MAIN.json --out NEW.json   # exit 1: 5 MOVED, 60 CHANGED; NEW.json equals ea1a68bd.json
+python3 -I tools/build-migrate/sampler/derive.py --build ea1a68bd89958fae94179f1e0835ffb5 WASM DATA \
+  --expect tools/build-migrate/sampler/ea1a68bd.json --out NEW.json   # exit 0: 0 MOVED, 0 CHANGED
+node crates/net/tests/sampler.cjs   # PASS sampler 223 invented-heap cases
+```
+
+`MAIN.json` is `ea1a68bd.json` at `2832f6f`. The 5 moved pins are the new `cellWords` table, the `InputStateBuffers` cell and three new types. The 60 changed pins add the fields, bases, sizes, RGCTX slots and method fingerprints that the new reads use, and remove `combatPlaysEsa` and `keyMask`.
+
 ## Limits
 
 - No sample has reached `ready` against a live client. The evidence is static or synthetic.
@@ -152,3 +281,5 @@ The 15 changed pins are the three wait fields, the removed `installing` field an
 - Nobody has timed the deferred drill install. The live table lacked `DrillFeature` for at least 20 seconds.
 - A later build could add another source of dig state. A migration must recheck the provider and caller lists in [Drill lifecycle](#drill-lifecycle), because no pin covers them.
 - `Hud.OnKey` also drops keys while a message box is open (`MessageBox.IsOpen`) or when an editor took a key in the current frame (`EditBox` static +28, `KeyTakenFrame`). The sampler checks neither, before or after this change.
+- The six live refusals came from one idle character. The states in [Live checks](#live-checks) have no live evidence.
+- The uncached button reader models the formats that keyboard controls use. Any other format refuses `input`.
