@@ -11,11 +11,13 @@ pub(crate) const INCOMING: &[u16] = &[
     5, 159, 679, 230, 233, 7, 8, 9, 6, 15, 16, 21, 24, 25, 26, 27, 729, 36, 37, 38, 1030, 286, 289,
     43, 42, 231, 561, 160, 770, 262, 246, 260, 843, 68, 82, 85, 41, 10, 11, 12, 13, 14, 617, 34,
     45, 46, 371, 50, 1951, 1952, 512, 518, 521, 31, 485, 1438, 32, 310, 525, 39, 109, 110, 271,
-    282, 283, 523, 437, 586, 590, 1152, 587, 599, 601, 261, 86, 35, 151,
+    282, 283, 523, 437, 586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 32572,
 ];
-/// Inventory inputs without a decoder grammar. Only their header crosses IPC; their arrival
-/// alone invalidates reported carried weight (`decode::UNDECODED_INVENTORY`).
-pub(crate) const HEADER_ONLY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151];
+/// Inputs whose arrival alone matters. Only their header crosses IPC. The inventory inputs
+/// without a decoder grammar invalidate reported carried weight (`decode::UNDECODED_INVENTORY`).
+/// Season-pass progress 32572 carries no character state; its arrival shows that the game link
+/// is delivering frames (docs/research/pass-progress-liveness.md).
+pub(crate) const HEADER_ONLY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 32572];
 pub(crate) const OUTGOING: &[u16] = &[24, 288, 29, 477, 44, 48, 49];
 
 /// Host-only binding. Never print this value or the script/message that carries its guard.
@@ -262,7 +264,7 @@ mod tests {
         let script = script(&binding).unwrap();
         let c2s = OpcodeMap::current(b"c2s");
         let s2c = OpcodeMap::current(b"s2c");
-        let input = serde_json::json!({"script":script.as_str(),"auth":c2s.wire_opcode(11501),"ls":c2s.wire_opcode(2000),"ticket":s2c.wire_opcode(2014),"move":c2s.wire_opcode(24),"hp":s2c.wire_opcode(36)});
+        let input = serde_json::json!({"script":script.as_str(),"auth":c2s.wire_opcode(11501),"ls":c2s.wire_opcode(2000),"ticket":s2c.wire_opcode(2014),"move":c2s.wire_opcode(24),"hp":s2c.wire_opcode(36),"pass":s2c.wire_opcode(32572)});
         let mut child = Command::new("node")
             .arg(concat!(
                 env!("CARGO_MANIFEST_DIR"),

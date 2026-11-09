@@ -700,6 +700,7 @@ impl Actor {
                         ordered.push(packet)?;
                     }
                     let (ready,settled)=ordered.release(g.complete_through(self.order),aux.oldest_mark())?;
+                    let applied=!ready.is_empty();
                     for p in ready {
                         let dig_ended=dig.as_ref().is_some_and(|pending|p.mark>pending.mark && p.opcode==50 && pending.cycle.stopped());
                         let facts=decoder.apply(&p)?;
@@ -716,6 +717,8 @@ impl Actor {
                     if let Some(mark)=settled {
                         let mut facts=vec![e::Fact::InventorySettled(e::IngressMark(mark))];
                         facts.extend(decoder.settle_carried(mark));
+                        // Liveness needs an applied received frame, not a frontier over our own sends.
+                        if applied {facts.push(e::Fact::StateCurrent);}
                         self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts},proof_at)?;
                     }
                     self.request_keys(g,&mut decoder).await?;
@@ -1322,6 +1325,14 @@ mod tests {
                     assert_eq!(packets.len(), 1);
                     assert_eq!(packets[0].opcode, 5);
                     assert!(packets[0].payload.is_empty());
+                    // An idle game link still delivers frames, such as season-pass progress.
+                    let mut pass = vec![0; 19];
+                    pass[11] = 1;
+                    game.send(Message::Binary(
+                        outgoing.encode(32572, 0, &pass).unwrap().to_vec().into(),
+                    ))
+                    .await
+                    .unwrap();
                     // After world entry, the login link is still open and alone answers 2028.
                     game.send(Message::Binary(ping(2).to_vec().into()))
                         .await
@@ -1403,6 +1414,25 @@ mod tests {
                         .count(),
                     1
                 );
+                let baseline = events
+                    .iter()
+                    .position(|e| matches!(e, Event::Baseline { .. }))
+                    .unwrap();
+                let has = |event: &Event, wanted: fn(&e::Fact) -> bool| {
+                    matches!(event, Event::Facts { facts, .. } if facts.iter().any(wanted))
+                };
+                let current: Vec<_> = events
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, event)| has(event, |f| matches!(f, e::Fact::StateCurrent)))
+                    .collect();
+                assert!(
+                    !current.is_empty(),
+                    "an idle game frame after Baseline marks the state current"
+                );
+                assert!(current.iter().all(|(index, event)| {
+                    *index > baseline && has(event, |f| matches!(f, e::Fact::InventorySettled(_)))
+                }));
             }
         });
     }

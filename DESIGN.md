@@ -172,7 +172,7 @@ These rules shape several screens.
 3. The mode switch works only when no run exists, including a run held during a disconnect. Once a game or a session is open, a system sheet asks before the app switches.
 4. The bot never buys items, revives the character, or accepts or turns in quests.
 5. Three rejected actions in a row stop the run instead of retrying.
-6. When no state update arrives for 15 seconds, the run pauses.
+6. When 15 seconds pass with no state update and no game frame that confirms the state is current, the run pauses.
 7. Run counts include only results that the game confirmed. The run totals show how many sent actions the game confirmed.
 
 ## Alerts
@@ -483,8 +483,8 @@ The status line is one freshness caption in `small` type and `text.secondary`. I
 
 | Caption | When |
 | --- | --- |
-| Received game state | State arrived less than 15 seconds ago, and the session is not disconnected, reconnecting, closing, or halted |
-| Last known · no live game state | The app holds state that is 15 seconds old or older, or the session is closing |
+| Received game state | State arrived, or a game frame confirmed it current, less than 15 seconds ago, and the session is not disconnected, reconnecting, closing, or halted |
+| Last known · no live game state | The app holds state that was last received or confirmed 15 seconds ago or more, or the session is closing |
 | No live state | No state has arrived since the session opened, or the connection dropped or the session closed |
 
 The footer shows no build label. The Run tab's checklist shows "Supported game build" once the session reports a supported build. The status pill reads "Game updated" during a `build-changed` halt.

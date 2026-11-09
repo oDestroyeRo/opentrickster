@@ -281,6 +281,7 @@ impl Book {
                     self.drops.remove(&key);
                     state = true;
                 }
+                Fact::StateCurrent => state = true,
                 Fact::Inventory(update) => inventory.push(Update::Delta(update)),
                 Fact::InventorySnapshot(stacks) => inventory.push(Update::Snapshot(stacks)),
                 Fact::InventorySettled(frontier) => {

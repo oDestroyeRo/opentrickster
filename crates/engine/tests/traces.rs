@@ -210,6 +210,20 @@ impl Harness {
             facts,
         })
     }
+    /// An adapter settlement for a frame that carried no state, `delta` ms after the last input.
+    fn live(&mut self, delta: u64) -> Effects {
+        self.now += delta;
+        self.revision += 1;
+        self.ingress += 1;
+        self.event(Event::Facts {
+            revision: EvidenceKey(self.revision),
+            ingress: IngressMark(self.ingress),
+            facts: vec![
+                Fact::InventorySettled(IngressMark(self.ingress)),
+                Fact::StateCurrent,
+            ],
+        })
+    }
     fn sent(&mut self, id: ActionKey) -> Effects {
         self.ingress += 1;
         self.event(Event::Receipt {
@@ -585,6 +599,158 @@ fn stale_domain_state_pauses_and_progress_does_not_refresh_it() {
     let stale = h.wake(1_000);
     assert_eq!(stale.snapshot.phase, Phase::Paused(Pause::Uncertain));
     assert!(!stale.snapshot.allowed.contains(&Control::Resume));
+}
+
+#[test]
+fn a_live_idle_stream_keeps_state_fresh_until_it_falls_silent() {
+    let stale = Blocker::NeedsFreshObservation(StateKind::WorldState);
+    let mut h = Harness::new(false);
+    let mut idle = h.live(0);
+    for _ in 0..40 {
+        idle = h.live(1_000);
+    }
+    assert_eq!(idle.snapshot.own.last_state_at, Some(At(h.now)));
+    assert!(!idle.snapshot.blockers.contains(&stale));
+    assert!(idle.snapshot.allowed.contains(&Control::Start));
+    assert_eq!(h.command(Command::Start).snapshot.phase, Phase::Running);
+    for _ in 0..40 {
+        idle = h.live(1_000);
+        assert_eq!(idle.snapshot.phase, Phase::Running);
+        assert_eq!(idle.wake_at, Some(At(h.now + 15_000)));
+    }
+    assert_eq!(h.wake(14_999).snapshot.phase, Phase::Running);
+    let silent = h.wake(1);
+    assert_eq!(silent.snapshot.phase, Phase::Paused(Pause::Uncertain));
+    assert!(silent.snapshot.blockers.contains(&stale));
+    assert!(!silent.snapshot.allowed.contains(&Control::Resume));
+    let resumed = h.live(1_000);
+    assert!(!resumed.snapshot.blockers.contains(&stale));
+    assert!(resumed.snapshot.allowed.contains(&Control::Resume));
+    assert_eq!(resumed.snapshot.phase, Phase::Paused(Pause::Uncertain));
+}
+
+#[test]
+fn liveness_never_refreshes_a_lost_reconnecting_or_closing_session() {
+    let mut h = Harness::new(false);
+    assert_eq!(h.live(1_000).snapshot.own.last_state_at, Some(At(h.now)));
+    let old = h.session;
+    assert_eq!(h.event(Event::Lost).snapshot.own.last_state_at, None);
+    let lost = h.live(1_000);
+    assert_eq!(lost.snapshot.phase, Phase::Disconnected);
+    assert_eq!(lost.snapshot.own.last_state_at, None);
+    assert_eq!(closes(&h.command(Command::Reconnect)), 1);
+    assert_eq!(h.live(1_000).snapshot.own.last_state_at, None);
+    let closed = h.event(Event::Closed);
+    h.session = closed
+        .io
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Open { session, .. } => Some(*session),
+            _ => None,
+        })
+        .unwrap();
+    let opening = h.live(1_000);
+    assert_eq!(opening.snapshot.phase, Phase::Reconnecting(1));
+    assert_eq!(opening.snapshot.own.last_state_at, None);
+    let fenced = h.engine.handle(Input::Observed {
+        at: At(h.now),
+        observation: Observation {
+            session: old,
+            event: Event::Facts {
+                revision: EvidenceKey(900),
+                ingress: IngressMark(900),
+                facts: vec![Fact::StateCurrent],
+            },
+        },
+    });
+    assert_eq!(fenced.snapshot.own.last_state_at, None);
+    let baseline = h.event(Event::Baseline {
+        support: support(),
+        revision: EvidenceKey(1),
+        facts: baseline(),
+        resumed: true,
+    });
+    let reported = baseline.snapshot.own.last_state_at;
+    assert_eq!(reported, Some(At(h.now)));
+    h.idle(&baseline);
+    assert_eq!(closes(&h.command(Command::SwitchMode(Mode::Assisted))), 1);
+    let closing = h.live(1_000);
+    assert_eq!(closing.snapshot.phase, Phase::Closing);
+    assert_eq!(closing.snapshot.own.last_state_at, reported);
+    h.event(Event::Closed);
+    let offline = h.live(1_000);
+    assert_eq!(offline.snapshot.own.last_state_at, None);
+    assert!(
+        offline
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsConnection)
+    );
+}
+
+#[test]
+fn liveness_adds_no_value_and_never_overrides_newer_facts() {
+    let without_weight = baseline()
+        .into_iter()
+        .filter(|fact| !matches!(fact, Fact::Weight(_)))
+        .collect();
+    let mut h = Harness::with(false, support(), without_weight, None);
+    let hp = |effects: &Effects| {
+        effects
+            .snapshot
+            .own
+            .vitals
+            .as_ref()
+            .and_then(|vitals| vitals.hp.as_ref())
+            .map(|hp| hp.current)
+    };
+    let mp = |effects: &Effects| {
+        effects
+            .snapshot
+            .own
+            .vitals
+            .as_ref()
+            .and_then(|vitals| vitals.mp.as_ref())
+            .map(|mp| mp.current)
+    };
+    let fact_at = |h: &mut Harness, ingress: u64, fact: Fact| {
+        h.revision += 1;
+        h.event(Event::Facts {
+            revision: EvidenceKey(h.revision),
+            ingress: IngressMark(ingress),
+            facts: vec![fact],
+        })
+    };
+    fact_at(&mut h, 20, Fact::Hp(gauge(80, 100)));
+    fact_at(&mut h, 21, Fact::Mp(gauge(30, 100)));
+    h.ingress = 29;
+    let live = h.live(30_000);
+    assert_eq!(live.snapshot.own.last_state_at, Some(At(h.now)));
+    assert!(
+        live.snapshot
+            .blockers
+            .contains(&Blocker::NeedsObservation(StateKind::Weight))
+    );
+    assert!(!live.snapshot.allowed.contains(&Control::Start));
+    assert_eq!(hp(&live), Some(80));
+    let late = fact_at(&mut h, 19, Fact::Hp(gauge(50, 100)));
+    assert_eq!(hp(&late), Some(80));
+    let grouped = fact_at(&mut h, 25, Fact::Mp(gauge(40, 100)));
+    assert_eq!(mp(&grouped), Some(40));
+    let current = grouped.snapshot.own.last_state_at;
+    assert_eq!(current, Some(At(h.now)));
+    let queued = h.engine.handle(Input::Observed {
+        at: At(1_000),
+        observation: Observation {
+            session: h.session,
+            event: Event::Facts {
+                revision: EvidenceKey(900),
+                ingress: IngressMark(900),
+                facts: vec![Fact::StateCurrent],
+            },
+        },
+    });
+    assert_eq!(queued.snapshot.own.last_state_at, current);
 }
 
 #[test]

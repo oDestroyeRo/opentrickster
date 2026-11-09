@@ -25,6 +25,11 @@ mode runs without Unity and displays received game state in the native dashboard
   the actual send, not at the ticket's issue. These are conservative application
   defaults, not server guarantees; supported normal actions may require measured
   adjustments recorded with their evidence.
+- State is stale when 15 seconds pass with no received state change and no
+  received game frame that the adapter has applied in order after the baseline.
+  An idle character on a live game link therefore stays fresh. A silent link,
+  an unfinished baseline, a disconnect, a reconnect or a closing session never
+  refreshes state.
 - An expired quiescence window closes the session only while an action of ours
   may be in flight or a Stop is draining. Otherwise the app keeps the session,
   repeats the same quiescence request in fresh 2-second windows, and holds the
