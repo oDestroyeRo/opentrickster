@@ -131,10 +131,13 @@ receipt means owned emergency release plus uncertainty/drain, never replay.
 
 The decoder handles own profile/zone/resources, full typed entity appearance
 and effects, moves, HP, faint/despawn, inventories/equipment, ground items and
-dig feedback. Parsers are exact, with three exceptions seen in live ea1a68bd
+dig feedback. Parsers are exact, with four exceptions seen in live ea1a68bd
 traffic: a type-3 appearance and a removal on 15 may each carry one unread
-trailing byte, and a kind-2/3 ground item may carry its four unread state
-bytes. Like the client's `EsBlock.Read`, an effect type outside the compiled
+trailing byte, a kind-2/3 ground item may carry its four unread state bytes,
+and a damage event on 42 may carry any tail after its first 26 bytes, because
+the client's `Combat.ParseDamage` has no end check
+([damage-event tail](../../docs/research/damage-event-tail.md)). Like the
+client's `EsBlock.Read`, an effect type outside the compiled
 47-entry table has an empty body; it still marks the actor as affected, so that
 actor is never targeted. Like `ReadPlayerBody`, player mask bit 128 and
 equipment-mask bits outside the slot tables carry no fields. One live
