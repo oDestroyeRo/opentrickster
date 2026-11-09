@@ -116,10 +116,11 @@ The `ProfileTitles` ctor f21664@`695847` registers four hooks and replays no Sta
 
 `KnownSet` has a folded setter (f12608). `ProfileTitleUi` `<Install>d__3::MoveNext` f41701 sets it to a membership test over the `SetItemParam` IDs that `ProfileTitleUi::Tables` f41691@`d4f679` loads. Whether or not that UI is installed, the filter drops only IDs without a bonus row, which add nothing anyway.
 
-Net takes `Me` from the first 230 and moves it on each live 437. It keeps the own list as a multiset of set IDs and applies each live 837 for `Me`. Net ignores StartSet 837 frames, because `ProfileTitles` never sees them. The term becomes unknown when:
+Net takes `Me` from the first 230 and moves it on each live 437. It keeps the own list as a multiset of set IDs and applies each live 837 for `Me`. When the definitions carry the `SetItemParam` table, Net skips an 837 whose set has no row, whichever character it names, because that set adds nothing to any list. Net ignores StartSet 837 frames, because `ProfileTitles` never sees them. The term becomes unknown when:
 
 - a live 230 names a different character, because the own list may now be another character's;
-- an 837 arrives while `Me` is unknown. A StartSet 230 or 437 that names a different character makes `Me` unknown until the next live 437;
+- an 837 that Net does not skip arrives while `Me` is unknown. A StartSet 230 or 437 that names a different character makes `Me` unknown until the next live 437;
+- a complete set would bring the own list past 1024 distinct set IDs;
 - the own list is not empty and the definitions carry no `SetItemParam` table.
 
 ### Imprints
@@ -266,6 +267,7 @@ The page bridge forwards only `page::INCOMING` payloads and `page::HEADER_ONLY` 
 - **Recomputes Net cannot observe.** Imprint frames recompute only when their parser succeeds, and 82, 85 and 837 recompute only after the install. Each such frame makes unknown whatever it would have changed. A later recompute that always runs restores what it can prove.
 - **`GameParts`.** `Parts` mirrors the 23 client slots (each a UID, empty, or unproven), the UIDs whose client row is unproven, loaded ammunition, `Me`, the own set multiset and imprint emptiness. It reports `Part` only when all of these hold:
   - the StartSet has closed, no denied opcode has arrived, and no soul frame has carried an item change or thrown in the StartSet;
+  - Net has never had to keep more than 8192 unproven UIDs at once;
   - no worn change waits for a rebuild, and the imprint list is provably empty;
   - every slot is proven, no worn UID is unproven, every worn Kind 2 row carried its options, and every worn row's catalog entry and `StatPlus` list exist;
   - the set term is proven.

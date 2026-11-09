@@ -12,6 +12,11 @@ const AMMO_SLOT: usize = 20;
 const ENTRIES: usize = 32;
 /// StartSet frames kept for the client's later passes. More make `GameParts` unknown.
 const DEFERRED: usize = 1024;
+/// Unproven UIDs kept at once, as many rows as the decoder accepts in one list. More make
+/// `GameParts` unknown.
+const UNPROVEN: usize = 8192;
+/// Distinct own set IDs kept. More make the set term unknown.
+const SETS: usize = 1024;
 
 /// Opcodes whose client handlers change inventory rows or slots through paths Net does
 /// not model: the `Inventory` hooks without a decoder grammar, and every other caller of
@@ -141,6 +146,7 @@ impl Parts {
         opcode: u16,
         b: &[u8],
         live: bool,
+        definitions: Option<&GameDefinitions>,
         cached: impl Fn(u64) -> Cached,
     ) {
         if UNMODELED.binary_search(&opcode).is_ok() {
@@ -168,7 +174,7 @@ impl Parts {
                     self.consumed(uid, true);
                 }
             }
-            837 if live => self.set_item(b),
+            837 if live => self.set_item(b, definitions.and_then(|d| d.set_bonuses.as_ref())),
             1386 => self.imprint_list(b),
             1387 => self.imprint_used(b, live, &cached),
             1487 => self.soul_state(b, live),
@@ -371,7 +377,11 @@ impl Parts {
     }
     /// A row only Net changed: the client's row, or whether it holds one, is unproven.
     fn diverge(&mut self, uid: u64) {
-        self.diverged.insert(uid);
+        if self.diverged.len() < UNPROVEN || self.diverged.contains(&uid) {
+            self.diverged.insert(uid);
+        } else {
+            self.lost = true;
+        }
     }
     /// A change only the client applies.
     fn client_change(&mut self, change: Change, live: bool) {
@@ -425,10 +435,14 @@ impl Parts {
     /// 837 after H: `ServerNotices.ParseSetItem` reads the character as the low 16 bits of
     /// a U32, the set as a U32 and completion as a U8; a shorter frame throws first.
     /// `ProfileTitles.OnSetItem` appends a complete set and swap-removes one entry for an
-    /// incomplete one. `KnownSet` only drops IDs without a `SetItemParam` row, which add
-    /// nothing anyway.
-    fn set_item(&mut self, b: &[u8]) {
+    /// incomplete one. `KnownSet` only drops IDs without a `SetItemParam` row. Such a set
+    /// adds nothing in any character's list, so Net skips it whenever `bonuses` is known.
+    fn set_item(&mut self, b: &[u8], bonuses: Option<&BTreeMap<i64, [i16; 12]>>) {
         let Some(frame) = b.get(..9) else { return };
+        let set = u32::from_le_bytes([frame[4], frame[5], frame[6], frame[7]]);
+        if bonuses.is_some_and(|bonuses| !bonuses.contains_key(&i64::from(set))) {
+            return;
+        }
         let Some(me) = self.me else {
             self.sets = None;
             return;
@@ -437,9 +451,13 @@ impl Parts {
         if u16::from_le_bytes([frame[0], frame[1]]) != me {
             return;
         }
-        let set = u32::from_le_bytes([frame[4], frame[5], frame[6], frame[7]]);
         if frame[8] != 0 {
-            *sets.entry(set).or_insert(0) += 1;
+            if sets.len() >= SETS && !sets.contains_key(&set) {
+                self.sets = None;
+                return;
+            }
+            let count = sets.entry(set).or_insert(0);
+            *count = count.saturating_add(1);
         } else if let Some(count) = sets.get_mut(&set) {
             *count -= 1;
             if *count == 0 {
@@ -771,7 +789,9 @@ mod tests {
         }
         fn frame(&mut self, opcode: u16, b: &[u8], live: bool) {
             let Self { parts, rows, data } = self;
-            parts.frame(opcode, b, live, |uid| lookup(rows, data, uid));
+            parts.frame(opcode, b, live, Some(&**data), |uid| {
+                lookup(rows, data, uid)
+            });
         }
         fn equip(&mut self, opcode: u16, uid: u64, slot: usize) {
             let Self { parts, rows, data } = self;
@@ -1183,6 +1203,20 @@ mod tests {
         assert_eq!(fx.values(), NONE);
     }
     #[test]
+    fn unproven_rows_past_the_cap_lose_the_term() {
+        let mut fx = Fx::new();
+        for uid in 1..=UNPROVEN as u64 {
+            fx.delta(561, 2, uid, PLAIN, 1, &[], false);
+        }
+        fx.start(&[]);
+        assert_eq!(fx.values(), ZERO);
+        // A UID that is already unproven takes no more room.
+        fx.list(1, BARE, 1, &[], true);
+        assert_eq!(fx.values(), ZERO);
+        fx.list(UNPROVEN as u64 + 1, BARE, 1, &[], true);
+        assert_eq!(fx.values(), NONE);
+    }
+    #[test]
     fn a_used_row_may_be_consumed() {
         let mut fx = Fx::new();
         fx.row(11, PLAIN, 1, &[]);
@@ -1284,6 +1318,9 @@ mod tests {
         fx.parts.clock(6, false);
         fx.start(&[]);
         assert_eq!(fx.values(), ZERO);
+        // A set without a bonus row adds nothing, whichever character holds it.
+        fx.frame(837, &set_item(5, NO_ROW_SET, true), true);
+        assert_eq!(fx.values(), ZERO);
         fx.frame(837, &set_item(5, SET, true), true);
         assert_eq!(fx.values(), NONE);
         let mut fx = Fx::new();
@@ -1306,6 +1343,47 @@ mod tests {
         assert_eq!(fx.values(), ZERO);
         fx.frame(837, &set_item(5, NO_ROW_SET, true), true);
         assert_eq!(fx.values(), NONE);
+    }
+    #[test]
+    fn sets_without_a_bonus_row_take_no_room() {
+        let mut fx = Fx::new();
+        fx.parts.clock(5, false);
+        fx.start(&[]);
+        for set in 100..=100 + SETS as u32 {
+            fx.frame(837, &set_item(5, set, true), true);
+        }
+        fx.frame(837, &set_item(5, SET, true), true);
+        assert_eq!(fx.values(), [Some(100), Some(10), Some(0)]);
+    }
+    #[test]
+    fn own_sets_past_the_cap_are_unknown() {
+        /// Completes, then breaks, sets 0 to `sets - 1`.
+        fn cycle(fx: &mut Fx, sets: u32) {
+            for complete in [true, false] {
+                for set in 0..sets {
+                    fx.frame(837, &set_item(5, set, complete), true);
+                }
+            }
+        }
+        // Without a `SetItemParam` table every set is kept.
+        let mut fx = Fx::new();
+        Arc::get_mut(&mut fx.data).unwrap().set_bonuses = None;
+        fx.parts.clock(5, false);
+        fx.start(&[]);
+        cycle(&mut fx, SETS as u32);
+        assert_eq!(fx.values(), ZERO);
+        cycle(&mut fx, SETS as u32 + 1);
+        assert_eq!(fx.values(), NONE);
+    }
+    #[test]
+    fn a_set_count_saturates() {
+        let mut fx = Fx::new();
+        fx.parts.clock(5, false);
+        fx.start(&[]);
+        let full = Some(BTreeMap::from([(SET, u32::MAX)]));
+        fx.parts.sets = full.clone();
+        fx.frame(837, &set_item(5, SET, true), true);
+        assert_eq!(fx.parts.sets, full);
     }
     #[test]
     fn loaded_ammunition_must_add_nothing() {

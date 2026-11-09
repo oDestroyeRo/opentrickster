@@ -636,8 +636,9 @@ impl Decoder {
         if live {
             self.parts.finish_start(|uid| lookup(&self.items, uid));
         }
-        self.parts
-            .frame(p.opcode, b, live, |uid| lookup(&self.items, uid));
+        self.parts.frame(p.opcode, b, live, data.as_deref(), |uid| {
+            lookup(&self.items, uid)
+        });
         match p.opcode {
             230 => {
                 r.u32()?;
