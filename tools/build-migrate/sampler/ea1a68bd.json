@@ -36,6 +36,7 @@
   "Spinel.Game.Play.GunFlowing": [],
   "Spinel.Game.Play.HotkeyMap": [],
   "Spinel.Game.Play.ItemInfo": [],
+  "Spinel.Game.Play.ItemMap": [],
   "Spinel.Game.Play.KeyBinding": [],
   "Spinel.Game.Play.PlayerStats": [],
   "Spinel.Game.Play.RunToggle": [],
@@ -536,6 +537,18 @@
   "Spinel.Game.Play.ItemInfo.Type": [
    24,
    "i4"
+  ],
+  "Spinel.Game.Play.ItemMap.count": [
+   12,
+   "i4"
+  ],
+  "Spinel.Game.Play.ItemMap.rows": [
+   8,
+   "Spinel.Game.Play.ItemInfo[]"
+  ],
+  "Spinel.Game.Play.ItemMap.slots": [
+   16,
+   "System.Collections.Generic.Dictionary`2<i8,i4>"
   ],
   "Spinel.Game.Play.KeyBinding.Code": [
    8,
@@ -1714,6 +1727,7 @@
   "Spinel.Game.Play.GunFlowing": 176,
   "Spinel.Game.Play.HotkeyMap": 28,
   "Spinel.Game.Play.ItemInfo": 264,
+  "Spinel.Game.Play.ItemMap": 24,
   "Spinel.Game.Play.KeyBinding": 20,
   "Spinel.Game.Play.PlayerStats": 28,
   "Spinel.Game.Play.RunToggle": 32,
@@ -1829,6 +1843,9 @@
   "Spinel.Game.dll|Spinel.Game.Play.HotkeyMap::MakeCatalog()": "85406235656444d7d78fdc2cb709bb8d57f4758a5e932fa22f7b186de2d1c249",
   "Spinel.Game.dll|Spinel.Game.Play.HotkeyMap::Of(string)": "42333addc3030b0aa1df7a65b870a05386f0272cc32882b2aa7cc07df22f582a",
   "Spinel.Game.dll|Spinel.Game.Play.HotkeyMap::Rebuild()": "b858c4a21f3cc2aca24b29c1466a10a1671c91e3d432a9e284159be0cd413718",
+  "Spinel.Game.dll|Spinel.Game.Play.ItemMap::.ctor(i4)": "5078e2a000727098ee9f4c6c0221e00ef74b4eee7c945a38f60a4bd66c0b9008",
+  "Spinel.Game.dll|Spinel.Game.Play.ItemMap::Add(Spinel.Game.Play.ItemInfo)": "d0c1b78e0b3d07aafd8a5f0529d7d26351524196228f11a9b5de82121ad79ff1",
+  "Spinel.Game.dll|Spinel.Game.Play.ItemMap::TryGetValue(i8,Spinel.Game.Play.ItemInfo&)": "b3308a660c25fb5f0a0c3981644acf9f55eb0045cb42eecf0cc26d30aeec483e",
   "Spinel.Game.dll|Spinel.Game.Play.ItemWeight::Heavy(i8,r8,i4)": "239620b8c1373d9aa6679e8e97d17ba2952334e1c8da024d1d48ac03c8121934",
   "Spinel.Game.dll|Spinel.Game.Play.KeyBindings::Matches(Spinel.Game.Play.KeyBinding,vt:Spinel.Game.Play.KeyStroke)": "1cbf3dede324c93c9e335eddb8aeecd7075b8114d61445dcd32dc18ec276139e",
   "Spinel.Game.dll|Spinel.Game.Play.KeyBindings::Matches(System.Collections.Generic.Dictionary`2<string,System.Collections.Generic.List`1<Spinel.Game.Play.KeyBinding>>,string,vt:Spinel.Game.Play.KeyStroke)": "ee11aaa54e85a4b702b8db818f1ed8115d2a511353c7171ae7236d443d4e8c37",
@@ -1919,6 +1936,7 @@
   "Unity.InputSystem.dll|UnityEngine.InputSystem.LowLevel.InputStateBuffers::GetFrontBufferForDevice(i4)": "35466436736938c0df1300178e755ed510034d4d0955ff904410f8c7fb209319",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Utilities.MemoryHelpers::ReadMultipleBitsAsUInt(void*,u4,u4)": "1fc088d9994bfb8d7561c0f853c92ed0b481835b1baac6a329da0b92bbe633e2",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Utilities.MemoryHelpers::ReadSingleBit(void*,u4)": "6d197544d21813018278c11c443a2b706bec21df11363f9b414fb134f0cd72dc",
+  "mscorlib.dll|System.Int64::GetHashCode()": "837a67f95f77640d5c00a5e22719ea29dbd5333098298af1a9f81df32ce3d2f1",
   "mscorlib.dll|System.Object::GetType()": "cfefdc6163274f991f8831ed2a9181e2a4012e5ebe13b037660d54c1d57603de"
  },
  "rgctx": {
@@ -1928,6 +1946,7 @@
    "sha256": "fc6cf17328ad4b755e8c04bcc2bd8c5e41e16e577b0285339f714f0edfbf3b99"
   },
   "System.Collections.Generic.Dictionary`2": {
+   "+160": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.next",
    "+36": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.hashCode",
    "+40": "class !TKey",
    "+44": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.key",
@@ -2009,6 +2028,7 @@
   "Spinel.Game.Play.GunFlowing": 6632,
   "Spinel.Game.Play.HotkeyMap": 6744,
   "Spinel.Game.Play.ItemInfo": 6759,
+  "Spinel.Game.Play.ItemMap": 6764,
   "Spinel.Game.Play.KeyBinding": 6895,
   "Spinel.Game.Play.PlayerStats": 7415,
   "Spinel.Game.Play.RunToggle": 7918,

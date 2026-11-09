@@ -314,14 +314,28 @@ class Heap {
       this.write(slot + 4, "ptr", this.method(t, "TryGetValue"));
     });
   }
-  // A Dictionary`2; deleted rows carry hashCode -1. An unused dictionary has no entries array.
+  // A Dictionary`2; deleted rows carry hashCode -1. An unused dictionary has no entries array. Long keys are also chained
+  // as Dictionary`2.TryInsert links them: hashCode is (int)key ^ (int)(key >> 32) masked to 31 bits, and each bucket
+  // holds its newest entry's index plus one.
   dict(k, v, rows = [], deleted = []) {
     const t = ["System.Collections.Generic.Dictionary`2", k, v], p = this.object(t);
     this.virtual(t);
     if (!rows.length) return p;
-    const a = this.array(["System.Collections.Generic.Dictionary`2/Entry", k, v], rows.length);
-    rows.forEach(([key, value], i) => this.set(a, `[${i}]`, {hashCode: deleted.includes(i) ? -1 : i, next: -1, key, value}));
+    const a = this.array(["System.Collections.Generic.Dictionary`2/Entry", k, v], rows.length), heads = new Array(rows.length).fill(0);
+    rows.forEach(([key, value], i) => {
+      const live = !deleted.includes(i), hashCode = !live ? -1 : k === I64 ? (Number(BigInt.asIntN(32, key)) ^ Number(BigInt.asIntN(32, key >> 32n))) & 0x7fffffff : i;
+      let next = -1;
+      if (live && k === I64) { next = heads[hashCode % heads.length] - 1; heads[hashCode % heads.length] = i + 1; }
+      this.set(a, `[${i}]`, {hashCode, next, key, value});
+    });
+    if (k === I64) this.set(p, "_buckets", heads.reduce((b, head, i) => head ? this.set(b, `[${i}]`, head) : b, this.array(I32, heads.length)));
     return this.set(p, {_entries: a, _count: rows.length, _freeCount: deleted.length, _version: 1});
+  }
+  // An ItemMap as ItemMap.Add f24922 fills it: slots maps each Id to its index in rows[0, count).
+  itemMap(infos) {
+    const rows = this.array(INFO, infos.length);
+    infos.forEach((info, i) => this.set(rows, `[${i}]`, info));
+    return this.set(this.object("Spinel.Game.Play.ItemMap"), {rows, count: infos.length, slots: this.dict(I64, I32, infos.map((info, i) => [this.get(info, "Id"), i]))});
   }
   // An OrderedMap`2: KeyValuePair slots in insertion order, tombstoned by gone[] and counted in gaps.
   orderedMap(k, v, rows = [], gone = []) {
@@ -425,7 +439,7 @@ function fixture(primePointer = true) {
   h.set(p.gun, "Inventory", p.inv);
   h.set(p.drill, "Inventory", p.inv);
   p.toolInfo = h.set(h.object(INFO), {Id: 8001n, Type: 6});
-  h.set(p.gun, "infos", h.dict(I64, INFO, [[8001n, p.toolInfo]]));
+  h.set(p.gun, "infos", h.itemMap([p.toolInfo]));
   p.drillParam = h.set(h.object(PARAM), BASE_PARAM);
   p.drillData = h.set(h.object("Spinel.Game.Play.DrillData"), {Params: h.dict(I64, PARAM, [[8001n, p.drillParam]]), AutoPets: h.dict(I64, I32)});
   h.set(p.drill, "Data", p.drillData);
@@ -731,14 +745,31 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
     const s = uncached(f), any = f.h.set(f.h.object("UnityEngine.InputSystem.Controls.AnyKeyControl"), "m_Device", s.device);
     f.h.set(f.p.keyboard, "ctrlKey", any);
   }, "unavailable", "input");
-  const gun = check("actual equipped gun branch", ({h, p}) => {
-    const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1}), info = h.set(h.object(INFO), {Id: 9000n, Type: 2, SubType: 54});
-    h.set(p.slots, "[1]", 502n);
-    h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [502n, item]]));
-    h.set(p.gun, {infos: h.dict(I64, INFO, [[8001n, p.toolInfo], [9000n, info]]), Armed: true, Ready: true, State: 3});
+  // The second id has a high word with its sign bit set, which Int64.GetHashCode f71422 folds into the hash.
+  for (const id of [9000n, 0x8000000500002328n]) {
+    const gun = check(`actual equipped gun branch, item ${id}`, ({h, p}) => {
+      const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: id, Count: 1}), info = h.set(h.object(INFO), {Id: id, Type: 2, SubType: 54});
+      h.set(p.slots, "[1]", 502n);
+      h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [502n, item]]));
+      h.set(p.gun, {infos: h.itemMap([p.toolInfo, info]), Armed: true, Ready: true, State: 3});
+    }, "ready");
+    assert.equal(gun.combat.gunWorn, true);
+    assert.equal(gun.combat.gunReady, true);
+  }
+  // GunFlowing.infos is an ItemMap; ItemMap.TryGetValue f24927 finds an id through Dictionary`2.FindEntry f64786.
+  // In a two-bucket map 8001 and 8003 share a bucket, so 8001 sits behind 8003 in its chain.
+  const otherInfo = h => h.set(h.object(INFO), {Id: 8003n, Type: 2});
+  const infoMap = ({h, p}) => h.get(p.gun, "infos"), infoEntries = f => f.h.get(f.h.get(infoMap(f), "slots"), "_entries");
+  assert.equal(check("ItemMap id behind its bucket chain", ({h, p}) => h.set(p.gun, "infos", h.itemMap([p.toolInfo, otherInfo(h)])), "ready").dig.toolUsable, true);
+  check("item id missing from the ItemMap", ({h, p}) => h.set(p.gun, "infos", h.itemMap([otherInfo(h)])), "unavailable", "cold");
+  check("ItemMap slot past its count", f => f.h.set(infoEntries(f), "[0].value", 1), "unavailable", "generic");
+  check("ItemMap row of another id", f => f.h.set(f.h.get(infoMap(f), "rows"), "[0]", otherInfo(f.h)), "unavailable", "generic");
+  check("ItemMap slots with a custom comparer", f => f.h.set(f.h.get(infoMap(f), "slots"), "_comparer", f.p.toolInfo), "unavailable", "generic");
+  check("cyclic ItemMap bucket chain", f => { f.h.set(f.p.gun, "infos", f.h.itemMap([otherInfo(f.h)])); f.h.set(infoEntries(f), "[0].next", 0); }, "unavailable", "generic");
+  check("ItemMap larger than the read budget", ({h, p}) => {
+    const n = 100001, slots = h.dict(I64, I32, Array.from({length: n}, (_, i) => [i ? 100000n + BigInt(i) : 8001n, i]));
+    h.set(p.gun, "infos", h.set(h.object("Spinel.Game.Play.ItemMap"), {rows: h.set(h.array(INFO, n), "[0]", p.toolInfo), count: n, slots}));
   }, "ready");
-  assert.equal(gun.combat.gunWorn, true);
-  assert.equal(gun.combat.gunReady, true);
   check("foreign nullable specialization", ({h}) => h.raw(h.u32(CELL("MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<vt:UnityEngine.Vector2>")) + 16, "ptr", h.cls(["System.Nullable`1", I32])));
   check("nullable field overlap", ({h}) => h.raw(h.rgctx(["System.Nullable`1", "UnityEngine.Vector2"]) + 12, "int", 5));
   check("unknown manual setting", ({h, p}) => h.set(p.semi, "semiAuto.hasValue", false));
@@ -766,7 +797,7 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
       h.set(p.slots, "[8]", 503n);
       h.set(p.zoneInfo, "Option", option);
       h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [503n, item]]));
-      h.set(p.gun, "infos", h.dict(I64, INFO, [[8001n, p.toolInfo], [7000n, info]]));
+      h.set(p.gun, "infos", h.itemMap([p.toolInfo, info]));
       h.set(p.drillData, "AutoPets", h.dict(I64, I32, [[7000n, 1]]));
     }, "ready");
     assert.equal(pet.dig.automaticPet, option === 0);

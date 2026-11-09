@@ -39,9 +39,9 @@ Spinel.UI.Pc.Screens.PlayServices Spinel.Game.Play.CombatModel Spinel.Game.Play.
 Spinel.Game.Play.CombatModel/WaitingMove Spinel.Game.Play.DrillFeature Spinel.Game.Play.DigAssist
 Spinel.Game.Play.GunFlowing Spinel.Game.Play.AvatarStatusFlags Spinel.Game.Play.SkillsApi Spinel.Game.Play.AvatarFsm
 Spinel.Game.Play.HotkeyMap Spinel.Game.Play.KeyBinding Spinel.Game.Play.RunToggle Spinel.Game.Play.PlayerStats
-Spinel.Game.Play.StatValues Spinel.Game.Play.ItemInfo Spinel.Game.Play.DrillData Spinel.Game.Play.DrillParam
-Spinel.Game.Play.AutoDrill Spinel.UI.Pc.Hud.Hud Spinel.UI.Pc.Hud.HudCover Spinel.UI.Pc.UiSkins
-Spinel.UI.Pc.Play.DigKeySettings Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0
+Spinel.Game.Play.StatValues Spinel.Game.Play.ItemInfo Spinel.Game.Play.ItemMap Spinel.Game.Play.DrillData
+Spinel.Game.Play.DrillParam Spinel.Game.Play.AutoDrill Spinel.UI.Pc.Hud.Hud Spinel.UI.Pc.Hud.HudCover
+Spinel.UI.Pc.UiSkins Spinel.UI.Pc.Play.DigKeySettings Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0
 Spinel.UI.Pc.Screens.GroundItems Spinel.UI.Pc.Screens.GroundItems/Entry Spinel.UI.Pc.EditBox
 Spinel.UI.Pc.UiPressOrigin Spinel.UI.Pc.Screens.GroundItems/HoverDraw System.Collections.Generic.KeyValuePair`2
 UnityEngine.InputSystem.InputActionState/TriggerState UnityEngine.InputSystem.LowLevel.InputStateBuffers
@@ -104,6 +104,7 @@ FIELDS = {
     'Spinel.Net.Game.Inventory': 'byUid slots',
     'Spinel.Net.Game.InvItem': 'Uid ItemId Count',
     'Spinel.Game.Play.ItemInfo': 'Id Type SubType',
+    'Spinel.Game.Play.ItemMap': 'rows count slots',
     'Spinel.Game.Play.DrillData': 'Params AutoPets',
     'Spinel.Game.Play.DrillParam': 'Id Grade GroundNature DigDepth BarEffArea BarSpeed ScoopMass DrillLife',
     'Spinel.UI.Pc.UiSkins': 's:chosen s:started',
@@ -161,7 +162,7 @@ SLOTS = ['Spinel.UI.Pc.dll|Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_
 # Class RGCTX slots (byte offsets) read through MethodInfo+28.
 RGCTX = {
     'System.Nullable`1': (0, 8, 12),
-    'System.Collections.Generic.Dictionary`2': (36, 40, 44, 48, 52),
+    'System.Collections.Generic.Dictionary`2': (36, 40, 44, 48, 52, 160),
     'UnityEngine.InputSystem.InputControl`1': (4, 16, 28, 56),
     'Spinel.Net.OrderedMap`2': (12, 16),
     'System.Collections.Generic.KeyValuePair`2': (0, 4, 8, 12, 16),
@@ -182,6 +183,7 @@ METHODS = {
     'Spinel.Game.Play.GameUiMode': 'KeyBit KeyOn QuickSlotKey',
     'Spinel.Game.Play.GunFlowing': 'HoldsGun Info MayShow get_GunWorn',
     'Spinel.Game.Play.HotkeyMap': 'MakeCatalog Of Rebuild',
+    'Spinel.Game.Play.ItemMap': '.ctor Add TryGetValue',
     'Spinel.Game.Play.ItemWeight': 'Heavy',
     'Spinel.Game.Play.KeyBindings': 'Matches',
     'Spinel.Game.Play.MyViewWindow': 'get_OkCancelShown',
@@ -223,6 +225,7 @@ METHODS = {
     'UnityEngine.InputSystem.Keyboard': 'get_Item get_aKey get_leftAppleKey get_leftCommandKey get_leftMetaKey '
                                         'get_leftWindowsKey get_rightAppleKey get_rightCommandKey get_rightMetaKey '
                                         'get_rightWindowsKey',
+    'System.Int64': 'GetHashCode',
     'System.Object': 'GetType',
 }
 

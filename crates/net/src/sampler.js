@@ -5,7 +5,7 @@
   // At runtime Il2CppType.data for classes and primitives is a handle into the loaded metadata, not an index.
   const metadataCells = [4659832,4659828], typeDefinitions = [7487400,1019502,15447];
   const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,10529:17,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
-  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10304:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
+  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6764:24,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10304:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
   let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
   const sampleHex = value => typeof value === "string" && /^[1-9a-f][0-9a-f]{0,15}$/.test(value);
   const unavailable = code => { throw code; };
@@ -129,7 +129,8 @@
       if (!n || t.args.length) unavailable("generic");
       return n;
     }
-    function dictionary(p, keyType, valueType, limit = 512, method = null) {
+    // A Dictionary`2's entry layout from its class RGCTX, read through any of its methods; TryGetValue by default.
+    function dictionaryLayout(p, keyType, valueType, limit, method) {
       extent(p, 48);
       const c = klass(pointer(p), 9991), t = type(c + 16);
       if (t.args.length !== 2 || t.args[0].id !== keyType || (valueType !== null && t.args[1].id !== valueType)) unavailable("generic");
@@ -142,24 +143,51 @@
       const count = integer(i32(p + 16), 0, limit), free = integer(i32(p + 24), 0, count);
       i32(p + 28);
       const ep = u32(p + 12);
-      if (!ep) { if (count || free || u32(p + 8)) unavailable("generic"); return []; }
+      if (!ep) { if (count || free || u32(p + 8)) unavailable("generic"); return {entries:null}; }
       extent(ep, 16);
       const stride = integer(u32(pointer(ep) + 140), value + vw, 128);
       if (stride % 4) unavailable("generic");
       const entry = klass(pointer(pointer(ep) + 32),9985), entryType = type(entry + 16);
       if (entryType.args.length !== 2 || !entryType.args.every((arg,i) => sameType(arg,t.args[i])) || u32(entry + 132) !== stride) unavailable("generic");
-      const a = array(ep, stride, limit);
-      if (count > a.count) unavailable("generic");
+      const entries = array(ep, stride, limit);
+      if (count > entries.count) unavailable("generic");
+      return {ctx, count, free, entries, stride, hash, key, value};
+    }
+    function dictionary(p, keyType, valueType, limit = 512, method = null) {
+      const d = dictionaryLayout(p, keyType, valueType, limit, method);
+      if (!d.entries) return [];
       const rows = [];
       let deleted = 0;
-      for (let i = 0; i < count; i++) {
-        const row = a.data + stride * i, h = i32(row + hash);
+      for (let i = 0; i < d.count; i++) {
+        const row = d.entries.data + d.stride * i, h = i32(row + d.hash);
         if (h === -1) { deleted++; continue; }
         if (h < 0) unavailable("generic");
-        rows.push({key:row + key, value:row + value});
+        rows.push({key:row + d.key, value:row + d.value});
       }
-      if (deleted !== free) unavailable("generic");
+      if (deleted !== d.free) unavailable("generic");
       return rows;
+    }
+    // Dictionary`2.FindEntry f64786 for long keys and no _comparer (+32), as Dictionary`2(int) leaves it. The hash is
+    // Int64.GetHashCode f71422, the low word of key ^ (key >>> 32), masked to 31 bits. _buckets (+8) holds an entry
+    // index plus one; entries chain through Entry.next (RGCTX +160). FindEntry throws after entries.Length steps.
+    // Returns each found key's value address, reading only the probed entries.
+    function findLongs(p, valueType, limit, method, keys) {
+      const d = dictionaryLayout(p, 9024, valueType, limit, method), found = new Map();
+      if (!d.entries) return found;
+      if (u32(p + 32)) unavailable("generic");
+      const next = integer(u32(d.ctx + 160), 0, 120), buckets = array(pointer(p + 8), 4, limit, 9023);
+      if (next % 4 || next < d.hash + 4 || next + 4 > d.key || !buckets.count) unavailable("generic");
+      for (const key of keys) {
+        const hash = Number(BigInt.asUintN(32, key ^ (key >> 32n))) & 0x7fffffff;
+        let i = i32(buckets.data + 4 * (hash % buckets.count)) - 1;
+        for (let steps = 0; i >= 0 && i < d.entries.count; steps++) {
+          if (steps === d.entries.count || i >= d.count) unavailable("generic");
+          const row = d.entries.data + d.stride * i;
+          if (i32(row + d.hash) === hash && u64(row + d.key) === key) { found.set(key, row + d.value); break; }
+          i = i32(row + next);
+        }
+      }
+      return found;
     }
     // OrderedMap`2 rows, as its Enumerator.MoveNext walks them: slots[0, used) minus gone[] tombstones.
     function orderedMap(p, keyType, valueType, limit, cell) {
@@ -393,17 +421,21 @@
       needed.set(uid,{id:u64(item + 16),count:i32(item + 28),p:item});
     }
     if ([...needed.values()].some(v => !v)) unavailable("cold");
-    const infoRows = dictionary(pointer(gun + 28),9024,6759,32768), infos = new Map();
-    const itemIds = new Set([...needed.values()].map(v => v.id));
-    for (const row of infoRows) {
-      const id = u64(row.key);
-      if (!itemIds.has(id)) continue;
-      if (infos.has(id)) unavailable("generic");
-      const info = object(pointer(row.value),6759);
+    // GunFlowing.infos (+28) is an ItemMap, the only IReadOnlyDictionary<long,ItemInfo> in the build. ItemMap.TryGetValue
+    // f24927 looks an id up in slots and returns rows[index]. ItemMap.Add f24922 is the only writer: it stores
+    // slots[id] = count and rows[count++], and its prologue resolves the ContainsKey<long,int> cell read here.
+    const items = object(pointer(gun + 28),6764), itemCount = integer(i32(items + 12),0,1048576), rows = array(pointer(items + 8),4,1048576,6759);
+    if (itemCount > rows.count) unavailable("generic");
+    const itemIds = new Set([...needed.values()].map(v => v.id)), infos = new Map();
+    const found = findLongs(pointer(items + 16),9023,1048576,methodCell(3297464),itemIds);
+    if (found.size !== itemIds.size) unavailable("cold");
+    for (const [id, slot] of found) {
+      const index = i32(slot);
+      if (index < 0 || index >= itemCount) unavailable("generic");
+      const info = object(pointer(rows.data + 4 * index),6759);
       if (u64(info + 8) !== id) unavailable("generic");
       infos.set(id,{type:i32(info + 24),subtype:i32(info + 28)});
     }
-    if ([...itemIds].some(id => !infos.has(id))) unavailable("cold");
     const itemAt = slot => needed.get(u64(slots.data + slot * 8)) || null;
     const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id).subtype === 54; });
     const pet = itemAt(8), data = drill && object(pointer(drill + 12),6228);
