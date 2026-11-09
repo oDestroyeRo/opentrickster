@@ -924,6 +924,11 @@ impl Decoder {
                 let item_id = r.u32()?;
                 r.u64()?;
                 let count = r.u16()?;
+                // ParseGroundItem stops at Count. Live ea1a68bd ground items carry four more bytes
+                // (ItemBody's state, which kinds 2 and 3 have); the client never reads them.
+                if matches!(kind, 2 | 3) && r.remaining() == 4 {
+                    r.take(4)?;
+                }
                 r.end()?;
                 if self.drops.len() >= MAX_ITEMS && !self.drops.contains_key(&id) {
                     return Err(NetError::Capacity);
@@ -1722,6 +1727,27 @@ mod tests {
         assert!(!d.actors.contains_key(&321));
         removal.push(1);
         assert!(d.apply(&packet(15, removal)).is_err());
+    }
+    #[test]
+    fn ground_items_allow_item_state_only_for_kinds_two_and_three() {
+        let ground = |kind: u8, extra: usize| {
+            let mut b = vec![0; 26];
+            b[0..2].copy_from_slice(&5u16.to_le_bytes());
+            b[11] = kind;
+            b[12..16].copy_from_slice(&7u32.to_le_bytes());
+            b[24..26].copy_from_slice(&1u16.to_le_bytes());
+            b.extend(vec![0; extra]);
+            packet(10, b)
+        };
+        let mut d = Decoder::new();
+        for kind in [1u8, 2, 3] {
+            assert!(d.apply(&ground(kind, 0)).is_ok(), "kind {kind}");
+        }
+        assert!(d.apply(&ground(2, 4)).is_ok());
+        assert!(d.apply(&ground(3, 4)).is_ok());
+        assert!(d.apply(&ground(1, 4)).is_err());
+        assert!(d.apply(&ground(2, 3)).is_err());
+        assert!(d.apply(&ground(2, 5)).is_err());
     }
     #[test]
     fn raw_incarnations_are_not_reused_and_faint_is_not_kill() {
