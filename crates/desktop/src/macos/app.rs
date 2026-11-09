@@ -344,6 +344,12 @@ impl Desktop {
     pub fn is_quitting(&self) -> bool {
         self.quit_requested
     }
+    pub fn sample_quit_probe(&mut self) {
+        if let Some(mut probe) = self.probe.take() {
+            probe.sample_quit(self);
+            self.probe = Some(probe);
+        }
+    }
     pub fn say(&mut self, message: &'static str) {
         self.message = Some((message, self.ticks + 22));
     }
