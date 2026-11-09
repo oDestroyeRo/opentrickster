@@ -16,8 +16,9 @@ Statuses were last updated on 2026-11-09.
 Live gameplay is blocked for two reasons:
 
 - [#37]: the official game moved to build `ea1a68bd89958fae94179f1e0835ffb5`.
-  Every pin is for `8502ebbf2fc9033d2fba50d02fd92002`, so both adapters refuse
-  to load.
+  The Net pins now target it ([#43]), and a native sign-in on that build passed
+  outside the app. The client-assisted in-game reader is still pinned to
+  `8502ebbf2fc9033d2fba50d02fd92002`, so that mode refuses the new build.
 - [#31] Trials A and B, and [#21]: carried weight and complete inventory are
   not established yet, so Start stays unavailable.
 
@@ -73,8 +74,8 @@ Run these from the repository root. They use no account. `APP` stands for
 | A5 | `python3 scripts/package_macos.py --output dist/<new-name>.app` | Exit 0. The app has a verified ad-hoc signature and a `build.json` | `build.json` values | Passed: [PR #40]. CI run [42582226234] uploaded `OpenTrickster-macOS-arm64.zip` |
 | A6 | `APP --verify-embedding --verification-dir <new-dir>` | Exit 0. `report.json` has `"passed": true`, `"verification": "offline-fixture"` and `"account_used": false` | `report.json` fields | Passed: packaged app, [PR #40] |
 | A7 | `APP --verify-input --verification-dir <new-dir>` | Exit 0. `report.json` has `"passed": true` | `report.json` fields | Passed on the desktop branch, [PR #39]. On the packaged app at `13444e0` only `native_pointer_hover` failed, an environment issue described below |
-| A8 | `APP --verify-application --verification-dir <new-dir>`, then again with `--quit-via native` and with `--quit-via command` | Exit 0. `"verification": "official-title-only"`, `"embedded_resource_close_fence_passed": true` and `"account_used": false` | `report.json` fields per route | Blocked by [#37]: [PR #40] recorded exit 1 because the app refuses the new build |
-| A9 | Run A8 while the official game is on a build other than the pinned one | Nonzero exit. The app does not load the changed game | Exit status and `failures` | Passed: [PR #40] recorded exit 1 while the official build is `ea1a68bd` |
+| A8 | `APP --verify-application --verification-dir <new-dir>`, then again with `--quit-via native` and with `--quit-via command` | Exit 0. `"verification": "official-title-only"`, `"embedded_resource_close_fence_passed": true` and `"account_used": false` | `report.json` fields per route | Not run since [#43]. Before it, [PR #40] recorded exit 1 because the app refused the new build. Rerun in L18 |
+| A9 | Run A8 while the official game is on a build other than the pinned one | Nonzero exit. The app does not load the changed game | Exit status and `failures` | Passed: [PR #40] recorded exit 1 while the official build was `ea1a68bd` and the app pinned `8502ebbf` |
 
 A6 uses an offline fixture. It checks child parenting, WebGL2, page and host
 messages, window resizing, minimum-size layout, focus transfer, a menu
@@ -104,12 +105,12 @@ or take over a character that is in use. Run each mode separately.
 | L1 | Open the packaged app. For a downloaded copy, allow it once in **System Settings > Privacy & Security**. | One OpenTrickster window opens in client-assisted mode with the status **Game not loaded**. Nothing downloads until you click **Load game**. | `build.json` values, whether macOS asked to allow the app | Not run. A6 ran the packaged executable directly |
 | L2 | Click **Load game**. At **Log in to the game**, resize the window from large to its minimum. Press ⌘\\ twice, ⌃Tab twice, then ⌘2 and ⌘1 while the game has focus. | The game fills a 16:9 area in the left pane and follows every resize. No app element covers it. The badge alternates between **Keys go to Game** and **Keys go to Dashboard**. The shortcuts switch tabs while the game has focus. | Window sizes, observations, a title-screen screenshot | Blocked by [#37] |
 | L3 | Log in inside the game and choose the character. | The status becomes **Ready**. Vitals show HP and MP. The footer reads "Received game state". Setup lists received monsters. | Status labels, which values show "Unknown", the **Before you start** rows | Blocked by [#37] |
-| L4 | Switch to **Clientless**. Enter the Game ID and password, click **Sign in**, then choose a world and the character. | No game client runs. The board shows the character, map and coordinates, and the status becomes **Ready**. One sign-in, no retries. | Status labels, board fields with names replaced | Blocked by [#37]. Outside the app, the production Rust adapter completed one sign-in at build `8502ebbf` ([native startup report](research/native-rust-startup.md)) |
+| L4 | Switch to **Clientless**. Enter the Game ID and password, click **Sign in**, then choose a world and the character. | No game client runs. The board shows the character, map and coordinates, and the status becomes **Ready**. One sign-in, no retries. | Status labels, board fields with names replaced | Not run in the app. Outside the app, the production Rust adapter completed one sign-in at build `ea1a68bd` ([#37]) |
 | L5 | In each mode, apply a valid setup, then open the Run tab. | **Before you start** shows "✓ Character in the world", "✓ Supported game build", "✓ Setup applied" and "✓ Inventory data received", with no blocker. Weight shows a current and maximum value. Start is enabled. | Every row and blocker text | Blocked by [#37], [#31], [#21] |
 | L6 | Client-assisted: apply Combat with **Only these** and one monster, a small radius, **No item goal**, a weapon that is not a gun and at least one HP potion. Start. Stop after the first confirmed kill. | The log shows "Action sent", then "Result confirmed by the game". Kills increase only after confirmation. The character stays inside the boundary. Stop returns to **Ready**. | "N sent · M confirmed", kills, log rows, run time, any rejection | Blocked by [#37], [#31]. Acceptance in [#23] |
-| L7 | Repeat L6 in clientless mode. | The same as L6. | The same as L6 | Blocked by [#37], [#31], [#21]. Acceptance in [#23] |
+| L7 | Repeat L6 in clientless mode. | The same as L6. | The same as L6 | Blocked by [#31], [#21]. Acceptance in [#23] |
 | L8 | Client-assisted: apply Digging with a drill limit and an equipped drill. Start. Stop after the first completed dig. | The activity steps through Pick spot, Move, Detect, Dig and Collect. "Result confirmed by the game" follows the send. Digs increase by one, with either a find or an empty dig. A received inventory change is recorded apart from the sent action. | Digs, finds, empty count, drill life before and after, log rows | Blocked by [#37], [#31]. Acceptance in [#23] |
-| L9 | Repeat L8 in clientless mode. | The same as L8. | The same as L8 | Blocked by [#37], [#31], [#21]. Acceptance in [#23] |
+| L9 | Repeat L8 in clientless mode. | The same as L8. | The same as L8 | Blocked by [#31], [#21]. Acceptance in [#23] |
 | L10 | During a run, use ⌘P, ⌘R and ⌘. once each through the buttons, the shortcuts and the Run menu. Open Setup while the run is running and while it is paused. Change a value, apply it and resume. | Pause shows **Pausing**, then **Paused** with "By you". Resume continues. Stop finishes the current action, then returns to **Ready**. While running, Setup says "Pause the run to change setup. Changes apply when you resume." While paused, it is editable. The activity stays locked until the run ends. | Labels and the order of states | Blocked by [#37], [#31] |
 | L11 | During a run, cut network traffic for 20 seconds, for example by turning off Wi-Fi, then restore it. | No action starts on old state. The run pauses with "Resume requires fresh state and verified idle gameplay." or goes to **Disconnected**. Resume stays locked until fresh state arrives. | Which path occurred, banner text | Blocked by [#37], [#31] |
 | L12 | Do not provoke rejections. Record every rejected action during L6 to L9. | A confirmed action resets the streak. Three rejections in a row end the run with **Actions rejected**. | Log rows "The game rejected an action" | Blocked by [#37]. Engine tests in A2 cover the synthetic case |
@@ -151,6 +152,7 @@ and `~/Library/HTTPStorages/org.opentrickster.desktop`, and record the result.
 [#23]: https://github.com/oDestroyeRo/opentrickster/issues/23
 [#31]: https://github.com/oDestroyeRo/opentrickster/issues/31
 [#37]: https://github.com/oDestroyeRo/opentrickster/issues/37
+[#43]: https://github.com/oDestroyeRo/opentrickster/pull/43
 [#39]: https://github.com/oDestroyeRo/opentrickster/pull/39
 [#40]: https://github.com/oDestroyeRo/opentrickster/pull/40
 [PR #39]: https://github.com/oDestroyeRo/opentrickster/pull/39

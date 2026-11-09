@@ -5,11 +5,11 @@ existing character. [MVP behavior](mvp.md) defines the app's rules, and
 [MVP acceptance](acceptance.md) records what has been verified. Labels in
 **bold** and text in quotes appear in the app exactly as written here.
 
-> **Current state:** the app cannot run gameplay yet. The official game moved
-> to a build that this app does not support ([#37]), so both modes stop at
-> **Game updated**. After that is fixed, Start stays unavailable until the app
-> observes carried weight, inventory and, for combat, HP potions ([#21],
-> [#31]). See [Limitations](#limitations).
+> **Current state:** the app cannot run gameplay yet. Clientless mode supports
+> the official game's current build. Client-assisted mode still stops at
+> **Game updated** until its in-game reader is migrated ([#37]). In both modes,
+> Start stays unavailable until the app observes carried weight, inventory and,
+> for combat, HP potions ([#21], [#31]). See [Limitations](#limitations).
 
 ## Install and open the app
 
@@ -238,9 +238,10 @@ panel.
 
 ## Limitations
 
-- **Pinned game build.** The app supports only build `8502ebbf2fc9033d2fba50d02fd92002`.
-  After a redeploy, it refuses to load the game and shows **Game updated**
-  until its pins are migrated. The official game now runs a newer build ([#37]).
+- **Pinned game build.** The app supports only build `ea1a68bd89958fae94179f1e0835ffb5`.
+  After a redeploy, it refuses the new build and shows **Game updated** until
+  its pins are migrated. The client-assisted in-game reader is still pinned to
+  the previous build, so that mode shows **Game updated** until [#37] closes.
 - **State readiness.** Start stays blocked until the app has received carried
   weight, inventory and, for combat, the HP potion count. Carried weight is not
   established yet ([#21], [#31]), so expect "Waiting for received character
