@@ -402,7 +402,7 @@ impl Decoder {
                 self.items.get(&uid).map(|item: &Item| parts::Row {
                     id: item.id,
                     wire_kind: item.wire_kind,
-                    options: item.options.as_deref().unwrap_or(&[]),
+                    options: item.options.as_deref(),
                 })
             };
             self.parts.value(stat, row, data)
@@ -2159,6 +2159,37 @@ mod tests {
         let mut sync = vec![0, 0, 0, 0, 1, 0, 3];
         sync.extend(item(1, 42, 0));
         d.apply(&at(1489, 5, sync)).unwrap();
+        assert_eq!(d.maximum(9), None);
+        assert!(!d.readiness.hp_maximum_known);
+    }
+    #[test]
+    fn a_worn_kind_2_row_stored_without_options_hides_derived_maxima() {
+        let mut definitions =
+            crate::test_support::definitions(&[(7, crate::test_support::Def::Plain { weight: 1 })]);
+        let data = std::sync::Arc::get_mut(&mut definitions).unwrap();
+        data.player_levels = vec![1000.0; crate::resources::PLAYER_LEVELS];
+        data.items.get_mut(&7).unwrap().stat_plus.as_mut().unwrap()[9] = 50.0;
+        let mut d = Decoder::new();
+        d.set_definitions(Some(definitions));
+        let at = |opcode, mark, b| {
+            let mut p = packet(opcode, b);
+            p.mark = mark;
+            p
+        };
+        // A Kind 2 list row ends with its option count.
+        let mut list = vec![1, 0];
+        list.extend(item(2, 42, 1));
+        list.push(0);
+        d.apply(&at(231, 1, list)).unwrap();
+        let mut stats = vec![0; 251];
+        stats[..8].copy_from_slice(&42u64.to_le_bytes());
+        d.startup_cutoff(2);
+        d.apply(&at(233, 2, stats)).unwrap();
+        assert_eq!(d.maximum(9).map(|m| m.get()), Some(1050));
+        // Op 6 replaces the worn row and carries no options.
+        let mut change = vec![6];
+        change.extend(item(2, 42, 1));
+        d.apply(&at(561, 3, change)).unwrap();
         assert_eq!(d.maximum(9), None);
         assert!(!d.readiness.hp_maximum_known);
     }

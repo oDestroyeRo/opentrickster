@@ -241,11 +241,11 @@ The install moment cannot be observed from frames. The snapshot equals Net's slo
 
 Whether the server enforces this maximum cannot be proven from the client build. The client never receives the server's own computation. The only server-sent maximum is an S282 total, which both the client's `Total` and Net prefer. Known ways the server could differ from the client:
 
-- Kind 2 rows stored by ops 6 and 8 reach the client without options.
+- Kind 2 rows stored by ops 6 and 8 reach the client without options. The client then holds an empty list. Only a later 231 row or op 2 or 4 change carries that row's options again. The in-place writers, `PetProperty::Set` f10955 and `GuildDepot::MergeOptions` f12860, are reached only from denied opcodes.
 - If the server reports login-time sets only in StartSet 837 frames, `ProfileTitles` never sees them.
 - A failed install load drops a term on the client only.
 
-Net matches the client's `Total`, which the client caches and displays at its next recompute. Net's existing rules apply to a derived maximum unchanged: a received HP or MP value is clamped to it, and a composite drops it while the current value exceeds it.
+Net matches the client's `Total`, which the client caches and displays at its next recompute. The one exception is the first case above: while a worn Kind 2 row lacks wire options, Net leaves the maximum unknown rather than report one the server may not share. Net's existing rules apply to a derived maximum unchanged: a received HP or MP value is clamped to it, and a composite drops it while the current value exceeds it.
 
 ### Page path
 
@@ -267,7 +267,7 @@ The page bridge forwards only `page::INCOMING` payloads and `page::HEADER_ONLY` 
 - **`GameParts`.** `Parts` mirrors the 23 client slots (each a UID, empty, or unproven), the UIDs whose client row is unproven, loaded ammunition, `Me`, the own set multiset and imprint emptiness. It reports `Part` only when all of these hold:
   - the StartSet has closed, no denied opcode has arrived, and no soul frame has carried an item change or thrown in the StartSet;
   - no worn change waits for a rebuild, and the imprint list is provably empty;
-  - every slot is proven, no worn UID is unproven, and every worn row's catalog entry and `StatPlus` list exist;
+  - every slot is proven, no worn UID is unproven, every worn Kind 2 row carried its options, and every worn row's catalog entry and `StatPlus` list exist;
   - the set term is proven.
 
 `maximum(stat)` returns the S282 total when present. Otherwise it returns `GameParts + core` with wrapping I32 arithmetic, when both are proven and the sum is positive. The S282 invalidation list and the composite rule that a new maximum keeps the older current-value time are unchanged. The readiness flags now follow derived maxima, and they refresh after every frame and when a page is bound. `GameDefinitions` carries:

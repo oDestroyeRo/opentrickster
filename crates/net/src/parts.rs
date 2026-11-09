@@ -46,8 +46,9 @@ pub(crate) enum Cached {
 pub(crate) struct Row<'a> {
     pub(crate) id: u32,
     pub(crate) wire_kind: u8,
-    /// Options that were not on the wire are an empty list in the client.
-    pub(crate) options: &'a [[u32; 3]],
+    /// The options on the wire, or `None` for a row that came without them. The client
+    /// then holds an empty list.
+    pub(crate) options: Option<&'a [[u32; 3]]>,
 }
 
 /// The client state behind `Part`. `None` marks state Net cannot prove.
@@ -551,6 +552,11 @@ impl Parts {
             }
             // `Inventory.Get` returns null for an absent row, and the entry is skipped.
             let Some(row) = row(uid) else { continue };
+            // Ops 6 and 8 store a Kind 2 row without its options. The client then reads
+            // none, but the server's options, and so its maximum, are unknown.
+            if row.wire_kind == 2 && row.options.is_none() {
+                return None;
+            }
             if row.id == 0 {
                 continue;
             }
@@ -612,7 +618,7 @@ fn item_stat(stat: usize, row: &Row<'_>, stat_plus: &[f64]) -> i32 {
         .map_or(0, |v| i32::from(*v as i32 as i16));
     // `PropertyEntries` returns null unless Kind 2, and `Properties.Sum` of null is 0.
     let property = if row.wire_kind == 2 {
-        property_sum(stat, row.options, stat_plus) as i32
+        property_sum(stat, row.options.unwrap_or(&[]), stat_plus) as i32
     } else {
         0
     };
@@ -668,7 +674,21 @@ mod tests {
     const BIG_SET: u32 = 8; // HP 20000
     const NO_ROW_SET: u32 = 9;
 
-    type Rows = BTreeMap<u64, (u32, u8, Vec<[u32; 3]>)>;
+    /// A row as the decoder caches it: catalog ID, wire kind, and the options when the wire
+    /// carried them.
+    type CachedRow = (u32, u8, Option<Vec<[u32; 3]>>);
+    type Rows = BTreeMap<u64, CachedRow>;
+    /// A 231 row, or an op 2 or 4 change, carries options for Kind 2 only.
+    fn cached_row(id: u32, kind: u8, options: &[[u32; 3]], carried: bool) -> CachedRow {
+        (id, kind, (kind == 2 && carried).then(|| options.to_vec()))
+    }
+    /// `Decoder::same_row`: options the wire did not carry compare as an empty list.
+    fn same_row(old: Option<&CachedRow>, new: &CachedRow) -> bool {
+        old.is_some_and(|(id, kind, options)| {
+            (*id, *kind) == (new.0, new.1)
+                && options.as_deref().unwrap_or(&[]) == new.2.as_deref().unwrap_or(&[])
+        })
+    }
     fn lookup(rows: &Rows, data: &GameDefinitions, uid: u64) -> Cached {
         match rows.get(&uid) {
             None => Cached::Absent,
@@ -728,7 +748,7 @@ mod tests {
             }
         }
         fn row(&mut self, uid: u64, id: u32, kind: u8, options: &[[u32; 3]]) {
-            self.rows.insert(uid, (id, kind, options.to_vec()));
+            self.rows.insert(uid, cached_row(id, kind, options, true));
         }
         /// A StartSet 233 with these slot UIDs.
         fn slots(&mut self, slots: &[(usize, u64)]) {
@@ -756,8 +776,8 @@ mod tests {
             parts.equip(opcode, uid, slot, |uid| lookup(rows, data, uid));
         }
         fn list(&mut self, uid: u64, id: u32, kind: u8, options: &[[u32; 3]], live: bool) {
-            let row = (id, kind, options.to_vec());
-            let same = self.rows.get(&uid) == Some(&row);
+            let row = cached_row(id, kind, options, true);
+            let same = same_row(self.rows.get(&uid), &row);
             let Self { parts, rows, data } = self;
             parts.list_row(uid, same, live, |uid| lookup(rows, data, uid));
             rows.insert(uid, row);
@@ -773,8 +793,8 @@ mod tests {
             options: &[[u32; 3]],
             live: bool,
         ) {
-            let row = (id, kind, options.to_vec());
-            let same = self.rows.get(&uid) == Some(&row);
+            let row = cached_row(id, kind, options, matches!(op, 2 | 4));
+            let same = same_row(self.rows.get(&uid), &row);
             let Self { parts, rows, data } = self;
             parts.delta(opcode, op, kind, uid, same, live, |uid| {
                 lookup(rows, data, uid)
@@ -795,7 +815,7 @@ mod tests {
                     self.rows.get(&uid).map(|(id, kind, options)| Row {
                         id: *id,
                         wire_kind: *kind,
-                        options,
+                        options: options.as_deref(),
                     })
                 };
                 self.parts.value(stat, row, &self.data)
@@ -962,6 +982,22 @@ mod tests {
         fx.row(14, PLAIN, 2, &[opt(5, 10009, -50)]);
         fx.start(&[(0, 11), (1, 12), (2, 13), (3, 14)]);
         assert_eq!(fx.values(), [Some(125), Some(60), Some(21)]);
+    }
+    #[test]
+    fn a_worn_kind_2_row_without_wire_options_is_unknown() {
+        let mut fx = Fx::new();
+        fx.row(11, PLAIN, 2, &[]);
+        fx.start(&[(0, 11)]);
+        assert_eq!(fx.values(), PLAIN_SUM);
+        // Op 6 stores the row without options: the client reads none, the server may not.
+        fx.delta(561, 6, 11, PLAIN, 2, &[], true);
+        assert_eq!(fx.values(), NONE);
+        // A live 231 brings the server's options back into Net's cache.
+        fx.list(11, PLAIN, 2, &[], true);
+        assert_eq!(fx.values(), PLAIN_SUM);
+        // An unworn row without options does not matter.
+        fx.delta(561, 8, 12, PLAIN, 2, &[], true);
+        assert_eq!(fx.values(), PLAIN_SUM);
     }
     #[test]
     fn property_entries_stop_at_32_and_skip_the_i16_truncation() {
