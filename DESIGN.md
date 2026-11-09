@@ -151,6 +151,7 @@ Every pause has a reason, and the alert names what unlocks Resume.
 | `no-drops` | Check the loot list and map. | Reserved. No rule pauses for this reason yet. |
 | `uncertain` | Resume requires fresh state and verified idle gameplay. | Resume when the state is live again and the character is idle. |
 | `reconnected` | Check the character and live state before resuming. | Check the character, then resume. |
+| `map-changed` | The character changed maps. Check the character and the run's area before resuming. | Client-assisted mode only. Resume once the app confirms that the character is idle on the run's map. To run on the new map, change the area in Setup first. |
 
 A halt ends the run and closes the game or session, so the app stops reading game state and the status line says "No live state". Closing on every halt is the conservative MVP choice. No automation continues on a session that the app no longer trusts.
 

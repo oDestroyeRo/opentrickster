@@ -299,6 +299,9 @@ pub enum Fact {
         map: MapKey,
         point: Point,
     },
+    /// The client moved to another map in the same session, so the old map's entities and drops
+    /// are gone. A `Position` on the new map follows.
+    MapChanged,
     Hp(Gauge),
     Mp(Gauge),
     Weight(Gauge),
@@ -410,6 +413,7 @@ pub enum Pause {
     NoDrops,
     Uncertain,
     Reconnected,
+    MapChanged,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Halt {

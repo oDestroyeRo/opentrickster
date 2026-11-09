@@ -121,6 +121,9 @@ pub fn pause_label(pause: &e::Pause) -> &'static str {
         e::Pause::NoDrops => "Check the loot list and map.",
         e::Pause::Uncertain => "Resume requires fresh state and verified idle gameplay.",
         e::Pause::Reconnected => "Check the character and live state before resuming.",
+        e::Pause::MapChanged => {
+            "The character changed maps. Check the character and the run's area before resuming."
+        }
     }
 }
 /// Live pause text. The engine keeps an unavailable potion action as a blocker on this pause.

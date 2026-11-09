@@ -1090,6 +1090,65 @@ fn manual_input_while_idle_still_requires_new_quiescence() {
 }
 
 #[test]
+fn a_map_change_during_a_run_pauses_it_without_closing_the_session() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    h.sent(id);
+    let moved = h.facts(vec![
+        Fact::MapChanged,
+        Fact::Position {
+            map: MapKey(2),
+            point: center(),
+        },
+    ]);
+    assert_eq!(moved.snapshot.phase, Phase::Pausing);
+    assert!(moved.snapshot.entities.is_empty());
+    assert!(acts(&moved).is_empty());
+    let key = barrier(&moved).expect("quiescence requested");
+    let late = h.facts(vec![Fact::Outcome(Outcome::OwnKill(EntityKey(1)))]);
+    assert_eq!(late.snapshot.totals.kills, 0);
+    let slow = h.wake(DRAIN_MS);
+    assert_eq!(closes(&slow), 0);
+    assert_eq!(barrier(&slow), Some(key));
+    let paused = h.event(Event::Quiescent(key));
+    assert_eq!(paused.snapshot.phase, Phase::Paused(Pause::MapChanged));
+    assert!(acts(&paused).is_empty());
+    assert!(!paused.snapshot.allowed.contains(&Control::Resume));
+    assert!(
+        paused
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsBoundaryMap(MapKey(1)))
+    );
+}
+
+#[test]
+fn a_map_change_outside_a_run_keeps_the_session_ready_and_forgets_the_old_map() {
+    let mut h = Harness::new(false);
+    h.facts(vec![entity(1, center(), Some(false))]);
+    let old = h.ingress;
+    let moved = h.facts(vec![
+        Fact::MapChanged,
+        Fact::Position {
+            map: MapKey(1),
+            point: center(),
+        },
+    ]);
+    assert_eq!(moved.snapshot.phase, Phase::Ready);
+    assert!(moved.snapshot.entities.is_empty());
+    assert!(barrier(&moved).is_none());
+    assert_eq!(closes(&moved), 0);
+    assert!(moved.snapshot.allowed.contains(&Control::Start));
+    h.revision += 1;
+    let delayed = h.event(Event::Facts {
+        revision: EvidenceKey(h.revision),
+        ingress: IngressMark(old),
+        facts: vec![entity(1, center(), Some(false))],
+    });
+    assert!(delayed.snapshot.entities.is_empty());
+}
+
+#[test]
 fn inventory_knowledge_is_explicit_and_invalidated_by_lost_continuity() {
     let mut facts = baseline();
     facts.retain(|fact| !matches!(fact, Fact::Inventory(_)));

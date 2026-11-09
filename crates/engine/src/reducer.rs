@@ -687,6 +687,10 @@ impl Engine {
                 }
                 let mut evidence = self.book.apply(facts, ingress, observed_at);
                 self.credit_inventory(&mut evidence);
+                if evidence.map_changed {
+                    self.map_changed(io);
+                    return;
+                }
                 let Some(pending) = self.run.as_mut().and_then(|run| run.pending.as_mut()) else {
                     return;
                 };
@@ -1126,6 +1130,23 @@ impl Engine {
             pending.early.clear();
         }
         self.drain(AfterDrain::Pause(Pause::Uncertain), io);
+    }
+
+    fn map_changed(&mut self, io: &mut Vec<Effect>) {
+        let Some(run) = &mut self.run else {
+            return;
+        };
+        // Unlike manual input, nothing of ours can still act: the client stopped the own action,
+        // and the old map's server ended it with its link. A slow idle proof then asks again
+        // instead of closing the session.
+        run.pending = None;
+        run.goal_floor = None;
+        if !matches!(run.stage, Stage::Draining(AfterDrain::Stop)) {
+            run.stage = Stage::Draining(AfterDrain::Pause(Pause::MapChanged));
+        }
+        self.barrier = None;
+        self.idle = false;
+        self.quiesce(io);
     }
 
     fn finish_run(&mut self) {
