@@ -645,7 +645,6 @@ impl Render for TextInput {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .w_full()
             .overflow_hidden()
             .border_1()
             .rounded(px(7.))
@@ -656,7 +655,8 @@ impl Render for TextInput {
             .child(
                 div()
                     .h(px(34.))
-                    .w_full()
+                    .flex_1()
+                    .min_w(px(0.))
                     .px(px(8.))
                     .py(px(6.))
                     .child(TextElement { input: cx.entity() }),
