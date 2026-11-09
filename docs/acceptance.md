@@ -142,10 +142,12 @@ Expect no file names from `grep -rlF`, `0` from both counts, and `44` from
 from a terminal, search its captured output too.
 
 In client-assisted mode, you type the password into the game page, not the
-app. The embedded view uses WebKit's default persistent website data, so
-anything the game page saves is kept for this app. After L3, also search the
-app's WebKit data, for example `~/Library/WebKit/org.opentrickster.desktop`
-and `~/Library/HTTPStorages/org.opentrickster.desktop`, and record the result.
+app. The game page saves the last Game ID in its own storage, so the embedded
+view uses a non-persistent WebKit data store: nothing the page saves outlives
+the session. After L3 and a quit, expect no
+`~/Library/WebKit/org.opentrickster.desktop` or
+`~/Library/HTTPStorages/org.opentrickster.desktop` directory. If one exists
+from an older build, search it as above and record the result.
 
 [#19]: https://github.com/oDestroyeRo/opentrickster/issues/19
 [#21]: https://github.com/oDestroyeRo/opentrickster/issues/21
