@@ -779,12 +779,14 @@ impl GameObserver {
                 }
             }
             if let Some(mark) = settled {
+                let mut facts = vec![e::Fact::InventorySettled(e::IngressMark(mark))];
+                facts.extend(decoder.settle_carried(mark));
                 events.push((
                     proof_at,
                     Event::Facts {
                         revision: e::EvidenceKey((mark << 2) | 2),
                         ingress: e::IngressMark(mark),
-                        facts: vec![e::Fact::InventorySettled(e::IngressMark(mark))],
+                        facts,
                     },
                 ));
             }

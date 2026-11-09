@@ -134,9 +134,29 @@ only for wire Kind 1. Catalog Type/SubType remain separate.
 
 231 is merge-only `InventorySnapshot`, never Reset or a grant. Missing and empty
 lists stay distinct from complete inventory. Missing equipment references stay
-unresolved at their original replay point. Current carried weight remains
-unknown. H=max raw accepted 5/679/230/233 is UNACCEPTED until Root compares the
-actual Rust decoder with Unity's synchronous cache boundary and weight oracle.
+unresolved at their original replay point.
+
+Carried weight and the HP potion count are gated by `INVENTORY_CUTOFF_BUILD` in
+`src/decode.rs`. It is `None`, so both stay unknown and no `Weight` or
+`HpPotions` fact is emitted. Set it to the exact pinned build only after Trial A
+and Trial B in the [inventory baseline report](../../docs/research/native-inventory-baseline.md)
+pass for that build; a pin migration turns it off again. When accepted:
+
+- H is the last raw receipt among the first accepted 5, 679, 230 and 233. The
+  decoded cache counts as complete once delivery has settled through H, and only
+  if a 231 list arrived at or before H. An empty list then means an empty bag.
+- Weight is the I64 sum of `ItemInfo.Weight` x pieces (Count for wire Kind 1,
+  otherwise 1), reported as `u32`. Equipped and expiring items keep their weight.
+  The maximum is S282 total 6, or unknown when absent or exceeded.
+- `HpPotions` counts Kind-1 pieces that `potion_prerequisite` classifies no
+  further than the unproven per-use state. Instance options, overrides, expiry
+  and normal-form restrictions exclude a stack.
+- Each later decoded delta, a 233 or a change of total 6 re-emits both facts.
+- A missing definition, an unrepresentable sum or a delta before H reports
+  nothing for the session. After a report, a late 231, an undecoded Inventory
+  opcode, a row naming an uncached UID or a missing definition fails the session
+  with `Uncertain`. The engine has no fact that forgets a value, so the session
+  reports `Lost`; only a fresh startup after an engine reconnect reports them again.
 
 Native code sends24, ordinary288+29 and the full timed44->45/371->49->50 dig
 exchange, including real48 cancellation counters. Native movement policy is
@@ -151,7 +171,7 @@ Unattributed HP falls, captions and faint alone cannot award outcomes.
 | Native gun controller | Serializer and source-backed profile/key/skill/ammo prerequisites exist. Tick/CRC/effect-lifetime controller integration remains unfinished. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
-| Carried weight | Source31 gives a bounded comparison recipe; no accepted complete native inventory cutoff yet. |
+| Carried weight | The H cutoff, weight and potion count are implemented behind `INVENTORY_CUTOFF_BUILD`, which stays off until Trial A/B pass. |
 | Runtime acceptance | One production Rust startup and joined cleanup passed. Gameplay, inventory readiness, and Desktop integration remain open. See the [runtime report](../../docs/research/native-rust-startup.md). |
 
 These gaps remain visible in support/readiness and cannot be called a completed

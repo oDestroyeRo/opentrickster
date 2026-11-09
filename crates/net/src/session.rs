@@ -630,7 +630,9 @@ impl Actor {
                         if !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
-                        self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts:vec![e::Fact::InventorySettled(e::IngressMark(mark))]},proof_at)?;
+                        let mut facts=vec![e::Fact::InventorySettled(e::IngressMark(mark))];
+                        facts.extend(decoder.settle_carried(mark));
+                        self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts},proof_at)?;
                     }
                 }
             }
@@ -802,6 +804,8 @@ impl Selection {
 pub(crate) struct Startup {
     accepted: bool,
     raw: [bool; 3],
+    /// Last raw receipt among the first accepted 5, 679, 230 and 233: the cutoff H.
+    cutoff: u64,
     pub(crate) decoder: Decoder,
     pub(crate) aux: AuxGroups,
     pub(crate) facts: Vec<e::Fact>,
@@ -815,6 +819,7 @@ impl Startup {
         Self {
             accepted: false,
             raw: [false; 3],
+            cutoff: 0,
             decoder: Decoder::with_epoch(epoch),
             aux: AuxGroups::default(),
             facts: Vec::new(),
@@ -834,13 +839,19 @@ impl Startup {
     }
     pub(crate) fn push_through(&mut self, p: Packet, complete_through: u64) -> Result<()> {
         self.received = Some(self.received.map_or(p.received, |at| at.min(p.received)));
-        match p.opcode {
-            5 => self.accepted = true,
+        let first = match p.opcode {
+            5 => !std::mem::replace(&mut self.accepted, true),
             159 => return Err(NetError::Refused),
-            679 => self.raw[0] = true,
-            230 => self.raw[1] = true,
-            233 => self.raw[2] = true,
-            _ => {}
+            679 => !std::mem::replace(&mut self.raw[0], true),
+            230 => !std::mem::replace(&mut self.raw[1], true),
+            233 => !std::mem::replace(&mut self.raw[2], true),
+            _ => false,
+        };
+        if first {
+            self.cutoff = self.cutoff.max(p.mark);
+            if self.accepted && self.raw.iter().all(|b| *b) {
+                self.decoder.startup_cutoff(self.cutoff);
+            }
         }
         self.bytes += p.payload.len() + 6;
         if self.bytes > MAX_BUFFER || self.facts.len() > MAX_PACKETS {
@@ -863,6 +874,7 @@ impl Startup {
         }
         if let Some(mark) = settled {
             self.settled = mark;
+            self.facts.extend(self.decoder.settle_carried(mark));
         }
         Ok(())
     }
@@ -1211,5 +1223,442 @@ mod tests {
                 );
             }
         });
+    }
+
+    mod carried {
+        use super::*;
+        use crate::test_support::{Def, definitions};
+        use e::Fact;
+
+        const H: u64 = 5;
+        fn at(mark: u64, opcode: u16, aux: u16, payload: Vec<u8>) -> Packet {
+            Packet {
+                opcode,
+                aux,
+                mark,
+                received: Instant::now(),
+                payload: Zeroizing::new(payload),
+            }
+        }
+        fn body(kind: u8, id: u32, uid: u64, count: u16) -> Vec<u8> {
+            let mut b = vec![kind];
+            b.extend(id.to_le_bytes());
+            b.extend(uid.to_le_bytes());
+            b.extend(count.to_le_bytes());
+            if kind != 1 {
+                b.extend([0; 4]);
+            }
+            b
+        }
+        fn list(rows: &[(u8, u32, u64, u16)]) -> Vec<u8> {
+            let mut b = (rows.len() as u16).to_le_bytes().to_vec();
+            for &(kind, id, uid, count) in rows {
+                b.extend(body(kind, id, uid, count));
+                if kind == 2 {
+                    b.push(0);
+                }
+            }
+            b
+        }
+        fn change(op: u8, kind: u8, id: u32, uid: u64, count: u16) -> Vec<u8> {
+            let mut b = vec![op];
+            b.extend(body(kind, id, uid, count));
+            if matches!(op, 2 | 4) && kind == 2 {
+                b.push(0);
+            }
+            b
+        }
+        fn totals(rows: &[(u8, i32)]) -> Vec<u8> {
+            let mut b = vec![rows.len() as u8];
+            for &(stat, value) in rows {
+                b.push(stat);
+                b.extend(value.to_le_bytes());
+            }
+            b
+        }
+        /// Level 10, HP 80, zone 3 and the Kind-2 UID 42 equipped in slot 3.
+        fn stats() -> Vec<u8> {
+            let mut b = vec![0; 251];
+            b[24..32].copy_from_slice(&42u64.to_le_bytes());
+            b[214..216].copy_from_slice(&10u16.to_le_bytes());
+            b[219..221].copy_from_slice(&3u16.to_le_bytes());
+            b[235..239].copy_from_slice(&80u32.to_le_bytes());
+            b
+        }
+        fn profile() -> Vec<u8> {
+            let mut b = vec![0; 69];
+            b[17] = b'S';
+            b
+        }
+        fn clock() -> Vec<u8> {
+            let mut w = Writer::new();
+            w.u32(1);
+            w.u16(321);
+            w.u16(100);
+            w.u16(200);
+            w.0.to_vec()
+        }
+        /// 4x3 + Kind-2 (one piece) 10 + 5x2 potions + 2x1 expiring potions; Kind 3 is not cached.
+        const ROWS: [(u8, u32, u64, u16); 5] = [
+            (1, 7, 41, 4),
+            (2, 9, 42, 300),
+            (1, 8, 43, 5),
+            (1, 10, 44, 2),
+            (3, 9, 45, 1),
+        ];
+        fn startup(accepted: bool, rows: &[(u8, u32, u64, u16)]) -> Startup {
+            let mut startup = Startup::new(1);
+            if accepted {
+                startup.decoder.accept_inventory_cutoff();
+            }
+            startup.decoder.set_definitions(Some(definitions(&[
+                (7, Def::Plain { weight: 3 }),
+                (8, Def::HpPotion { weight: 2 }),
+                (9, Def::Plain { weight: 10 }),
+                (10, Def::ExpiringHpPotion { weight: 1 }),
+            ])));
+            startup.decoder.use_native_walk_policy();
+            for (mark, opcode, payload) in [
+                (1, 5, vec![]),
+                (2, 679, profile()),
+                (3, 230, clock()),
+                (4, 231, list(rows)),
+                (H, 233, stats()),
+            ] {
+                startup.push(at(mark, opcode, 0, payload)).unwrap();
+            }
+            assert!(startup.ready());
+            startup
+        }
+        fn carried(facts: &[Fact]) -> Vec<(u32, Option<u32>, u32)> {
+            let weights = facts.iter().filter_map(|fact| match fact {
+                Fact::Weight(gauge) => Some((gauge.current, gauge.maximum.map(|m| m.get()))),
+                _ => None,
+            });
+            let potions = facts.iter().filter_map(|fact| match fact {
+                Fact::HpPotions(count) => Some(*count),
+                _ => None,
+            });
+            let pairs: Vec<_> = weights
+                .zip(potions)
+                .map(|((weight, maximum), potions)| (weight, maximum, potions))
+                .collect();
+            let reported = facts
+                .iter()
+                .filter(|fact| matches!(fact, Fact::Weight(_) | Fact::HpPotions(_)))
+                .count();
+            assert_eq!(
+                reported,
+                pairs.len() * 2,
+                "weight and potions travel together"
+            );
+            pairs
+        }
+        fn apply(decoder: &mut Decoder, p: Packet) -> Vec<(u32, Option<u32>, u32)> {
+            carried(&decoder.apply(&p).unwrap())
+        }
+
+        #[test]
+        fn an_unaccepted_cutoff_reports_neither_weight_nor_potions() {
+            let mut startup = startup(false, &ROWS);
+            assert!(carried(&startup.facts).is_empty());
+            let decoder = &mut startup.decoder;
+            assert!(decoder.settle_carried(100).is_empty());
+            for (mark, opcode, payload) in [
+                (6, 282, totals(&[(6, 100)])),
+                (7, 561, change(1, 1, 7, 41, 1)),
+                (8, 231, list(&ROWS)),
+                (9, 35, vec![]),
+            ] {
+                assert!(apply(decoder, at(mark, opcode, 0, payload)).is_empty());
+            }
+        }
+
+        #[test]
+        fn the_settled_cutoff_reports_exact_weight_and_usable_potions() {
+            let mut startup = startup(true, &ROWS);
+            // Kind 1 multiplies Count; Kind 2 is one piece; Kind 3 and the expiring
+            // stack contribute nothing to the usable count.
+            assert_eq!(carried(&startup.facts), [(34, None, 5)]);
+            let decoder = &mut startup.decoder;
+            assert_eq!(
+                apply(decoder, at(6, 282, 0, totals(&[(6, 100)]))),
+                [(34, Some(100), 5)]
+            );
+            assert!(apply(decoder, at(7, 282, 0, totals(&[(9, 100)]))).is_empty());
+            // Equipping changes slots and clears totals, never carried weight.
+            let mut equip = 41u64.to_le_bytes().to_vec();
+            equip.push(4);
+            assert_eq!(apply(decoder, at(8, 82, 0, equip)), [(34, None, 5)]);
+            assert_eq!(
+                apply(decoder, at(9, 282, 0, totals(&[(6, 30)]))),
+                [(34, None, 5)],
+                "an exceeded maximum stays unknown"
+            );
+        }
+
+        #[test]
+        fn each_applied_delta_recomputes_weight_and_potions() {
+            let mut startup = startup(true, &ROWS);
+            let decoder = &mut startup.decoder;
+            for (mark, payload, expected) in [
+                (6, change(1, 1, 7, 41, 1), (25, None, 5)),
+                (7, change(2, 1, 8, 46, 3), (31, None, 8)),
+                (8, change(3, 1, 8, 43, 0), (21, None, 3)),
+                (9, change(2, 2, 9, 47, 900), (31, None, 3)),
+            ] {
+                assert_eq!(apply(decoder, at(mark, 561, 0, payload)), [expected]);
+            }
+        }
+
+        #[test]
+        fn late_lists_and_unsupported_inputs_invalidate_reported_values() {
+            for (opcode, payload) in [
+                (231, list(&[])),
+                (35, vec![]),
+                (561, change(1, 1, 7, 999, 1)),
+                (561, change(2, 1, 99, 48, 1)),
+            ] {
+                let mut startup = startup(true, &ROWS);
+                assert_eq!(
+                    startup.decoder.apply(&at(6, opcode, 0, payload)).err(),
+                    Some(NetError::Uncertain)
+                );
+            }
+        }
+
+        #[test]
+        fn a_late_list_before_settlement_leaves_the_cutoff_unknown() {
+            let mut startup = Startup::new(1);
+            startup.decoder.accept_inventory_cutoff();
+            startup
+                .decoder
+                .set_definitions(Some(definitions(&[(7, Def::Plain { weight: 3 })])));
+            for (mark, opcode, aux, payload) in [
+                (1, 5, 0, vec![]),
+                (2, 679, 0, profile()),
+                (3, 230, 0, clock()),
+                (4, 231, 0, list(&[(1, 7, 41, 4)])),
+                (H, 233, 9, stats()),
+                (6, 231, 0, list(&[])),
+                (7, 1951, 9, vec![]),
+            ] {
+                startup.push(at(mark, opcode, aux, payload)).unwrap();
+            }
+            assert!(startup.ready());
+            assert_eq!(startup.settled, 7);
+            assert!(carried(&startup.facts).is_empty());
+            assert!(apply(&mut startup.decoder, at(8, 561, 0, change(1, 1, 7, 41, 1))).is_empty());
+        }
+
+        #[test]
+        fn delivery_must_settle_through_the_cutoff() {
+            let mut startup = Startup::new(1);
+            startup.decoder.accept_inventory_cutoff();
+            startup
+                .decoder
+                .set_definitions(Some(definitions(&[(7, Def::Plain { weight: 3 })])));
+            // A partial frame keeps the transport frontier one receipt behind.
+            for (mark, opcode, payload) in [
+                (1, 5, vec![]),
+                (2, 679, profile()),
+                (3, 230, clock()),
+                (4, 231, list(&[(1, 7, 41, 4)])),
+                (H, 233, stats()),
+            ] {
+                startup
+                    .push_through(at(mark, opcode, 0, payload), mark - 1)
+                    .unwrap();
+            }
+            assert_eq!(startup.settled, H - 1);
+            assert!(carried(&startup.facts).is_empty());
+            startup.advance(H).unwrap();
+            assert_eq!(carried(&startup.facts), [(12, None, 0)]);
+        }
+
+        #[test]
+        fn a_missing_definition_reports_nothing() {
+            let mut startup = startup(true, &[(1, 7, 41, 4), (1, 99, 48, 1)]);
+            assert!(carried(&startup.facts).is_empty());
+            let decoder = &mut startup.decoder;
+            assert!(apply(decoder, at(6, 561, 0, change(3, 1, 99, 48, 0))).is_empty());
+            assert!(apply(decoder, at(7, 282, 0, totals(&[(6, 100)]))).is_empty());
+        }
+
+        #[test]
+        fn only_a_settled_cutoff_completes_an_explicit_empty_list() {
+            let mut startup = Startup::new(1);
+            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_definitions(Some(definitions(&[])));
+            for (mark, opcode, aux, payload) in [
+                (1, 5, 0, vec![]),
+                (2, 679, 0, profile()),
+                (3, 230, 0, clock()),
+                (4, 231, 0, list(&[])),
+                (H, 233, 9, stats()),
+            ] {
+                startup.push(at(mark, opcode, aux, payload)).unwrap();
+            }
+            assert!(startup.decoder.readiness.inventory_list_seen);
+            assert!(
+                carried(&startup.facts).is_empty(),
+                "a zero-count list alone"
+            );
+            startup.push(at(6, 1951, 9, vec![])).unwrap();
+            assert_eq!(carried(&startup.facts), [(0, None, 0)]);
+            // Without any list at or before H the bag is missing, not empty.
+            let mut startup = Startup::new(1);
+            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_definitions(Some(definitions(&[])));
+            for (mark, opcode, payload) in [
+                (1, 5, vec![]),
+                (2, 679, profile()),
+                (3, 230, clock()),
+                (4, 233, stats()),
+            ] {
+                startup.push(at(mark, opcode, 0, payload)).unwrap();
+            }
+            assert!(carried(&startup.facts).is_empty());
+            assert!(apply(&mut startup.decoder, at(5, 231, 0, list(&[]))).is_empty());
+        }
+
+        #[test]
+        fn a_delta_before_the_cutoff_is_outside_the_replayed_cache() {
+            let mut startup = Startup::new(1);
+            startup.decoder.accept_inventory_cutoff();
+            startup
+                .decoder
+                .set_definitions(Some(definitions(&[(7, Def::Plain { weight: 3 })])));
+            for (mark, opcode, payload) in [
+                (1, 5, vec![]),
+                (2, 231, list(&[(1, 7, 41, 4)])),
+                (3, 561, change(1, 1, 7, 41, 1)),
+                (4, 679, profile()),
+                (5, 230, clock()),
+                (6, 233, stats()),
+            ] {
+                startup.push(at(mark, opcode, 0, payload)).unwrap();
+            }
+            assert!(startup.ready());
+            assert!(carried(&startup.facts).is_empty());
+        }
+
+        /// The engine refuses Start until weight and potions are known; with the cutoff
+        /// accepted, this synthetic native startup reaches an available Start.
+        #[test]
+        fn engine_start_waits_for_the_accepted_cutoff() {
+            for accepted in [false, true] {
+                let startup = startup(accepted, &ROWS);
+                let mut engine = e::Engine::new(e::Mode::Clientless);
+                let opened = engine.handle(e::Input::User {
+                    at: e::At(0),
+                    request: e::RequestKey(1),
+                    command: e::Command::Open,
+                });
+                let session = opened
+                    .io
+                    .iter()
+                    .find_map(|effect| match effect {
+                        e::Effect::Open { session, .. } => Some(*session),
+                        _ => None,
+                    })
+                    .unwrap();
+                let observe = |engine: &mut e::Engine, at: u64, event: Event| {
+                    engine.handle(e::Input::Observed {
+                        at: e::At(at),
+                        observation: Observation { session, event },
+                    })
+                };
+                let map = startup
+                    .facts
+                    .iter()
+                    .find_map(|fact| match fact {
+                        Fact::Position { map, .. } => Some(*map),
+                        _ => None,
+                    })
+                    .unwrap();
+                let mut facts = startup.facts;
+                facts.push(Fact::InventorySettled(e::IngressMark(startup.settled)));
+                let mut decoder = startup.decoder;
+                let online = observe(
+                    &mut engine,
+                    10,
+                    Event::Baseline {
+                        support: support(&decoder, true).unwrap(),
+                        revision: e::EvidenceKey(1),
+                        facts,
+                        resumed: false,
+                    },
+                );
+                let barrier = online
+                    .io
+                    .iter()
+                    .find_map(|effect| match effect {
+                        e::Effect::Session {
+                            op: SessionOp::Quiesce(key),
+                            ..
+                        } => Some(*key),
+                        _ => None,
+                    })
+                    .unwrap();
+                observe(&mut engine, 11, Event::Quiescent(barrier));
+                let setup = e::Setup::checked(e::SetupDraft {
+                    activity: e::Activity::Combat {
+                        targets: e::Targets::Except(Vec::new()),
+                    },
+                    boundary: e::Boundary::checked(
+                        map,
+                        e::Point { x: 100, y: 200 },
+                        std::num::NonZeroU16::new(10).unwrap(),
+                    )
+                    .unwrap(),
+                    hp_at: e::Percent::checked(30).unwrap(),
+                    weight_limit: e::Percent::checked(90).unwrap(),
+                    goal: None,
+                })
+                .unwrap_or_else(|_| panic!("fixture setup"));
+                engine.handle(e::Input::User {
+                    at: e::At(12),
+                    request: e::RequestKey(2),
+                    command: e::Command::Configure(setup),
+                });
+                let p = at(6, 282, 0, totals(&[(9, 100), (6, 100)]));
+                let facts = decoder.apply(&p).unwrap();
+                observe(
+                    &mut engine,
+                    13,
+                    Event::Facts {
+                        revision: e::EvidenceKey(6 << 2),
+                        ingress: e::IngressMark(6),
+                        facts,
+                    },
+                );
+                for deferred in decoder.take_correlated() {
+                    observe(
+                        &mut engine,
+                        13,
+                        Event::Facts {
+                            revision: e::EvidenceKey((deferred.mark << 2) | 3),
+                            ingress: e::IngressMark(deferred.mark),
+                            facts: deferred.facts,
+                        },
+                    );
+                }
+                let snapshot = engine.snapshot();
+                if accepted {
+                    assert_eq!(snapshot.blockers, []);
+                    assert!(snapshot.allowed.contains(&e::Control::Start));
+                } else {
+                    assert_eq!(
+                        snapshot.blockers,
+                        [
+                            e::Blocker::NeedsObservation(e::StateKind::Weight),
+                            e::Blocker::NeedsObservation(e::StateKind::HpPotions),
+                        ]
+                    );
+                    assert!(!snapshot.allowed.contains(&e::Control::Start));
+                }
+            }
+        }
     }
 }

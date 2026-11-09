@@ -122,6 +122,57 @@ pub(crate) fn ticket(action: Action) -> (SessionKey, ActionTicket) {
     (session, ticket)
 }
 
+/// Synthetic item definitions, never public catalog rows.
+#[derive(Clone, Copy)]
+pub(crate) enum Def {
+    Plain { weight: i64 },
+    HpPotion { weight: i64 },
+    ExpiringHpPotion { weight: i64 },
+}
+pub(crate) fn definitions(
+    rows: &[(u32, Def)],
+) -> std::sync::Arc<crate::definitions::GameDefinitions> {
+    use crate::definitions::{GameDefinitions, ItemInfo};
+    use std::collections::BTreeMap;
+    let info = |def: Def| {
+        let (weight, potion, exist_type) = match def {
+            Def::Plain { weight } => (weight, false, 0),
+            Def::HpPotion { weight } => (weight, true, 0),
+            Def::ExpiringHpPotion { weight } => (weight, true, 1),
+        };
+        ItemInfo {
+            weight,
+            class: 0,
+            kind: 1,
+            subtype: 0,
+            flags: if potion { 2 } else { 0 },
+            flags_ex: 0,
+            min_level: 0,
+            hp: if potion { 50 } else { 0 },
+            mp: 0,
+            hp_rate: 0.0,
+            mp_rate: 0.0,
+            delay: 0.0,
+            effect: 0,
+            exist_type,
+            life: 0,
+            ftype: 0,
+        }
+    };
+    std::sync::Arc::new(GameDefinitions {
+        item_types: rows.iter().map(|(id, _)| (*id, (1, 0))).collect(),
+        items: rows.iter().map(|(id, def)| (*id, info(*def))).collect(),
+        labels: BTreeMap::new(),
+        drills: BTreeMap::new(),
+        drill_meta: BTreeMap::new(),
+        gun_params: BTreeMap::new(),
+        gun_slots: vec![1],
+        zones: BTreeMap::new(),
+        zone_labels: BTreeMap::new(),
+        normal_form_effects: Vec::new(),
+    })
+}
+
 pub(crate) fn sample_value() -> serde_json::Value {
     static VALUE: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
     VALUE
