@@ -134,6 +134,8 @@ The status pill shows only the phase label. The pause reason, the reconnect stat
 
 Reconnect is manual. The app never reconnects on its own, so it never opens a session the user did not ask for. The `disconnected` phase covers a lost connection and a run held after its session closed, for example after a failed reconnect attempt or a session that closed during a run. Each **Reconnect** is one attempt. After five failed attempts in a row, only **End run** remains. A successful reconnect resets the count.
 
+In client-assisted mode, a map change keeps the session. The app follows the game to the new map and forgets the old map's monsters and drops. A run pauses with `map-changed`. Outside a run, the phase does not change. If the game does not log in on the new map within 10 seconds of closing the old connection, the app treats the change as a lost connection. In clientless mode, the app does not follow a map change, so the session ends as a lost connection.
+
 Every pause has a reason, and the alert names what unlocks Resume.
 
 ![A run paused because the HP potions ran out. The status pill says Paused, Out of HP potions. Resume is disabled, and the alert under the run controls says that Resume unlocks when the bag has HP potions again. The dashed button exists only in the prototype.](docs/design/client-paused.png)

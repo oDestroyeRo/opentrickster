@@ -169,6 +169,9 @@ pub(crate) struct Decoder {
     mode: Option<u8>,
     native_walk: bool,
     physical_uncertain: bool,
+    follows_handoffs: bool,
+    /// A handoff (s2c 154) moved the session, and its 437 has not arrived.
+    entering: bool,
     pending: Option<PendingAction>,
     combat: crate::combat::Correlator,
     correlated: Vec<DeferredFacts>,
@@ -239,6 +242,8 @@ impl Decoder {
             mode: None,
             native_walk: false,
             physical_uncertain: false,
+            follows_handoffs: false,
+            entering: false,
             pending: None,
             combat: Default::default(),
             correlated: Vec::new(),
@@ -474,6 +479,11 @@ impl Decoder {
     ) {
         self.definitions = data;
     }
+    /// Only the client-assisted observer follows a zone handoff. In a clientless session,
+    /// s2c 154 makes the state uncertain because the link is about to close.
+    pub(crate) fn follow_handoffs(&mut self) {
+        self.follows_handoffs = true;
+    }
     pub(crate) fn use_native_walk_policy(&mut self) {
         self.native_walk = true;
         self.mode = Some(1);
@@ -516,7 +526,12 @@ impl Decoder {
     pub(crate) fn physical_uncertain(&self) -> bool {
         self.physical_uncertain
     }
+    /// None between a handoff and its 437, because the new zone's server may give the own
+    /// actor another ID.
     pub(crate) fn sampling_identity(&self) -> Option<(u16, u16)> {
+        if self.entering {
+            return None;
+        }
         Some((self.own?, self.zone?))
     }
     pub(crate) fn take_correlated(&mut self) -> Vec<DeferredFacts> {
@@ -1153,6 +1168,62 @@ impl Decoder {
                     out.push(Fact::DropGone(key));
                 }
                 // The caption path does not insert inventory or prove a pickup action.
+            }
+            154 if self.follows_handoffs => {
+                // `Messages.ParseHandoff` (f11873) has no end check.
+                r.u32()?;
+                r.u64()?;
+                r.cstr()?;
+                r.u32()?;
+                r.u32()?;
+                let zone = r.u16()?;
+                let point = e::Point {
+                    x: r.u16()? as i32,
+                    y: r.u16()? as i32,
+                };
+                r.u8()?;
+                let map = self.map_key(zone)?;
+                // `ChangeZone` (f48915) disposes the old map's actors, ground items and effects
+                // and stops the own action. Inventory, status and the gun controller stay.
+                self.actors.clear();
+                self.drops.clear();
+                self.combat.clear();
+                self.pending = None;
+                self.walk = None;
+                self.dig_active = false;
+                self.load_speed.own_lost();
+                self.zone = Some(zone);
+                self.map = Some(map);
+                self.point = Some(point);
+                self.entering = true;
+                out.push(Fact::MapChanged);
+                if let Some(label) = self
+                    .definitions
+                    .as_ref()
+                    .and_then(|d| d.zone_labels.get(&zone))
+                {
+                    out.push(Fact::MapLabel {
+                        map,
+                        label: text(label.clone())?,
+                    });
+                }
+                out.push(Fact::Position { map, point });
+            }
+            154 => self.physical_uncertain = true,
+            437 if self.entering => {
+                // `Messages.ParseEnterZone` (f11871) reads 6 bytes and has no end check.
+                let own = r.u16()?;
+                let point = e::Point {
+                    x: r.u16()? as i32,
+                    y: r.u16()? as i32,
+                };
+                self.entering = false;
+                self.own = Some(own);
+                self.parts.enter_zone(own, live);
+                self.point = Some(point);
+                if let Some(map) = self.map {
+                    out.push(Fact::Position { map, point });
+                }
             }
             437 => {
                 self.physical_uncertain = true;

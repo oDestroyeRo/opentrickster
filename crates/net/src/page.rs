@@ -15,7 +15,7 @@ pub(crate) const INCOMING: &[u16] = &[
     43, 42, 231, 561, 160, 770, 262, 246, 260, 843, 68, 82, 85, 41, 10, 11, 12, 13, 14, 617, 34,
     45, 46, 371, 50, 1951, 1952, 512, 518, 521, 31, 485, 1438, 32, 310, 525, 39, 109, 110, 271,
     282, 283, 523, 437, 586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 629, 634, 649, 784, 1070,
-    837, 1386, 1387, 1487, 1489, 1065, 1071, 1389, 32572,
+    837, 1386, 1387, 1487, 1489, 1065, 1071, 1389, 32572, 154,
 ];
 /// Inputs whose arrival alone matters. Only their header crosses IPC: the inventory inputs
 /// without a decoder grammar invalidate reported carried weight
@@ -172,7 +172,7 @@ pub(crate) fn script(binding: &PageBinding) -> Result<ObserverScript> {
             .map(|op| s2c.wire_opcode(*op))
             .collect::<Vec<_>>()
     };
-    let settings = serde_json::json!({"origin":ORIGIN,"build":crate::BUILD,"epoch":binding.epoch_text(),"guard":binding.guard.as_str(),"incoming":wire(&incoming),"outgoing":OUTGOING.iter().map(|op|c2s.wire_opcode(*op)).collect::<Vec<_>>(),"login":c2s.wire_opcode(4),"profile":s2c.wire_opcode(679),"accepted":s2c.wire_opcode(5),"refused":s2c.wire_opcode(159),"markers":[s2c.wire_opcode(1951),s2c.wire_opcode(1952)],"headerOnly":wire(&header)});
+    let settings = serde_json::json!({"origin":ORIGIN,"build":crate::BUILD,"epoch":binding.epoch_text(),"guard":binding.guard.as_str(),"incoming":wire(&incoming),"outgoing":OUTGOING.iter().map(|op|c2s.wire_opcode(*op)).collect::<Vec<_>>(),"login":c2s.wire_opcode(4),"profile":s2c.wire_opcode(679),"accepted":s2c.wire_opcode(5),"refused":s2c.wire_opcode(159),"markers":[s2c.wire_opcode(1951),s2c.wire_opcode(1952)],"handoff":s2c.wire_opcode(154),"handoffLogin":c2s.wire_opcode(156),"headerOnly":wire(&header)});
     let settings =
         Zeroizing::new(serde_json::to_string(&settings).map_err(|_| NetError::Malformed)?);
     Ok(ObserverScript(Zeroizing::new(
@@ -249,6 +249,12 @@ pub(crate) fn frame(
             .iter()
             .enumerate()
             .any(|(i, b)| *b != 0 && !((17..=38).contains(&i) || [53, 54, 56, 57].contains(&i)))
+    {
+        return Err(NetError::Malformed);
+    }
+    if direction == crate::ObservedDirection::Inbound
+        && opcode == 154
+        && (bytes.len() != 34 || bytes[6..27].iter().any(|b| *b != 0) || bytes[33] != 0)
     {
         return Err(NetError::Malformed);
     }

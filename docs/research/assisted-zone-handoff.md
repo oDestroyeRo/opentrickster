@@ -57,6 +57,34 @@ The client clears the old map's actor views, ground items and effects (step 2). 
 
 Besides 437, the new link starts with feature frames that Net does not forward: 977 and 983 (`FortuneLink`), 887 and 886 (`ExpBonusUi`), 676 (`MyViewRecords`), 1228 (`MailLink`), 1263 (`GmAbility`), 604 (`PkCountModel` and `PlayerHpModel`) and 1002 (`CharacterStatus`). Of the frames in the live entry sequence, the page forwards 437, 283, 8, 9, 36, 37 and 512, which Net already decodes.
 
+## Change
+
+Net follows the handoff in client-assisted mode only.
+
+- **Page bridge.** From the selected game link, the bridge forwards s2c 154 as a fixed 34-byte frame: the header, 21 zero bytes in place of the U32, `Uid`, an empty `Host`, `Port` and `Key`, then `Zone` and the position, then a zero `Option`. A 154 with no host terminator, or with fewer than 15 bytes after it, faults the binding as `malformed`. After a forwarded 154, the next socket that sends a 13-byte c2s 156 with zero header bytes 4–5 becomes the selected game link. The bridge posts that header as a `game-handoff` message, queued behind earlier frames, and never forwards the 156 payload. A 156 with no 154 before it, or on the selected link itself, faults the binding as `unknown-flow`. The host rejects a 154 frame that is not in the redacted shape.
+- **Decoder.** In client-assisted mode, 154 does to Net's state what `ChangeZone` does to the client's. It clears actors, drops, combat correlation, the pending action, the walk and the dig, then sets the zone and the position. It emits `MapChanged`, the map label when the definitions have one, and `Position`. Until the 437 on the new link arrives, the decoder reports no sampling identity, so no input plan or idle proof uses the old actor ID. That 437 sets the new own actor ID and the position. A 437 outside a handoff still makes the physical state uncertain.
+- **Observer.** A 154 on the active link announces a handoff, so the announcing link's close is not a loss. The replacement's `game-handoff` must arrive within 10 seconds of that close (`HANDOFF_WINDOW`). The replacement then becomes the active link, with the same decoder and no Aux groups, because the client's new link starts with none. An action armed when the 154 is applied gets an `Unknown` receipt. The session ends as `Lost` when no replacement logs in within the window. It fails as `Uncertain` on a `game-handoff` without a 154, and on a frame from the old link after the switch.
+- **Engine.** `MapChanged` drops the old map's entities and drops and raises the map floor, so a delayed frame from the old map cannot bring them back. A run pauses with `Pause::MapChanged`. The run drops its pending action instead of quarantining it, so a slow idle proof during the map load asks again instead of closing the session. Outside a run, the phase does not change.
+- **Clientless mode.** The native decoder does not follow a handoff. A 154 makes the physical state uncertain, and the session ends as `Lost`.
+
+## Verification
+
+All checks are synthetic. No live session ran after the change.
+
+- [`page_bridge.cjs`](../../crates/net/tests/page_bridge.cjs) runs the real bridge script. A 154 with synthetic secrets crosses as the redacted frame. The replacement socket's 156 is selected and posted after the frames queued before it. No secret reaches any page message. Isolated pages check the `unknown-flow` and `malformed` faults.
+- Observer tests in [`observer.rs`](../../crates/net/src/observer.rs) cover a handoff onto the replacement link, a replacement login before the old link closes, the timeout, an unfinished Aux group on the old link, and flows the client never produces.
+- `loopback_zone_handoff_ends_the_native_session_without_following_it` in [`session.rs`](../../crates/net/src/session.rs) checks the clientless fail-safe.
+- Two traces in [`traces.rs`](../../crates/engine/tests/traces.rs) cover a map change during a run and outside a run.
+
+Reverting any one part of the change made at least one of these tests fail.
+
 ## Limits
 
 This report is static. It does not show how long the map load or the link swap takes, whether the server sends 155 instead of 154 or after it, or what the client does with a 154 that arrives during login. The live trace covers one warp between two maps.
+
+These handoff shapes still end the session:
+
+- A 154 before Baseline.
+- A refused handoff (155), a replacement link that does not open, or a failed 156. No replacement logs in, so the session ends as `Lost` after the window.
+- A `socket-closed` notice that overtakes the queued 154. The bridge posts socket notices at once but queues frames behind slow sends, so a stalled send queue can turn a handoff into `Lost`.
+- A page load can open at most 64 WebSockets: the bridge's record cap, the host's connection IDs 1–64 and the observer's retired-link cap. Each map change opens one, so after about 60 map changes in one page load the bridge refuses the client's next WebSocket and faults the session with `capacity`.

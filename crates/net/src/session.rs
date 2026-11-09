@@ -1689,6 +1689,119 @@ mod tests {
         });
     }
 
+    #[test]
+    fn loopback_zone_handoff_ends_the_native_session_without_following_it() {
+        use crate::codec::{Frames, OpcodeMap};
+        use crate::gun_tests as fixture;
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        type Ws = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
+        async fn frame(ws: &mut Ws) -> Message {
+            loop {
+                match ws.next().await.unwrap().unwrap() {
+                    Message::Text(text) if text == "p" || text.starts_with("a ") => {}
+                    message => return message,
+                }
+            }
+        }
+        async fn read(ws: &mut Ws, frames: &mut Frames, order: &mut u64) -> u16 {
+            let Message::Binary(bytes) = frame(ws).await else {
+                panic!("expected binary")
+            };
+            let packets = frames.push(&bytes, order).unwrap();
+            assert_eq!(packets.len(), 1);
+            packets[0].opcode
+        }
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut login = tokio_tungstenite::accept_async(socket).await.unwrap();
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut game = tokio_tungstenite::accept_async(socket).await.unwrap();
+                let mut incoming = Frames::new(b"c2s");
+                let outgoing = OpcodeMap::current(b"s2c");
+                let mut order = 0;
+                let send = |packets: Vec<(u16, Vec<u8>)>| {
+                    let mut bytes = Vec::new();
+                    for (opcode, payload) in packets {
+                        bytes.extend_from_slice(&outgoing.encode(opcode, 0, &payload).unwrap());
+                    }
+                    Message::Binary(bytes.into())
+                };
+                assert_eq!(read(&mut game, &mut incoming, &mut order).await, 4);
+                let mut startup = vec![(5, vec![])];
+                startup.extend(fixture::startup());
+                game.send(send(startup)).await.unwrap();
+                assert_eq!(read(&mut game, &mut incoming, &mut order).await, 5);
+                assert_eq!(read(&mut game, &mut incoming, &mut order).await, 511);
+                game.send(send(vec![(512, fixture::KEY.to_le_bytes().to_vec())]))
+                    .await
+                    .unwrap();
+                let handoff = [&[0; 12][..], b"h\0", &[0; 8], &[41, 0, 7, 0, 9, 0, 0]].concat();
+                game.send(send(vec![(154, handoff)])).await.unwrap();
+                assert!(matches!(frame(&mut game).await, Message::Close(_)));
+                assert!(matches!(frame(&mut login).await, Message::Close(_)));
+            });
+            let (_ops, rx) = channel::channel(32);
+            let (events, event_rx) = mpsc::sync_channel(256);
+            let (_cancel, cancel_rx) = watch::channel(false);
+            let mut actor = Actor {
+                profile: VerifiedProfile {
+                    first_host: "127.0.0.1".into(),
+                    first_port: 1234,
+                    marker: Zeroizing::new("synthetic".into()),
+                    client_version: Zeroizing::new(vec![1, 2, 3, 4]),
+                    definitions: Some(fixture::definitions()),
+                },
+                credentials: NetCredentials::new("ExampleId".into(), "ExampleOnlyA1".into())
+                    .unwrap(),
+                ops: rx,
+                cancel: cancel_rx,
+                events,
+                fault: Arc::new(Mutex::new(None)),
+                readiness: Arc::new(Mutex::new(crate::Readiness::default())),
+                descriptors: Arc::new(Mutex::new(std::collections::BTreeMap::new())),
+                order: 0,
+                attempt: 0,
+                last_action: None,
+            };
+            let mut login = LoginLink {
+                gateway: Gateway::open_url(&format!("ws://{address}")).await.unwrap(),
+                order: 0,
+            };
+            let mut game = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
+            let ticket = GameTicket {
+                uid: 42,
+                info: 7,
+                crc: 99,
+                host: "127.0.0.1".into(),
+                port: 1234,
+            };
+            let result = tokio::time::timeout(
+                Duration::from_secs(3),
+                actor.game_server(&mut game, &mut login, &ticket),
+            )
+            .await
+            .expect("the native session stops at the handoff instead of waiting on");
+            assert_eq!(result, Err(NetError::Uncertain), "run() reports this as Lost");
+            game.close().await;
+            login.gateway.close().await;
+            server.await.unwrap();
+            let events: Vec<_> = event_rx.try_iter().map(|event| event.event).collect();
+            assert!(matches!(events.first(), Some(Event::Baseline { .. })));
+            assert!(!events.iter().any(|event| matches!(
+                event,
+                Event::Facts { facts, .. } if facts.iter().any(|fact| matches!(fact, e::Fact::MapChanged | e::Fact::Position { .. }))
+            )));
+        });
+    }
+
     mod carried {
         use super::*;
         use crate::test_support::{Def, definitions};
