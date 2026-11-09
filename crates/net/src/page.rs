@@ -11,8 +11,11 @@ pub(crate) const INCOMING: &[u16] = &[
     5, 159, 679, 230, 233, 7, 8, 9, 6, 15, 16, 21, 24, 25, 26, 27, 729, 36, 37, 38, 1030, 286, 289,
     43, 42, 231, 561, 160, 770, 262, 246, 260, 843, 68, 82, 85, 41, 10, 11, 12, 13, 14, 617, 34,
     45, 46, 371, 50, 1951, 1952, 512, 518, 521, 31, 485, 1438, 32, 310, 525, 39, 109, 110, 271,
-    282, 283, 523, 437,
+    282, 283, 523, 437, 586, 590, 1152, 587, 599, 601, 261, 86, 35, 151,
 ];
+/// Inventory inputs without a decoder grammar. Only their header crosses IPC; their arrival
+/// alone invalidates reported carried weight (`decode::UNDECODED_INVENTORY`).
+pub(crate) const HEADER_ONLY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151];
 pub(crate) const OUTGOING: &[u16] = &[24, 288, 29, 477, 44, 48, 49];
 
 /// Host-only binding. Never print this value or the script/message that carries its guard.
@@ -136,7 +139,7 @@ impl State {
 pub(crate) fn script(binding: &PageBinding) -> Result<ObserverScript> {
     let c2s = OpcodeMap::current(b"c2s");
     let s2c = OpcodeMap::current(b"s2c");
-    let settings = serde_json::json!({"origin":ORIGIN,"build":crate::BUILD,"epoch":binding.epoch_text(),"guard":binding.guard.as_str(),"incoming":INCOMING.iter().map(|op|s2c.wire_opcode(*op)).collect::<Vec<_>>(),"outgoing":OUTGOING.iter().map(|op|c2s.wire_opcode(*op)).collect::<Vec<_>>(),"login":c2s.wire_opcode(4),"profile":s2c.wire_opcode(679),"accepted":s2c.wire_opcode(5),"refused":s2c.wire_opcode(159),"markers":[s2c.wire_opcode(1951),s2c.wire_opcode(1952)]});
+    let settings = serde_json::json!({"origin":ORIGIN,"build":crate::BUILD,"epoch":binding.epoch_text(),"guard":binding.guard.as_str(),"incoming":INCOMING.iter().map(|op|s2c.wire_opcode(*op)).collect::<Vec<_>>(),"outgoing":OUTGOING.iter().map(|op|c2s.wire_opcode(*op)).collect::<Vec<_>>(),"login":c2s.wire_opcode(4),"profile":s2c.wire_opcode(679),"accepted":s2c.wire_opcode(5),"refused":s2c.wire_opcode(159),"markers":[s2c.wire_opcode(1951),s2c.wire_opcode(1952)],"headerOnly":HEADER_ONLY.iter().map(|op|s2c.wire_opcode(*op)).collect::<Vec<_>>()});
     let settings =
         Zeroizing::new(serde_json::to_string(&settings).map_err(|_| NetError::Malformed)?);
     Ok(ObserverScript(Zeroizing::new(
@@ -217,7 +220,7 @@ pub(crate) fn frame(
         return Err(NetError::Malformed);
     }
     if direction == crate::ObservedDirection::Inbound
-        && matches!(opcode, 5 | 159 | 1951 | 1952)
+        && (matches!(opcode, 5 | 159 | 1951 | 1952) || HEADER_ONLY.contains(&opcode))
         && bytes.len() != 6
     {
         return Err(NetError::Malformed);

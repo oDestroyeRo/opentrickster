@@ -1,9 +1,26 @@
-use crate::{NetError, Result, codec::Packet, wire::Reader};
+use crate::{NetError, Result, codec::Packet, definitions::GameDefinitions, wire::Reader};
 use opentrickster_engine::{self as e, Fact};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
+};
 
 const MAX_ACTORS: usize = 4096;
 const MAX_ITEMS: usize = 8192;
+/// Build whose startup cutoff H is accepted as the complete carried inventory.
+///
+/// H is the last raw game-link receipt among accepted S5, S679, S230 and S233, with
+/// delivery settled through it. It is a candidate from
+/// `docs/research/native-inventory-baseline.md` ("Startup waits and the real replay
+/// window", "Carried weight and invalidation"). Set this to the exact verified build
+/// only after Trial A and Trial B there pass for that build. Until then, and after any
+/// pin migration to another build, carried weight and HP potion counts stay unknown.
+const INVENTORY_CUTOFF_BUILD: Option<&str> = None;
+/// Logical opcodes whose `ReadItemChange` rows this decoder applies to the cache.
+const INVENTORY_DELTAS: [u16; 8] = [561, 160, 770, 262, 246, 260, 843, 68];
+/// Inventory subscribes to these after replay, but this decoder has no grammar for them.
+/// 518/521 (slot 20), 82/85 (slots), 83 (refusal) and 41 (Galder) leave carried weight alone.
+const UNDECODED_INVENTORY: &[u16] = crate::page::HEADER_ONLY;
 
 pub(crate) fn text(s: String) -> Result<e::DisplayText> {
     if s.len() > 256 || s.chars().any(char::is_control) {
@@ -54,6 +71,32 @@ pub(crate) struct DeferredFacts {
     pub(crate) mark: u64,
     pub(crate) received: std::time::Instant,
     pub(crate) facts: Vec<Fact>,
+}
+/// Carried-inventory proof for one game session under the startup cutoff H.
+#[derive(Clone, Copy)]
+enum Carried {
+    /// The cutoff is unaccepted, or an input made weight and potions unknown for this session.
+    Unknown,
+    /// Accepted cutoff; waits for H and for delivery settled through it.
+    Startup { cutoff: Option<u64> },
+    /// The cache was complete at H, and every later inventory input was applied in order.
+    Complete { cutoff: u64 },
+}
+struct Carry {
+    weight: u32,
+    maximum: Option<NonZeroU32>,
+    potions: u32,
+}
+impl Carry {
+    fn facts(self) -> [Fact; 2] {
+        [
+            Fact::Weight(e::Gauge {
+                current: self.weight,
+                maximum: self.maximum,
+            }),
+            Fact::HpPotions(self.potions),
+        ]
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -133,12 +176,18 @@ pub(crate) struct Decoder {
     missing_slots: BTreeSet<u64>,
     missing_slot_refs: [u64; 23],
     next: u64,
+    carried: Carried,
     pub(crate) readiness: Readiness,
 }
 impl Decoder {
     #[cfg(test)]
     pub(crate) fn new() -> Self {
         Self::with_epoch(0)
+    }
+    /// Tests exercise the accepted cutoff without changing `INVENTORY_CUTOFF_BUILD`.
+    #[cfg(test)]
+    pub(crate) fn accept_inventory_cutoff(&mut self) {
+        self.carried = Carried::Startup { cutoff: None };
     }
     pub(crate) fn with_epoch(epoch: u64) -> Self {
         Self {
@@ -174,8 +223,128 @@ impl Decoder {
             missing_slots: BTreeSet::new(),
             missing_slot_refs: [0; 23],
             next: epoch.saturating_mul(1 << 32),
+            carried: if INVENTORY_CUTOFF_BUILD == Some(crate::BUILD) {
+                Carried::Startup { cutoff: None }
+            } else {
+                Carried::Unknown
+            },
             readiness: Readiness::default(),
         }
+    }
+    /// Records H once the four startup receipts are known. Packets are numbered in raw
+    /// order, so every packet decoded before this call precedes H.
+    pub(crate) fn startup_cutoff(&mut self, cutoff: u64) {
+        if let Carried::Startup { cutoff: None } = self.carried {
+            self.carried = Carried::Startup {
+                cutoff: Some(cutoff),
+            };
+        }
+    }
+    /// Reports carried weight and HP potions once delivery has settled through H.
+    /// A missing list, definition or baseline leaves both unknown for this session.
+    pub(crate) fn settle_carried(&mut self, frontier: u64) -> Vec<Fact> {
+        let Carried::Startup {
+            cutoff: Some(cutoff),
+        } = self.carried
+        else {
+            return Vec::new();
+        };
+        if frontier < cutoff {
+            return Vec::new();
+        }
+        // Only a received list at or before H distinguishes an empty bag from a missing one.
+        match self
+            .readiness
+            .inventory_list_seen
+            .then(|| self.carry())
+            .flatten()
+        {
+            Some(carry) => {
+                self.carried = Carried::Complete { cutoff };
+                carry.facts().into()
+            }
+            None => {
+                self.carried = Carried::Unknown;
+                Vec::new()
+            }
+        }
+    }
+    /// The engine cannot forget a reported fact, so losing a reported value fails the session.
+    fn lose_carried(&mut self) -> Result<()> {
+        let reported = matches!(self.carried, Carried::Complete { .. });
+        self.carried = Carried::Unknown;
+        if reported {
+            Err(NetError::Uncertain)
+        } else {
+            Ok(())
+        }
+    }
+    fn track_carried(
+        &mut self,
+        p: &Packet,
+        stray: bool,
+        old_maximum: Option<NonZeroU32>,
+        out: &mut Vec<Fact>,
+    ) -> Result<()> {
+        let cutoff = match self.carried {
+            Carried::Unknown => return Ok(()),
+            Carried::Startup { cutoff } => cutoff,
+            Carried::Complete { cutoff } => Some(cutoff),
+        };
+        let lost = if cutoff.is_some_and(|cutoff| p.mark > cutoff) {
+            // A late list, a row naming an uncached carried UID, or an inventory input
+            // without a decoder grammar means the cache no longer mirrors the client's.
+            p.opcode == 231 || stray || UNDECODED_INVENTORY.contains(&p.opcode)
+        } else {
+            // Replay through H applies only 231/233 (and 518/521 slot 20); Inventory
+            // subscribes to deltas after replay, so an earlier delta is outside the cutoff.
+            INVENTORY_DELTAS.contains(&p.opcode)
+        };
+        if lost {
+            return self.lose_carried();
+        }
+        if matches!(self.carried, Carried::Complete { .. })
+            && (INVENTORY_DELTAS.contains(&p.opcode)
+                || p.opcode == 233
+                || old_maximum != self.totals.maximum(6))
+        {
+            let Some(carry) = self.carry() else {
+                return self.lose_carried();
+            };
+            out.extend(carry.facts());
+        }
+        Ok(())
+    }
+    /// Weight and HP potions of the whole cache, or None when any input is unknown.
+    fn carry(&self) -> Option<Carry> {
+        let data = self.definitions.as_ref()?;
+        let profile = self.profile.as_ref()?;
+        let mut weight = 0i64;
+        let mut potions = 0u32;
+        // Equipped and expiring items stay in the cache; neither leaves carried weight.
+        for item in self.items.values() {
+            let info = data.items.get(&item.id)?;
+            // ItemWeight.Of: ItemInfo.Weight x pieces, where pieces is Count only for wire Kind 1.
+            let pieces = if item.wire_kind == 1 {
+                i64::from(item.count)
+            } else {
+                1
+            };
+            weight = weight.checked_add(info.weight.checked_mul(pieces)?)?;
+            // Reuses potion_prerequisite's criteria: a stack counts only when nothing but
+            // the per-use state remains unproven. Instance options, overrides, expiry and
+            // normal-form restrictions exclude it.
+            if potion_reason(data, profile, item) == Some(MissingPrerequisite::PotionUseState) {
+                potions = potions.checked_add(u32::from(item.count))?;
+            }
+        }
+        let weight = u32::try_from(weight).ok()?;
+        Some(Carry {
+            weight,
+            // As for resource composites, an exceeded maximum is reported as unknown.
+            maximum: self.totals.maximum(6).filter(|max| weight <= max.get()),
+            potions,
+        })
     }
     pub(crate) fn set_definitions(
         &mut self,
@@ -370,10 +539,12 @@ impl Decoder {
     }
     pub(crate) fn apply(&mut self, p: &Packet) -> Result<Vec<Fact>> {
         let old_maxima = [self.totals.maximum(9), self.totals.maximum(3)];
+        let old_weight_maximum = self.totals.maximum(6);
         self.totals.observe(p)?;
         let b = &p.payload;
         let mut r = Reader::new(b);
         let mut out = Vec::new();
+        let mut stray = false;
         match p.opcode {
             230 => {
                 r.u32()?;
@@ -688,7 +859,11 @@ impl Decoder {
                     r.end()?;
                 }
                 for (op, item) in changes {
-                    self.change(op, item, &mut out)?;
+                    // 68 updates an existing row; naming an uncached UID diverges from the client.
+                    stray |= p.opcode == 68
+                        && matches!(item.kind, 1 | 2)
+                        && !self.items.contains_key(&item.uid);
+                    stray |= self.change(op, item, &mut out)?;
                 }
             }
             82 => {
@@ -909,6 +1084,7 @@ impl Decoder {
         self.readiness.weight_maximum_known = self.totals.maximum(6).is_some();
         self.readiness.missing_gun = self.gun_prerequisite();
         self.readiness.missing_hp_potion = self.potion_prerequisite();
+        self.track_carried(p, stray, old_weight_maximum, &mut out)?;
         Ok(out)
     }
     fn gun_prerequisite(&self) -> Option<MissingPrerequisite> {
@@ -960,39 +1136,13 @@ impl Decoder {
         let Some(profile) = &self.profile else {
             return Some(M::OwnBaseline);
         };
-        let mut reason = M::PotionInventory;
-        for item in self
-            .items
-            .values()
-            .filter(|i| i.count > 0 && i.wire_kind == 1)
-        {
-            let Some(info) = data.items.get(&item.id) else {
-                continue;
-            };
-            if info.flags & 2 == 0
-                || (info.hp <= 0 && info.hp_rate <= 0.0)
-                || i32::from(profile.level) < i32::from(info.min_level as i16)
-            {
-                continue;
-            }
-            reason = if info.class == 2 && item.options.is_none() {
-                M::PotionInstanceOptions
-            } else if info.class == 2
-                && item
-                    .options
-                    .as_ref()
-                    .is_some_and(|rows| rows.iter().any(|r| r[0] == 13))
-            {
-                M::PotionInstanceOverrides
-            } else if info.exist_type != 0 || info.life != 0 || info.ftype != 0 {
-                M::PotionExpiry
-            } else if data.normal_form_effects.contains(&info.effect) {
-                M::PotionNormalForm
-            } else {
-                M::PotionUseState
-            };
-        }
-        Some(reason)
+        Some(
+            self.items
+                .values()
+                .rev()
+                .find_map(|item| potion_reason(data, profile, item))
+                .unwrap_or(M::PotionInventory),
+        )
     }
     pub(crate) fn item_label(&self, kind: e::ItemKind) -> Option<e::DisplayText> {
         Some(self.item_descriptor(kind)?.label)
@@ -1061,7 +1211,11 @@ impl Decoder {
         );
         Ok(())
     }
-    fn change(&mut self, op: u8, item: ItemBody, out: &mut Vec<Fact>) -> Result<()> {
+    /// Returns whether a carried row named a UID absent from the cache.
+    fn change(&mut self, op: u8, item: ItemBody, out: &mut Vec<Fact>) -> Result<bool> {
+        let stray = matches!(op, 1 | 3 | 5 | 7)
+            && matches!(item.kind, 1 | 2)
+            && !self.items.contains_key(&item.uid);
         match op {
             2 | 4 | 6 | 8 => self.put(item, out)?,
             3 | 5 | 7 => {
@@ -1089,8 +1243,42 @@ impl Decoder {
             }
             _ => return Err(NetError::Unsupported),
         }
-        Ok(())
+        Ok(stray)
     }
+}
+/// Why a cached stack is not yet a proven usable HP potion, or None when it is no candidate.
+fn potion_reason(
+    data: &GameDefinitions,
+    profile: &e::Profile,
+    item: &Item,
+) -> Option<MissingPrerequisite> {
+    use MissingPrerequisite as M;
+    if item.count == 0 || item.wire_kind != 1 {
+        return None;
+    }
+    let info = data.items.get(&item.id)?;
+    if info.flags & 2 == 0
+        || (info.hp <= 0 && info.hp_rate <= 0.0)
+        || i32::from(profile.level) < i32::from(info.min_level as i16)
+    {
+        return None;
+    }
+    Some(if info.class == 2 && item.options.is_none() {
+        M::PotionInstanceOptions
+    } else if info.class == 2
+        && item
+            .options
+            .as_ref()
+            .is_some_and(|rows| rows.iter().any(|r| r[0] == 13))
+    {
+        M::PotionInstanceOverrides
+    } else if info.exist_type != 0 || info.life != 0 || info.ftype != 0 {
+        M::PotionExpiry
+    } else if data.normal_form_effects.contains(&info.effect) {
+        M::PotionNormalForm
+    } else {
+        M::PotionUseState
+    })
 }
 fn item_body(r: &mut Reader<'_>, kind: u8, options: bool) -> Result<ItemBody> {
     if !matches!(kind, 1..=3) {

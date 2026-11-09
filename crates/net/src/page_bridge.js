@@ -90,7 +90,7 @@
           }
           keep=record.selected && (direction==="inbound" ? incoming : outgoing).has(wire);
           if (keep) {
-            const headerOnly=direction==="inbound" && (wire===cfg.accepted || wire===cfg.refused || cfg.markers.includes(wire));
+            const headerOnly=direction==="inbound" && (wire===cfg.accepted || wire===cfg.refused || cfg.markers.includes(wire) || cfg.headerOnly.includes(wire));
             body=new Uint8Array(6+(headerOnly?0:size));body.set(header);
             if (headerOnly) {body[0]=0;body[1]=0;}
           }
