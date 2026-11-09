@@ -137,10 +137,12 @@ lists stay distinct from complete inventory. Missing equipment references stay
 unresolved at their original replay point.
 
 Carried weight and the HP potion count are gated by `INVENTORY_CUTOFF_BUILD` in
-`src/decode.rs`. It is `None`, so both stay unknown and no `Weight` or
-`HpPotions` fact is emitted. Set it to the exact pinned build only after Trial A
-and Trial B in the [inventory baseline report](../../docs/research/native-inventory-baseline.md)
-pass for that build; a pin migration turns it off again. When accepted:
+`src/decode.rs`. It names build `ea1a68bd89958fae94179f1e0835ffb5`, accepted
+after Trial A and Trial B passed ([trials](../../docs/research/native-inventory-trials.md),
+procedure in the [inventory baseline report](../../docs/research/native-inventory-baseline.md)).
+For any other build, both stay unknown and no `Weight` or `HpPotions` fact is
+emitted, so a pin migration turns the cutoff off until the trials pass again.
+When accepted:
 
 - H is the last raw receipt among the first accepted 5, 679, 230 and 233. The
   decoded cache counts as complete once delivery has settled through H, and only
@@ -164,7 +166,7 @@ pass for that build; a pin migration turns it off again. When accepted:
 - Known limit: `ordered.rs` releases a buffered Aux group and later Aux-0
   packets in raw order, while the client applies Aux-0 packets at once. If both
   touch the same UID before the group flushes, the cache can diverge silently.
-  Trial A/B must check for this overlap before the cutoff is accepted.
+  The ea1a68bd trials saw no Aux-grouped frame, so this case is unexercised.
 
 Native code sends24, ordinary288+29 and the full timed44->45/371->49->50 dig
 exchange, including real48 cancellation counters. Native movement policy is
@@ -179,7 +181,7 @@ Unattributed HP falls, captions and faint alone cannot award outcomes.
 | Native gun controller | Serializer and source-backed profile/key/skill/ammo prerequisites exist. Tick/CRC/effect-lifetime controller integration remains unfinished. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
-| Carried weight | The H cutoff, weight and potion count are implemented behind `INVENTORY_CUTOFF_BUILD`, which stays off until Trial A/B pass. |
+| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. The maxima remain unknown without S282 (#47). |
 | Runtime acceptance | One production Rust startup and joined cleanup passed. Gameplay, inventory readiness, and Desktop integration remain open. See the [runtime report](../../docs/research/native-rust-startup.md). |
 
 These gaps remain visible in support/readiness and cannot be called a completed

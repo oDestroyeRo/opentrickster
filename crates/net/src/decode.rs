@@ -15,7 +15,8 @@ const MAX_ITEMS: usize = 8192;
 /// window", "Carried weight and invalidation"). Set this to the exact verified build
 /// only after Trial A and Trial B there pass for that build. Until then, and after any
 /// pin migration to another build, carried weight and HP potion counts stay unknown.
-const INVENTORY_CUTOFF_BUILD: Option<&str> = None;
+// Accepted from Trials A and B (docs/research/native-inventory-trials.md).
+const INVENTORY_CUTOFF_BUILD: Option<&str> = Some("ea1a68bd89958fae94179f1e0835ffb5");
 /// Logical opcodes whose `ReadItemChange` rows this decoder applies to the cache.
 const INVENTORY_DELTAS: [u16; 8] = [561, 160, 770, 262, 246, 260, 843, 68];
 /// Inventory subscribes to these after replay, but this decoder has no grammar for them.
@@ -184,10 +185,14 @@ impl Decoder {
     pub(crate) fn new() -> Self {
         Self::with_epoch(0)
     }
-    /// Tests exercise the accepted cutoff without changing `INVENTORY_CUTOFF_BUILD`.
+    /// Tests exercise both cutoff states without changing `INVENTORY_CUTOFF_BUILD`.
     #[cfg(test)]
-    pub(crate) fn accept_inventory_cutoff(&mut self) {
-        self.carried = Carried::Startup { cutoff: None };
+    pub(crate) fn set_inventory_cutoff(&mut self, accepted: bool) {
+        self.carried = if accepted {
+            Carried::Startup { cutoff: None }
+        } else {
+            Carried::Unknown
+        };
     }
     pub(crate) fn with_epoch(epoch: u64) -> Self {
         Self {
