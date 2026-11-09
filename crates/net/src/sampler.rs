@@ -454,6 +454,17 @@ fn manual(d: &DigState) -> bool {
         && !d.crazy
 }
 
+/// Where the client stands once its own walk is over. Each send clears `sendArmed` and an
+/// applied own echo sets it again. An empty path means the walk to that echo has ended.
+pub(crate) fn walk_ended(s: &Snapshot) -> Option<[f64; 2]> {
+    let m = &s.motion;
+    if !m.send_armed || m.target_pending || m.held_stop || m.route != 0 || m.path != 0 {
+        return None;
+    }
+    let own = s.actors.iter().find(|a| a.raw == m.own)?;
+    Some([own.x, own.y])
+}
+
 pub(crate) fn idle(s: &Snapshot) -> bool {
     fresh(s)
         && matches!(s.motion.fsm, 0 | 1)

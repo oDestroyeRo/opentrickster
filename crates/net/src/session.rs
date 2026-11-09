@@ -668,8 +668,8 @@ impl Actor {
                 _=ticks.tick()=>{
                     let now=Instant::now();
                     // No frame reports the end of a walk: the client ends it locally, at about this estimate.
-                    if let Some((to,_,due))=decoder.walk_end() && now>=due {
-                        decoder.end_walk(to,now);
+                    if let Some((_,_,due))=decoder.walk_end() && now>=due {
+                        decoder.end_walk(true,now);
                         for result in decoder.take_correlated() {self.emit_at(Event::Facts{revision:e::EvidenceKey((result.mark<<2)|3),ingress:e::IngressMark(result.mark),facts:result.facts},result.received)?;}
                     }
                     if let Some(pending)=&mut dig {

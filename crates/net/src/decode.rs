@@ -1585,9 +1585,9 @@ impl Decoder {
             _ => None,
         }
     }
-    /// The client ended the echoed walk at `at`. Only an end on the destination of the echo
-    /// that accepted the pending MoveTo arrives, reported under the echo's mark.
-    pub(crate) fn end_walk(&mut self, at: e::Point, received: std::time::Instant) {
+    /// The client ended the echoed walk, on its destination when `arrived`. Only an echo that
+    /// accepted the pending MoveTo then arrives, reported under the echo's mark.
+    pub(crate) fn end_walk(&mut self, arrived: bool, received: std::time::Instant) {
         let Some(Walk::Echoed {
             to, target, mark, ..
         }) = self.walk
@@ -1596,13 +1596,13 @@ impl Decoder {
         };
         self.walk = None;
         if let Some(target) = target
-            && at == to
+            && arrived
             && self.arrive(target)
         {
             self.correlated.push(DeferredFacts {
                 mark,
                 received,
-                facts: vec![Fact::Outcome(e::Outcome::Arrived { target, at })],
+                facts: vec![Fact::Outcome(e::Outcome::Arrived { target, at: to })],
             });
         }
     }
@@ -2425,8 +2425,8 @@ mod tests {
     /// Arrivals in `facts` and in the deferred facts after ending any echoed walk on its
     /// destination when its estimate is due.
     fn arrivals(d: &mut Decoder, facts: Vec<Fact>) -> Vec<e::Outcome> {
-        if let Some((to, _, due)) = d.walk_end() {
-            d.end_walk(to, due);
+        if let Some((_, _, due)) = d.walk_end() {
+            d.end_walk(true, due);
         }
         facts
             .into_iter()
@@ -2455,7 +2455,7 @@ mod tests {
         assert_eq!((to, mark), (end, 11));
         // ceil((36 * 9/8 + 32) * 1000 / 115) + 32 ms at the default walk speed.
         assert_eq!(due - echo.received, std::time::Duration::from_millis(663));
-        d.end_walk(end, due);
+        d.end_walk(true, due);
         let deferred = d.take_correlated();
         assert_eq!(deferred.len(), 1);
         assert_eq!(deferred[0].mark, 11);
@@ -2473,7 +2473,7 @@ mod tests {
             due - echo.received,
             std::time::Duration::from_millis(363 + 32)
         );
-        d.end_walk(e::Point { x: 172, y: 200 }, due);
+        d.end_walk(true, due);
         // More than 320 px from the client's actor, the walk starts at the echo's start.
         let echo = own_move(13, Some((600, 200)), (636, 200));
         d.apply(&echo).unwrap();
