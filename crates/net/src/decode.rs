@@ -871,7 +871,10 @@ impl Decoder {
                             && matches!(pending.action,e::Action::MoveTo(target) if target==point)
                     }) {
                         self.pending = None;
-                        out.push(Fact::Outcome(e::Outcome::Arrived(point)));
+                        out.push(Fact::Outcome(e::Outcome::Arrived {
+                            target: point,
+                            at: point,
+                        }));
                     }
                     // A destination in a movement packet is not proof of arrival or idle.
                 }
@@ -2293,12 +2296,9 @@ mod tests {
         payload.push(2);
         let mut stop = packet(25, payload);
         stop.mark = 12;
-        assert!(
-            d.apply(&stop)
-                .unwrap()
-                .iter()
-                .any(|f| matches!(f,Fact::Outcome(e::Outcome::Arrived(p)) if *p==to))
-        );
+        assert!(d.apply(&stop).unwrap().iter().any(
+            |f| matches!(f,Fact::Outcome(e::Outcome::Arrived{target,at}) if *target==to && *at==to)
+        ));
         assert!(!d.action_pending());
         assert_eq!(
             *d.move_payload(e::Point { x: 200, y: 300 })

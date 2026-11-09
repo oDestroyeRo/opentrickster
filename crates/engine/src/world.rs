@@ -38,6 +38,8 @@ pub(crate) struct Book {
     incarnations: BTreeMap<EntityKey, u64>,
     map_labels: BTreeMap<MapKey, DisplayText>,
     map_floor: IngressMark,
+    /// The last confirmed MoveTo on its map: the requested target and where the server ended it.
+    moved: Option<(MapKey, Point, Point)>,
 }
 
 impl Book {
@@ -61,6 +63,7 @@ impl Book {
             incarnations: BTreeMap::new(),
             map_labels: BTreeMap::new(),
             map_floor: IngressMark(0),
+            moved: None,
         }
     }
 
@@ -171,13 +174,21 @@ impl Book {
         }
     }
 
-    pub fn arrived(&mut self, point: Point, ingress: IngressMark, at: At) {
+    pub fn arrived(&mut self, target: Point, point: Point, ingress: IngressMark, at: At) {
         if self.accept(Field::Position, ingress, at)
             && let Some((map, _)) = self.own.position
         {
             self.own.position = Some((map, point));
+            self.moved = Some((map, target, point));
             self.mark_state_seen(at);
         }
+    }
+
+    /// Own stands on `target`, or where the server ended the last confirmed MoveTo to it.
+    pub fn reached(&self, target: Point) -> bool {
+        self.own
+            .position
+            .is_some_and(|(map, own)| own == target || self.moved == Some((map, target, own)))
     }
 
     fn vitals(&mut self) -> &mut Vitals {

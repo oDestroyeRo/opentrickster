@@ -166,7 +166,7 @@ impl Engine {
             return Ok(Some(Action::HpPotion(key)));
         }
         let move_or = |point, action| {
-            if own == point {
+            if self.book.reached(point) {
                 Ok(Some(action))
             } else if support.move_to {
                 Ok(Some(Action::MoveTo(point)))
@@ -235,8 +235,8 @@ impl Engine {
                     },
                 ];
                 let index = self.run.as_ref().map_or(0, |run| run.dig_index % 5) as usize;
-                let point = points[index];
-                move_or(point, Action::DigAt(point))
+                // The server can end a walk short of an unsnapped or unwalkable point; dig there.
+                move_or(points[index], Action::DigAt(own))
             }
         }
     }
