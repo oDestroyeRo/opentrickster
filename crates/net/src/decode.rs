@@ -1420,7 +1420,9 @@ fn effects(r: &mut Reader<'_>) -> Result<bool> {
                 1388 => &[5, 5],
                 1423 | 1483 => &[2, 2, 2],
                 1479 | 1492 => &[1, 2, 2],
-                _ => return Err(NetError::Unsupported),
+                // EsBlock.Read gives a type outside the compiled table an empty body. The entry
+                // still marks the actor as affected, so it is never classified or targeted.
+                _ => &[],
             };
             for &d in descriptors {
                 match d {
@@ -1444,10 +1446,8 @@ fn effects(r: &mut Reader<'_>) -> Result<bool> {
 }
 fn player(r: &mut Reader<'_>) -> Result<()> {
     r.take(5)?;
+    // ReadPlayerBody has no branch for mask bit 128.
     let mask = r.u8()?;
-    if mask & 128 != 0 {
-        return Err(NetError::Unsupported);
-    }
     for bit in [1, 2, 4, 8, 16] {
         if mask & bit != 0 {
             if bit == 8 {
@@ -1463,10 +1463,8 @@ fn player(r: &mut Reader<'_>) -> Result<()> {
         ][..],
         &[1u32, 2, 4, 4096, 8192, 524288][..],
     ] {
+        // The client reads one value per table bit that is set; other bits carry no value.
         let m = r.u32()?;
-        if m & !bits.iter().fold(0, |a, b| a | b) != 0 {
-            return Err(NetError::Unsupported);
-        }
         for bit in bits {
             if m & bit != 0 {
                 r.u32()?;
@@ -1681,12 +1679,47 @@ mod tests {
     }
     #[test]
     fn malformed_effect_and_player_branches() {
-        assert!(effects(&mut Reader::new(&[1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
+        // One group-0 entry of a type outside the compiled table: nine-byte prefix, empty body.
+        let unknown = [1, 1, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut r = Reader::new(&unknown);
+        assert!(effects(&mut r).unwrap());
+        assert!(r.end().is_ok());
+        let mut extra = unknown.to_vec();
+        extra.push(0);
+        let mut r = Reader::new(&extra);
+        effects(&mut r).unwrap();
+        assert!(r.end().is_err());
+        assert!(effects(&mut Reader::new(&unknown[..10])).is_err());
         let mut player_bytes = vec![0; 43];
         assert!(player(&mut Reader::new(&player_bytes)).is_ok());
         player_bytes[5] = 128;
-        assert!(player(&mut Reader::new(&player_bytes)).is_err());
+        let mut r = Reader::new(&player_bytes);
+        player(&mut r).unwrap();
+        assert!(r.end().is_ok());
+        // A_mask bit 8 is outside the slot table, so it adds no value.
+        player_bytes[6..10].copy_from_slice(&8u32.to_le_bytes());
+        let mut r = Reader::new(&player_bytes);
+        player(&mut r).unwrap();
+        assert!(r.end().is_ok());
         assert!(item_body(&mut Reader::new(&[]), 9, false).is_err());
+    }
+    #[test]
+    fn an_affected_monster_with_an_unclassified_effect_is_tracked_but_never_targeted() {
+        let mut monster = vec![0; 38];
+        monster[22] = b'S';
+        monster[0..2].copy_from_slice(&321u16.to_le_bytes());
+        monster[2..4].copy_from_slice(&3u16.to_le_bytes());
+        monster[36..38].copy_from_slice(&0u16.to_le_bytes());
+        // Replace the empty effect block (offset 31) with one unclassified entry.
+        let mut block = vec![1, 1, 7, 0];
+        block.extend([0; 7]);
+        block.extend([0; 7]);
+        monster.splice(31..32, block);
+        let mut d = Decoder::new();
+        let facts = d.apply(&packet(8, monster)).unwrap();
+        assert!(matches!(facts.as_slice(), [Fact::Entity(_)]));
+        let key = d.actors[&321].key;
+        assert!(d.raw_target(key).is_err());
     }
     #[test]
     fn all_startup_waits_and_unknown_inventory() {

@@ -134,8 +134,13 @@ and effects, moves, HP, faint/despawn, inventories/equipment, ground items and
 dig feedback. Parsers are exact, with three exceptions seen in live ea1a68bd
 traffic: a type-3 appearance and a removal on 15 may each carry one unread
 trailing byte, and a kind-2/3 ground item may carry its four unread state
-bytes. Actor incarnations fence raw-ID reuse. Wire Kind, Count, state,
-full option triplets and 23 raw slot UIDs remain private. Stack pieces use Count
+bytes. Like the client's `EsBlock.Read`, an effect type outside the compiled
+47-entry table has an empty body; it still marks the actor as affected, so that
+actor is never targeted. Like `ReadPlayerBody`, player mask bit 128 and
+equipment-mask bits outside the slot tables carry no fields. One live
+appearance rejected by the former strict checks had ended the session. Actor
+incarnations fence raw-ID reuse. Wire Kind, Count, state, full option triplets
+and 23 raw slot UIDs remain private. Stack pieces use Count
 only for wire Kind 1. Catalog Type/SubType remain separate.
 
 231 is merge-only `InventorySnapshot`, never Reset or a grant. Missing and empty
