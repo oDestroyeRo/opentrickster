@@ -277,6 +277,8 @@ impl Engine {
 
     fn phase(&self) -> Phase {
         match self.connection {
+            // A held run outlives its session; only Reconnect or End run resolves it.
+            Connection::Closed if self.run.is_some() => Phase::Disconnected,
             Connection::Closed => {
                 if self.mode == Mode::Assisted {
                     Phase::ClientAbsent
