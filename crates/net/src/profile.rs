@@ -11,9 +11,9 @@ use std::{
 use url::Url;
 use zeroize::Zeroizing;
 
-pub const BUILD: &str = "8502ebbf2fc9033d2fba50d02fd92002";
+pub const BUILD: &str = "ea1a68bd89958fae94179f1e0835ffb5";
 pub(crate) const ORIGIN: &str = "https://tr-play.playall.in.th";
-const MAX_METADATA: usize = 9_343_896;
+const MAX_METADATA: usize = 9_348_436;
 struct Asset {
     name: &'static str,
     size: usize,
@@ -21,24 +21,24 @@ struct Asset {
 }
 const ASSETS: [Asset; 4] = [
     Asset {
-        name: "41e1cc21f8b1ab11275e55eb6949af3c.loader.js",
+        name: "91193a291f9ba5b072d1057270cdcf58.loader.js",
         size: 27914,
-        hash: "5a4ba6acdfc6ad420a285cc1faa54dc694892655bedd752e0f3f7dde3bae6a41",
+        hash: "8a7d5786f4b9c4db61c9687f97043cadbb0d3c8dc949e6cba38a666ec8c02a1a",
     },
     Asset {
-        name: "7f982dae9f02da04f526a91e415474b4.framework.js.gz",
-        size: 391375,
-        hash: "d159059282768082bbfc54432ab93ad68f6eaa57f84883c9e09780810597d917",
+        name: "06b4021535921ba830a3e2a51effeeef.framework.js.gz",
+        size: 393439,
+        hash: "291c9124760f70c66c6754e1b6a56648e02d7b3423bf7a1d35088dce6a89871b",
     },
     Asset {
-        name: "d9a4c4fd2737e740b82e1321839e352f.wasm.gz",
-        size: 43136343,
-        hash: "381a183efd05b40853fbfe4e052d64edff2b8a6b254773fe37241e7d53789404",
+        name: "6396dfe935f7f0e3745817a7761644bd.wasm.gz",
+        size: 43147580,
+        hash: "8780db4414df5357d9595ef233579227a1303753d00ac6318d225036dd1bb277",
     },
     Asset {
-        name: "6135c4139b62e558bb4c755b266f5fa2.data.gz",
-        size: 27724487,
-        hash: "fa85bfa065f6201466806a5d95e66f9b1162126f59fd13373b9243d1e8c6e474",
+        name: "9c68dd2a390f8dfafc9311184fecb2b6.data.gz",
+        size: 27730162,
+        hash: "a3b60bc72c11d7e38c05ed7cd312c26f7161df31118401f0d56a9b4cba3693a3",
     },
 ];
 
@@ -75,7 +75,7 @@ impl VerifiedProfile {
         let metadata = metadata(&data)?;
         verify_hash(
             metadata,
-            "7313f719956af84096e41f2afbd39c0cd5812d6ea8ff9b0e9bda9c51b8824ade",
+            "2c7ae9e8bbd0d4e38b2e7be06cb0fabf8c0affa23d9400ea3b4c76aedc248056",
         )?;
         if metadata.get(..8) != Some(&[0xaf, 0x1b, 0xb1, 0xfa, 108, 0, 0, 0]) {
             return Err(NetError::BuildChanged);
@@ -83,27 +83,27 @@ impl VerifiedProfile {
         // Full immutable asset fingerprints bind these current-build metadata locators.
         let marker = field(
             metadata,
-            480347,
+            480512,
             5,
             "b5a2c96250612366ea272ffac6d9744aaf4b45aacd96aa7cfcb931ee3b558259",
         )?;
         let client_version = field(
             metadata,
-            5142552,
+            5145352,
             4,
             "e4abdaa9e4fe688b531f6d5257aad881668ae7d84dd3e8fdf305cfcc0e29b9c6",
         )?;
         field(
             metadata,
-            127401,
+            482903,
             32,
-            "7cd4e6cdb7707127e907a239277913438058d9327d1a184c7bde25e0a4c79b7a",
+            "861ecf9f31d8f480e79fbc947a733784d6888db7332f875c6758bf1be522e096",
         )?;
         field(
             metadata,
-            452397,
+            127252,
             44,
-            "bc25174f10ae444884c9b36c53dd15c38415f007fd04e8c8a0757a766cecb838",
+            "b556afb4f46147c318705ac82b6e0e3211e4c20138a7c82425f88ff3395a4441",
         )?;
         Ok(Self {
             first_host: host,
@@ -210,11 +210,11 @@ fn field<'a>(b: &'a [u8], offset: usize, n: usize, hash: &str) -> Result<&'a [u8
 fn deployment(config: &[u8], version: &[u8]) -> Result<(String, u16)> {
     verify_hash(
         config,
-        "084900013e6edde0ce0eca286dc7ac884a86da2ece1bae361ce0671852092602",
+        "0e30790458ae431e691b66f05c8bd1fff11d109a23c2ccb014520715c7389b78",
     )?;
     verify_hash(
         version,
-        "9ce11c71ef039ffbe6bede54dfcf5b27afb887d44b2a79f57f959638e2e771b0",
+        "c4ddd91c18ba505935d361296dca3559580f4d8b1880594dd7e9ed6db07741cf",
     )?;
     let c: serde_json::Value =
         serde_json::from_slice(config).map_err(|_| NetError::BuildChanged)?;

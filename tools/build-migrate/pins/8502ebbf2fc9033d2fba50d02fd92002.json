@@ -1,0 +1,50 @@
+{
+ "build": "8502ebbf2fc9033d2fba50d02fd92002",
+ "deployment": {
+  "spinel-config.json": {"bytes": 124, "sha256": "084900013e6edde0ce0eca286dc7ac884a86da2ece1bae361ce0671852092602"},
+  "version": {"bytes": 44, "sha256": "9ce11c71ef039ffbe6bede54dfcf5b27afb887d44b2a79f57f959638e2e771b0"},
+  "index.public.html": {"bytes": 37950, "sha256": "7690892df54224550298f836ff9950aa77d285fec2d661a14748b2b35c6ccb7b"}
+ },
+ "dataVersion": "KIcgbcTZu7eh",
+ "assets": [
+  {"name": "41e1cc21f8b1ab11275e55eb6949af3c.loader.js", "bytes": 27914, "sha256": "5a4ba6acdfc6ad420a285cc1faa54dc694892655bedd752e0f3f7dde3bae6a41"},
+  {"name": "7f982dae9f02da04f526a91e415474b4.framework.js.gz", "bytes": 391375, "sha256": "d159059282768082bbfc54432ab93ad68f6eaa57f84883c9e09780810597d917"},
+  {"name": "d9a4c4fd2737e740b82e1321839e352f.wasm.gz", "bytes": 43136343, "sha256": "381a183efd05b40853fbfe4e052d64edff2b8a6b254773fe37241e7d53789404"},
+  {"name": "6135c4139b62e558bb4c755b266f5fa2.data.gz", "bytes": 27724487, "sha256": "fa85bfa065f6201466806a5d95e66f9b1162126f59fd13373b9243d1e8c6e474"}
+ ],
+ "metadata": {"offset": 16748911, "bytes": 9343896, "sha256": "7313f719956af84096e41f2afbd39c0cd5812d6ea8ff9b0e9bda9c51b8824ade", "magic": "af1bb1fa6c000000"},
+ "compiled": {
+  "build": {"cell": "0x344aa0", "target": "literal 1079", "offset": "0x1f1a9", "length": 32, "sha256": "7cd4e6cdb7707127e907a239277913438058d9327d1a184c7bde25e0a4c79b7a", "value": "8502ebbf2fc9033d2fba50d02fd92002"},
+  "seed": {"cell": "0x3551dc", "target": "literal 17930", "offset": "0x6e72d", "length": 44, "sha256": "bc25174f10ae444884c9b36c53dd15c38415f007fd04e8c8a0757a766cecb838", "value": "Yi9ApMr88JAXsVztVJYSxdzPbba7CrrOlJ0GmnNHLXI="},
+  "c2s": {"cell": "0x35637c", "target": "literal 19058", "offset": "0x72a7a", "length": 3, "sha256": "99e0ee5a83b3906160f1eab2e4007117fccc4a26652dc94955a3c6628aab4926"},
+  "s2c": {"cell": "0x35b3b4", "target": "literal 24193", "offset": "0x859ae", "length": 3, "sha256": "8e504f255032f8cc5db7a20678e49cd36df604ed4c189171109b8701c34739c4"},
+  "marker": {"cell": "0x356f38", "target": "literal 19809", "offset": "0x7545b", "length": 5, "sha256": "b5a2c96250612366ea272ffac6d9744aaf4b45aacd96aa7cfcb931ee3b558259"},
+  "client_version": {"cell": "0x3430c4", "target": "fieldRef 249 → field 69623", "offset": "0x4e7818", "length": 4, "sha256": "e4abdaa9e4fe688b531f6d5257aad881668ae7d84dd3e8fdf305cfcc0e29b9c6"},
+  "firstlogin_wait": {"cell": "0x3430d0", "target": "fieldRef 252 → field 69626", "offset": "0x4e78c8", "length": 12, "sha256": "e85ae1df05cd9499a0e332f696bfb39e5484807b31ae52775a1048a1b9672862", "value": [11502, 11503, 11508]},
+  "selection_wait": {"cell": "0x3430e4", "target": "fieldRef 257 → field 69631", "offset": "0x4e7a10", "length": 12, "sha256": "fd61c7f1fde7eea7c0b75cb3f0600177bbee3dc76f4ea51cc5329224d2cac349", "value": [2014, 2013, 2]},
+  "md5_rotations": {"cell": "0x3430a8", "target": "fieldRef 242 → field 69616", "offset": "0x4e7590", "length": 256, "sha256": "b89a927779b66394fd309fdda16496644a11ab469c5370e8e8a6a6ee25617e7f"},
+  "catalog_key": {"cell": "0x342df8", "offset": "0x4ed2a8", "length": 16, "sha256": "b5b8c3c831b51613bc8701615db8ec52cda99e4610d0f452a9c984619ba9dea0"},
+  "normal_form_effects": {"offset": "0x4d09c8", "length": 24, "sha256": "65a96e5111fde179295e050214fd70276da0446bb6fec006bfc2bc87b759efc3", "value": [15, 21, 23, 24, 25, 26]},
+  "gun_slots": {"offset": "0x4d16d0", "length": 16, "sha256": "f79067ab1dc0e54d3c4b8d6c007d3a06f9ba33296ce8d0e6e038b335115bf800", "value": [4, 9, 1, 22]}
+ },
+ "opcode_maps": {
+  "c2s_wire": "db98aa5f8e2df90f4d4baa756a9fad7849f6d307e2c155f5b6b5c9ba58c11fe1",
+  "c2s_inverse": "9e374006761f9bf18e3a59b6b4914c86b673f22230d9bab238e4c56120e350e4",
+  "s2c_wire": "e0386023dd44e6cd0e70099542b5f9943969feff662b5797cb73e5edab72f58d",
+  "s2c_inverse": "c5d1b355f0c5cf75af90935158df8d6b7309e860710b760fb1f04207169c6b9c"
+ },
+ "catalog": {
+  "overlays": {
+   "libconfig_thai": {"sha256": "ce9c8f53be329c6097212a451dc241bffe8e2a2230abbc8154bb1eed2e0d6758", "tables": 127, "relevant": []},
+   "libconfig_eng": {"sha256": "8fc4019b037f01107035b65c410800606a7954004daf1272a2b387f3d6378ac2", "tables": 127, "relevant": []}
+  },
+  "spineldatasettings": false
+ },
+ "tables": {
+  "login_failure": {"address": 1943852, "value": [0, 6, 6, 6, 6, 6, 2, 3, 4, 2, 1]}
+ },
+ "definitions": {
+  "game_definitions.json": "4a7c86ea510f3c2789f07c59715a0f00aae6fe10f93ddc898601b02399a27cc3",
+  "items.json": "50d82abdb872c23e870207b498336bdcd3f58ac59542f9853d311243da3ce654"
+ }
+}

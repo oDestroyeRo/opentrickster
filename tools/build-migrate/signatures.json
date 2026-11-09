@@ -1,0 +1,5302 @@
+{
+ "baseline": "8502ebbf2fc9033d2fba50d02fd92002",
+ "volatile": [
+  "build",
+  "seed",
+  "marker",
+  "client_version"
+ ],
+ "methods": [
+  {
+   "name": "[Spinel.Data.Unity.dll]Spinel.Data.Unity.DataCipher/<NameAsync>d__4::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9dc0205afde58991cb5557444a323807aab56f9e4e8e16562c5a65e573ab096a",
+     "tokens": 401
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Data.Unity.dll]Spinel.Data.Unity.DataSources::CreateDefault()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "eb68b5a9b5152c9868c7a21d077a328d0871ece8276bdc2181d0836999abac37",
+     "tokens": 124
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Data.Unity.dll]Spinel.Data.Unity.HttpDataSource/<FetchDataKey>d__38::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "807c320af290d3e880942484c5a60b1b52a8e90904a5761956a2b52493ca65ca",
+     "tokens": 669
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Data.Unity.dll]Spinel.Data.Unity.HttpDataSource/<ProbeInfo>d__34::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a20bfc217d65b266ad5269f68bfb99030d58ce7571242bd1427b15b6b4199be7",
+     "tokens": 672
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Data.Unity.dll]Spinel.Data.Unity.HttpDataSource/<ReadRangeAsync>d__27::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b1b43eb55499ce96f3b0d5d0fda6f6e053bedc2a960ef1ca32bad493f63c9878",
+     "tokens": 2426
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Data.Unity.dll]Spinel.Data.Unity.HttpDataSource/<Take>d__35::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c72b32df39a0fd18b566a0ee77a26374127f31d6688dc0d0dd8b56d0b887c6d0",
+     "tokens": 548
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Data.dll]Spinel.Data.DataPath::Normalize(System.String)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2ac88b0f8ce166b7805b376b9fde55c1b60679e457af7efdfae71d1161f84922",
+     "tokens": 87
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.GameInput::.ctor()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c42e286f253b698a2f0ca14a713e73031496d9dccdac3e26652b0892dc8ee621",
+     "tokens": 666
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.LibconfigOverlay::Apply([Spinel.Engine.dll]Spinel.Engine.GameAssets)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d1c5add327e9d3afc859830f2d6f44257403fad111d3d71c74d7bfcdb02c4fe8",
+     "tokens": 313
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.LibconfigOverlay::InstallSpinel([Spinel.Formats.dll]Spinel.Formats.SpinelLanguage)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f1deb1593fe26d9136bd6c5557adb00fbc1e32e930a6a90c2cfc31ba17d81b2a",
+     "tokens": 401
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.LibconfigOverlay::Tables(System.String)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "215ee39aaf3659237117bd8b2ddf1d8eaf9b33e6be6827cab608bd1c8ec84ede",
+     "tokens": 302
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.SpinelEngine/<Boot>d__32::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b3beac8b5960708f75a5cc2f95bbe15a6489490aa3f6910d3901701c38b0183f",
+     "tokens": 1141
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.SpinelEngine::get_Instance()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6993de9650307c033271f9c33a34f0b0e8566836fccacd860bff208bc7a9f510",
+     "tokens": 15
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.Stage::MapToScreen([UnityEngine.CoreModule.dll]UnityEngine.Vector2)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b2befead6397291fecbac206b0637995528d49aace85619cc509849a00714352",
+     "tokens": 63
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.Stage::ScreenToHost([UnityEngine.CoreModule.dll]UnityEngine.Vector2)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "34b4ede0330ebf08b5da8d099349b48b47f5d62452bdac55107bf3c9dee0cb87",
+     "tokens": 168
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.Stage::ScreenToMap([UnityEngine.CoreModule.dll]UnityEngine.Vector2)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6d04572c8620bd4d420399e26845b0a89fdbdf3afc89b68c32e145f5fa3cde7c",
+     "tokens": 48
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.Web.WebPage/<LoadFirstLogin>d__6::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9ea558f5216e2a3d62c518f3fe4bcde23fe5550762cd84d5127e1b226cb4024e",
+     "tokens": 887
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.Unity.dll]Spinel.Engine.Unity.Web.WebShell::StateOf([Spinel.Engine.Unity.dll]Spinel.Engine.Unity.SpinelEngine)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "cad676a7553a0fb77885b8643fcaba081e178c95f4326e50b1a2b268e1064778",
+     "tokens": 54
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.dll]Spinel.Engine.CancelRouter::Cancel()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c77272405f364979de23f9036f66f361d59cfcc2f4635bd833fe8c7d3410a4f2",
+     "tokens": 360
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.dll]Spinel.Engine.CharacterData/<>c__DisplayClass17_0/<<CharacterInfos>b__0>d::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5593ca9dac394c98c49a8ebe0f18f1b5618c38b7c6d1826db04c9ba1fc769665",
+     "tokens": 936
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.dll]Spinel.Engine.GameAssets/<<ItemInfos>b__75_0>d::MoveNext()",
+   "sources": [
+    "manual-dig-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "82bae84793e40d79dd760b2b9f890b45bf934637e4ca53b872c0f7eb0ab81fb2",
+     "tokens": 450
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.dll]Spinel.Engine.GameAssets/<ReadTable>d__74::MoveNext()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0c6dc508ae39ef4bbfc2a93571036794565bcdfe0295723184a50f5f71b2db31",
+     "tokens": 990
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Engine.dll]Spinel.Engine.LibconfigSource/<Open>d__10::MoveNext()",
+   "sources": [
+    "manual-dig-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "33e68714445b25475e9960d7894a8a069ad2015e25792da0a99957ed2fa8673b",
+     "tokens": 633
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Cp874::BuildHigh()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a792c91aa8c4969f80c885c3525bf613cfd9b6593269bd2fe58b73d997a50311",
+     "tokens": 66
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Cp874::Decode(System.Byte[],System.Int32,System.Int32)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "aefe91a1341344edb5d016c565f639c7d14c73e1b4932c96269175976c9b4a6e",
+     "tokens": 93
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Cp874::Encode(System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c32f14f039744e656fdb91b1bc7b846cbc36b7a71ddbcd58b1d0e727ab5eed56",
+     "tokens": 275
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Libconfig::.cctor()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4217285b159c0697e42f3fb6c9863998bf15f060283e22e016cc6ee37c7c6031",
+     "tokens": 120
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Libconfig::ParseIndex(System.Byte[],System.Int64)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f3855163203ccfd039860775116b17bce01a44ef63181003353d60a9b6a55e7e",
+     "tokens": 396
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Libconfig::TableBytesInPlace([mscorlib.dll]System.ArraySegment`1<System.Byte>)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b86a4ad02892e6dc8142ea89cd39d2414a04d759c9cdc983f3e675118cbb386b",
+     "tokens": 253
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Formats.dll]Spinel.Formats.Xtea::DecryptInPlace(System.Byte[],System.Int32,System.Int32,System.UInt32[])",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "74c9c215a5ba6ddc7e0733ae7c0e6a061c40376fb9298a4c76cb2a9bd4a480d3",
+     "tokens": 288
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill/<>c__DisplayClass67_0::<Message>b__0()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6fb9c8f7684d4452fab59b9642e6f52584f4b90313256a004ddc40ec825250c5",
+     "tokens": 181
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill::.ctor([Spinel.Game.dll]Spinel.Game.Play.IAutoDrillHost,[Spinel.Game.dll]Spinel.Game.Play.AutoDrillPathFinder)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ebcaccdc21f2a78e567c72c45604e08d7f5d3b29af4d964fa274225b36c1bfb1",
+     "tokens": 32
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill::End()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a85e2e18f96a7bb97d7e996922e854e510908134ae06b8b462ce77f48bfdc4c8",
+     "tokens": 158
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill::Handle(System.Int32,System.Int32)",
+   "sources": [
+    "manual-dig-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "dceb9ec0400e0cc3ac8b38362e352824892d8a80ccbfef08750175d0a466c0c2",
+     "tokens": 686
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill::PickSpot()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4344c4788606f244b8ff6a638f1f206c00ac4ec269ab92e636af02087685c062",
+     "tokens": 347
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill::Tick(System.Int32)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0c52cf677d346a05b75f24355b5256e863f2b1cb2c39ba5aa0ffde0a1f8780f0",
+     "tokens": 1791
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AutoDrill::ToCooldown()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7103ed2661d41fc109f974ce2bd469293538da9dc9a450f5bae9ce539c6dd0b6",
+     "tokens": 169
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AvatarFsm::Free(System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "05403d750c4be6e8be1f4e338d7bd4aa1ece944730deeaacadf46231cf4affd1",
+     "tokens": 4
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.AvatarStats::Part(System.Int32)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d71e189b2c37605ce76e186433ce849547ec826fdcc1e41b8cc8f04d90eb90f1",
+     "tokens": 50
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.BoxesModel::PotionChecks([Spinel.Game.dll]Spinel.Game.Play.ItemInfo)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6c580454a5bd04b26d625c21c7f7d10ab93f9b1ccb259dac7ca437436cef1471",
+     "tokens": 225
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatData/<Load>d__15::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6617e4ff6b89ec2eadaadcea483dc20d62c6a52a4422775ef51b7bd33d71de75",
+     "tokens": 723
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatData::StatLevel([mscorlib.dll]System.Collections.Generic.IReadOnlyList`1<System.Int32>,System.Int32)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2a9babe2b6fab08b270e1bfc0caf270376a4e18a0646042f3c7275480635160f",
+     "tokens": 158
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::ApplyMessage([Spinel.Net.dll]Spinel.Net.Game.CombatMessage)",
+   "sources": [
+    "gun-combat-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f8e18455f1799ac1cb80232ef9312045f07380a90f64780359f5a967372070c7",
+     "tokens": 1042
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::AttackCancelled()",
+   "sources": [
+    "assisted-input-control.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b753b112190697ab1975017fcc00286d3323baf10422abfb4dbe80dc555f3805",
+     "tokens": 16
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::Begin([Spinel.Net.dll]Spinel.Net.Game.Strike)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7ebab5ec763e1e4d5ee3b9066eba3d03269ade5d1c5841957f86a5458fb62309",
+     "tokens": 1600
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::Faint(System.Int32,System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "66a2c1dce87ebeddea6d9389264f1ffbf9fed85488e40550cf64272d76e34f61",
+     "tokens": 465
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::LastAttackerOf(System.Int32)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d06c0cc313810ef3d23e81f7225a957143d267dd570a322b476d83fddf632e97",
+     "tokens": 49
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::OnFsmLeft(System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4d2f7b24bbda8cb15eb6d95786e02c954adb7e0775ee1e841205dfcb01053dab",
+     "tokens": 22
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::SetDeathRecord(System.Int32,System.Int32,System.Double,System.Double,System.Int32,System.Int32)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8482ee8f6c96640a4413bdbc233cdb13d1a7842cf243b0375818b0349291fd35",
+     "tokens": 128
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::TryGetLastAttacker(System.Int32,System.Int32&)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4aad0a2d03a60f29b03b60d917d6d659912228bbca7c59309c67c91bce37a199",
+     "tokens": 38
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::UnhandledClick(System.Int32)",
+   "sources": [
+    "assisted-input-control.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8241f76fa5c9924fa5b34246bbf800fe800dfe86d14b2e386406bf52b0ee1fe5",
+     "tokens": 8
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::UpdateMonsterHp(System.Int32,System.Double)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "01a92038dfd551b12768a8a71ecd7af42ff6a73b4ef9afddf7b4c22943085b64",
+     "tokens": 154
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.CombatModel::WorldClick(System.Int32,[mscorlib.dll]System.Nullable`1<[Spinel.Game.dll]Spinel.Game.Play.PlayActor>)",
+   "sources": [
+    "assisted-input-control.md",
+    "gun-combat-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5ff523604ab2a01ff0c90418790f58830771cd1da11565fa1889987091a27924",
+     "tokens": 272
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DigAssist::DigKey(System.Boolean,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c4dc124759dfb79b025dfe92149d0ee6c3042b01909729599b4292fa83bb124a",
+     "tokens": 180
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DigAssist::get_Active()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1288e7776b320b99ed3c0b170c1a862c984a7e3052d7f9e524bafaa126bac15e",
+     "tokens": 5
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DigAssist::get_Busy()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0628085eb92c561d6fd35ab48ec36a1ed99e2ab0d6585ca5b78844cf8ee3c5df",
+     "tokens": 54
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DigAssist::get_Running()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c35072b51d42ad9fc99394c5594de38f71c13a141bf1f94e6e6689e767fe6553",
+     "tokens": 7
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DisguiseFeature::Valid(System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "05403d750c4be6e8be1f4e338d7bd4aa1ece944730deeaacadf46231cf4affd1",
+     "tokens": 4
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillData/<LoadAsync>d__8::MoveNext()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3783438e07ca598d140d48b688cc21c91a55fbb5ff5ecd930ba5be0e133e60f9",
+     "tokens": 625
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillData::.cctor()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2fc98dfbdc001a5f9c8708f4daa76d4c9c15d06095a932dc788974f25426fa94",
+     "tokens": 64
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillData::Build([mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.String,[Spinel.Formats.dll]Spinel.Formats.Table>)",
+   "sources": [
+    "manual-dig-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "98c1219f7ccfc87a2d6ebe94a28e822da80acf7b0ae9660a2490543aa951be86",
+     "tokens": 1926
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillData::Long([mscorlib.dll]System.Collections.Generic.Dictionary`2<System.String,System.String>,System.String)",
+   "sources": [
+    "manual-dig-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e79e42a6b1db94302a4ab30780d2e9908de251ef85df26709cdf22c52a4df2a5",
+     "tokens": 74
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__1([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "bb5ed1df7cb58e8884be72459fcdddca8b3ce953c4e7b8d557ac2c3c21ee605a",
+     "tokens": 10
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__11([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b3cf4dc367181e38f1a1019d549756d9ee050e9437564bbad40ad66c07c489e3",
+     "tokens": 11
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__2([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "671fd6a5a80cc633af26e9b91b54ab1a482a315ffe914cf47309702b9a519ad3",
+     "tokens": 10
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__3([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3e5b9f9837a0a71cda832fd93658b77402bde87eb06080e58a41d7da2209edfc",
+     "tokens": 5
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__4([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e8a54e54a33effe8d5355d8b44d66c393e976e46746882e8812e751c123db60c",
+     "tokens": 9
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__5([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "27236e88baf094e66f1c207bbf438bd9f811201e9e94a03a2b720367840eca39",
+     "tokens": 11
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__6([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e28d4b303cfc80124f1c8010ccb2f8679b5b5fae18be9db7093a748336b71b5e",
+     "tokens": 26
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__7([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d34639538c7c84f2d55f218a10bfd775e07a5b2805ab11c45eb16520570ad41e",
+     "tokens": 10
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__8([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "65b1fbf9d09f38d52f1449df9cb66d36ac984bb6ad05ebe6aa965bda7e847377",
+     "tokens": 15
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/<>c__DisplayClass122_0::<.ctor>b__9([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "15f12041207a31ef264e3da78227356a1b53948e5311d233a642d5f8fc95a817",
+     "tokens": 15
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/AutoHost::Finished()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "68e192c19cfed03601c040e66f2bd11bd6693d59234151b1cfaa1a982c712b86",
+     "tokens": 13
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/AutoHost::RequestSpot(System.Int32,System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "25eed2e72bed32be277679084435a34ac92b11d97ec3bfaca4eebfe934813100",
+     "tokens": 98
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/AutoHost::Send(System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7ac8ba2bfdcdcbcbe26887547558da43d130831e64d9aad15cd1444c23b49732",
+     "tokens": 76
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature/AutoHost::SetButton(System.Int32)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a56239b28969756b5560157a64115f7ef3812b44501e825c78506cb2b3bd14a4",
+     "tokens": 7
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession,[Spinel.Game.dll]Spinel.Game.Play.DrillData,[Spinel.Game.dll]Spinel.Game.Play.AvatarFsm,[mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.Int64,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo>,[mscorlib.dll]System.Func`1<System.Int32>,[mscorlib.dll]System.Func`1<[Spinel.Game.dll]Spinel.Game.World.ZoneInfo>,[mscorlib.dll]System.Func`2<System.Int32,System.Int32>,[mscorlib.dll]System.Func`1<System.Int32>,[mscorlib.dll]System.Random)",
+   "sources": [
+    "assisted-input-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "cb26966096634fe335284f405d353b528c18b19f839d64865f2a7484a0af5245",
+     "tokens": 1705
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::AddGauge(System.Int32)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "23b8e9c028bbf253891ef3dd20630457a18f92224410392b6ad2b703024f3449",
+     "tokens": 22
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::AvatarUpdate(System.Int32,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9d5212cc1c9ba0fb77d1926ccb596893cdda829d739b4b941f571d9f0bdf66e7",
+     "tokens": 689
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Begin()",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "312e26599b814e496b67af9ad5f24919184653f2d313d77424a6373ae38c65e0",
+     "tokens": 626
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Cancel()",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e9f3a28b4aa66c6642e3b16fd8d3ea30bfee6e47509f602472ae9be29c3609a3",
+     "tokens": 141
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::CancelDrilling()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6d32603ea42cd61f009cce1484a4bdc4dbf042c8537cc55d16d6365f8b1633a0",
+     "tokens": 33
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::DecayDepth()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "465a2de74e4e4ce9d2618c449f705bcca1bc29e68f0be6f5a5963b78b5fe0fe2",
+     "tokens": 20
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::EndCheck()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a65cb10f3b7988dd9fb073ceacfc4c67d6d586b520d43bb7482bb705caa4c9b3",
+     "tokens": 68
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::EndDig(System.Boolean)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "69d65f59b9c49c7174bbf4568290f271579ee7018d133eaeeec2abaac54024c3",
+     "tokens": 175
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::EndLocal()",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ad56d342a40534ee323c8921df599cf8643b36dcab0eabf3bd7c45733af78667",
+     "tokens": 105
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::ItemThrown(System.Int32,System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4360615cdf2f609fad6b7cac4e73c0261fc6ab58220a8bd99f760f52b3edd35f",
+     "tokens": 111
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::OnAutoSpotRefused(System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e053113273c75a67b4dd510527fc034e5a9abba0beae7f50c24ae006e7c525be",
+     "tokens": 122
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::OnAutoSpotTaken()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "27f508df1b8a20f216055fcd7f7a5079f085b99cb42fb45a98606dce4ef4b1ff",
+     "tokens": 26
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::OnFsm(System.Int32)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "49b2be5808e37bda63d4871d78d7e9a3f9ab3e3b30293233df135439f6f1bb9a",
+     "tokens": 310
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::OnSpot([Spinel.Net.dll]Spinel.Net.Game.DrillSpot)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4ef2b76dc3bfcc0389b49e9da2dd9aaded74fad57225df22cb4270db8a29cd2c",
+     "tokens": 102
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Preconditions()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2e3cff73c41635f05c047d16b31d14ab71302d7c4df1ce00a1d01616ff419940",
+     "tokens": 499
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Press([Spinel.Game.dll]Spinel.Game.World.Point,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9c5ee9839f3e06744f411f6024030af9e6fbdedc616adefb02b458dcd14acd56",
+     "tokens": 169
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Release()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f1a3c824164fe61e9ca4e6659cd67cee98d10e1875ed8777fe15dd9b04a8ce55",
+     "tokens": 4
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::ResetDriller([Spinel.Net.dll]Spinel.Net.Game.InvItem)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "adb4a0f7cbb47f44e179a76147822cb170cb4ad997524f0ca623d19b95dc8386",
+     "tokens": 74
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Result(System.Int32,System.Int32,System.Int64,System.Int32)",
+   "sources": [
+    "assisted-input-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f49b634c940f3ec26e30f0f13626cfe0f8c90bf6a27f49c8a7294e96ea6799a9",
+     "tokens": 1222
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::RightClick()",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c38feec6e30729a925259950b9222cc2db303118d3b29f4d73a5e793cafe33d0",
+     "tokens": 84
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Scoop(System.Int32,System.Single)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ef22090907c81df19e29aa77f665026b9e417e9d0d5f1a74e78d629290d50738",
+     "tokens": 32
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::StartAuto()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3fbd71835813b59a2ca61617fcfca661f97898fedbad15381bba7e56ca21602d",
+     "tokens": 40
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Step(System.Int32)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6bd0fec6eccd645e6e39571c0d984eeb8d7c521348a45a434b97b39ab9abd4a6",
+     "tokens": 611
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::Update(System.Double,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c67357e71cf8ac1915b752f6b42c7578461ed8efa49faa0d5758a51c26e42563",
+     "tokens": 24
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::get_MarkerPercent()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "cd0bbd2bd3373606fb8998991078cb4ba49844bc6d06a9243018b86acbbfd8e3",
+     "tokens": 19
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::get_ProgressPercent()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6adf0469b9c7f488e2012e14138b87562ea06380ca8f96309626a4a540ed6bab",
+     "tokens": 7
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.DrillFeature::get_WornDrill()",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d96dcd34ab4ad13e8f72e5f66bf572c0e51b603178b077af93a5b17f7709f378",
+     "tokens": 320
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.Classes.ESAFastLoad::Init([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaReader,System.Int32,System.Int32)",
+   "sources": [
+    "gun-combat-control.md",
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f7132a54f4d7bc91df6c4409cc8186208bba0eb8a295f422abadde87c7deada9",
+     "tokens": 352
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.Classes.ESAFastLoad::InitState([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaReader,System.Int32)",
+   "sources": [
+    "gun-combat-control.md",
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "17c8374b2e093114ceb8155db94e713da32edb2025eaace7a2fd322e36f70d83",
+     "tokens": 88
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.Classes.ESAFastLoad::OnEnd()",
+   "sources": [
+    "gun-combat-control.md",
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "adaea4802660ac6cefc51b037b23805c103881cc7c56fce42464666a88984889",
+     "tokens": 74
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass::OnMessage(System.Int32,[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaReader)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "47df83d7ff55d856ed9d43b7efe5c05d09461badabc68816a3d3d9307bda64d7",
+     "tokens": 41
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass::RunEnd()",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "06c27ab969ee15c2e685b878eef04a19d5f888f0bdc504bd0905fa33150793a3",
+     "tokens": 32
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRegistry/<>c::<R17>b__18_17()",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e3a922b427aa5818851eb02583e1d6083772990ea9bcfc3eac58a5a779f20d0e",
+     "tokens": 18
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRegistry::.cctor()",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fe076ebda9c1a0757c94784d8665c9eb670935419d06d1d1b243324e23a54744",
+     "tokens": 109
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRegistry::Create(System.Int32,System.Int32)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "cd0949ae9351b863b21a2821e7e478c7461fa73c97aff43bd35d7257789e5273",
+     "tokens": 101
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRegistry::R17([mscorlib.dll]System.Collections.Generic.Dictionary`2<System.Int32,[mscorlib.dll]System.Func`1<[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass>>)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "84cbddce78cc729e1cc000c72adc25f2d217ec993123be65c98b7fbb791cbec7",
+     "tokens": 844
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner/<>c__DisplayClass60_0::<EndState>b__0([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "999c29da09464261dbde680d4208b64675bde1fec4f502ead2e4292bd25b9283",
+     "tokens": 16
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner/<>c__DisplayClass60_0::<EndState>b__1([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "999c29da09464261dbde680d4208b64675bde1fec4f502ead2e4292bd25b9283",
+     "tokens": 16
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::AttachState(System.Int32,[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "567cdc963aa44c13fff2e8f1f978369a6082f0a0f4b283e8935e3816971e4829",
+     "tokens": 181
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::BeginState([Spinel.Net.dll]Spinel.Net.Game.EsaHeader,System.Int32)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2ab8c25916b0a35da9ef06c194fe85789a0ec5ee9d1096846bb74c1dc800d59b",
+     "tokens": 424
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::EndNow([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "82a82701055b19ee7601f7558b86a69ab68fdf1392e56c020fd70b89018db13b",
+     "tokens": 222
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::EndState(System.Int32,System.Boolean)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c884f80777fc385b8f1148064142cfba5f4d685d741a74f625e4918ae5195b9a",
+     "tokens": 105
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::InstancePacket(System.Int32,System.Byte[])",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "dbb9d8ac8ade083c72ffb46d15163b99b11ee01b03df062e90dd3b503f03bd6a",
+     "tokens": 47
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::Message(System.Int32,System.Int32,System.Byte[])",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0f755e6a171b249f5470cf086256696bd642d57cae5a40ecbccc0f1e967509e8",
+     "tokens": 325
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::OnAppear(System.Int32,[Spinel.Net.dll]Spinel.Net.Game.AppearMessage)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a2be50905035aceda1bcf5bdb22eafcae823e9ef666ada94eb30c14fd0364394",
+     "tokens": 100
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::OnFaint(System.Int32,System.Int64)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d11c1446c8ff052518a0a920281dbf67913512061a58b26dced4e921ae7bb2e8",
+     "tokens": 164
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::OnOwnerGone(System.Int32)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "45585bbe2fe66ae088508ac4d0b0a477b4645e13745421c040a2c7564e93a534",
+     "tokens": 251
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::OnStateEnd(System.Int32,System.Int32)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2aec12670941324ff4787664d147106c43803fc97727b4afc4be4ddf831e5b42",
+     "tokens": 147
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::OnZone()",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "841d5fcbe5fa68446bde1f83041a00e4fdb079c71839da5680f1160c78e6ae32",
+     "tokens": 276
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::Play([Spinel.Net.dll]Spinel.Net.Game.EsaHeader,[Spinel.Game.dll]Spinel.Game.Play.ClaimedSkill)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0277af98ce4c52c633490b42d00976d8ac65b42a577913d260996f485d1e3e6f",
+     "tokens": 477
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::RunRemovals()",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2a2ef44cc8c35bbb6666469968ee94c2d7af66935425b21d472b8a58882bf597",
+     "tokens": 305
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::Start([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaClass,[Spinel.Net.dll]Spinel.Net.Game.EsaHeader,[Spinel.Game.dll]Spinel.Game.Play.ClaimedSkill)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fd5bd9a7484acd28d968e523a64bfe65ad58e8eba2a7f832a1d63ab699ae8c14",
+     "tokens": 400
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner::StartStates(System.Int32,[mscorlib.dll]System.Collections.Generic.IReadOnlyList`1<[Spinel.Net.dll]Spinel.Net.Game.EsEntry>)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8ae1f26bb83b87b4a2852eb5e09c2eaa9da068c8de07dcf793e537a121c1814b",
+     "tokens": 704
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GuildFeature::Num(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunData::Build([mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.String,[Spinel.Formats.dll]Spinel.Formats.Table>)",
+   "sources": [
+    "gun-combat-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7b63423282607c9656375c47cf4e36afbae2ed3560e4f8cffb7d39230fd5c142",
+     "tokens": 410
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunData::Long([mscorlib.dll]System.Collections.Generic.Dictionary`2<System.String,System.String>,System.String)",
+   "sources": [
+    "gun-combat-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8707b7f04a69a45a702f128aa8bb0103ccefa9a6c778313b8a2ee85c000d8353",
+     "tokens": 56
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing/<>c__DisplayClass151_0::<.ctor>b__2(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4d40c0c969fcf0a985ceb82e0c5289118cc88b9a3878b0623b5730fea242d754",
+     "tokens": 8
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing/<>c__DisplayClass151_0::<.ctor>b__5(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7b1eaca2888a393457b48b59bcae0c0a15eafb8a9dfe7633ebb3565538e6eb5a",
+     "tokens": 106
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing/<>c__DisplayClass151_0::<.ctor>b__6(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2655813aafcddc37a803b4a1762432e3feb31669dab6e558d8579a0e1ef20db6",
+     "tokens": 12
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing/<>c__DisplayClass151_0::<.ctor>b__7(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2655813aafcddc37a803b4a1762432e3feb31669dab6e558d8579a0e1ef20db6",
+     "tokens": 12
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::.cctor()",
+   "sources": [
+    "gun-combat-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "bb74bb864b4d4f8846d53c8ada3c7a932a3bce58a093370bcc72fe694adb1e7f",
+     "tokens": 29
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession,[Spinel.Game.dll]Spinel.Game.Play.GunData,[mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.Int64,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo>,[mscorlib.dll]System.Func`1<[Spinel.Game.dll]Spinel.Game.World.ZoneInfo>,[mscorlib.dll]System.Random,[mscorlib.dll]System.Func`2<System.Int32,System.Int32>)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f303fa87632dcc1c6f587bf7f32cd5d4a38af020900f664c91e907a742ea2d31",
+     "tokens": 2060
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::CampEnter()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1f23d4dde7f326b61e5c89fe64706fd5d2e730a9410ab5381131b5aeb2b3d0dd",
+     "tokens": 28
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Click(System.Int32,System.Int32)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "805ae345ed03827431637c2fa0ca4b53b3ef60df51ea13f906d84cdb76135c5a",
+     "tokens": 13
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::DrillBegin()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2dd4eb9b206b7082e217e22d35942c0fc49e7a52a80a1d10aad8dbaf971a46f6",
+     "tokens": 19
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Fired()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "13d452413da93537db42d75d582916f43d37c8945629fd1ec2b112e4a3780c76",
+     "tokens": 67
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::GunOff()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2979a62ef49d6eca3c425787c2f7a6a6878e4e88fc8e0420ed954c712d6417e9",
+     "tokens": 28
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::GunOn()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fcfb70506f52559dc92fbefbf63cb8597f36b5870a404182e65c2ada2699e35c",
+     "tokens": 298
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Hit()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6e3d8ed28bcc88ad8663759058fc58e7d368997f78b3ff8c9bf99779c4b62889",
+     "tokens": 12
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::HoldsGun([Spinel.Net.dll]Spinel.Net.Game.Inventory,[mscorlib.dll]System.Func`2<System.Int64,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo>)",
+   "sources": [
+    "README.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "550e7ffefd6d1b4b7b8ac3991f8816a22ce606016bccb75ee4ba09a4028e5321",
+     "tokens": 293
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::LearnedAtLogin(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "009547fdc88de2d898aab83f9d9a62d9dc27e6a602e5be0686360811586e8069",
+     "tokens": 121
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::MayShow()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7433c141a1ef0edee080c78ab866614b12f4110b6cb06a04e4d6d99291ba645f",
+     "tokens": 114
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::MyAppear(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "54ef817e4e6a3837bf2b302feb1b3419df03f4147507ee4d2e91ec6a1649fcc4",
+     "tokens": 262
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::OnKey(System.UInt16)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0784a0d313b1a48e5ae5981859ed0a69ba85032704ef0ee39409a68b67af066f",
+     "tokens": 12
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::OnLearned(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "50587cdf563a074578d0fde171c75fd11ef97f2002ceeadca5ec2cf9a9827385",
+     "tokens": 98
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Reset()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "42db7fd8125ac1572ae71d968fa2d6438d61c808bba5c709516ea3f6f608f52e",
+     "tokens": 10
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::SetLoadSpeed(System.Double)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e3ee9e2b54310913175526d7f06db41a41bfb12bd165cdf6be327f8cc09a54a8",
+     "tokens": 5
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Shoot(System.Int32,System.Int32)",
+   "sources": [
+    "README.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1cf431c3c49aea5a23089aed8ef88b95f5514823b465b2cff306ff3d48ae8fb3",
+     "tokens": 187
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::ShotAnswered()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f679b2f5b8345b6d65510ce13c19d6d3abde7a7370f793091ac384532c862a9b",
+     "tokens": 13
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Special(System.Byte[],System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f0fac60b731e87f25516eb04681bdae1be65faf8c658c53d78fe3d75f1fcbdd0",
+     "tokens": 181
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::SpecialOn([Spinel.Net.dll]Spinel.Net.Game.InvItem)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f006d8a3594bd562672cd8e49a28f7475a0297fc4d36f82489be7f291b160956",
+     "tokens": 154
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::TakeBunch()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b221e971ae427ca25946aaf31e93fc1a65b16a1f6493f206dc938eec91bf231b",
+     "tokens": 213
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Tick(System.Int32,System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5ecd74822b64107f0c589a1f7aee00a38e1da4b57fcd08fcb32e8bb338807cee",
+     "tokens": 195
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Unload(System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4786464bebb7c316526b0c194da5a2db6f8370c58383bde00db16480d969b4b2",
+     "tokens": 33
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Update(System.Int32,System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a3285dc0e4bc0f9b665e9c142f7235ffe188b5a31e402d7bf44b561d5471d218",
+     "tokens": 137
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::Wear(System.Int64,System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2901b473a02ac0356741c81ea7f4974b6c556c7ff0a67a6069df2db636739d00",
+     "tokens": 258
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.GunFlowing::get_GunWorn()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "35f8274556522cf9261384ac2459a98e5864c217a501f0fe5870e6058081cec1",
+     "tokens": 52
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.HotkeyMap::MakeCatalog()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fb61de8dbef42a8123194fb7a6418e9e26cfdcc8acb181f604b48a820df54786",
+     "tokens": 1783
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.HotkeyMap::Of(System.String)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e6f00cbe16f7257f9d72ad651fac461902819d72540652654cb9f1b9c06b520a",
+     "tokens": 52
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.HotkeyMap::Rebuild()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6deb512533fa1f3cc92ed90071990eeaa62762ec4aec6f6328fa32b839fe4e1d",
+     "tokens": 2064
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemData::ItemFlags([Spinel.Net.dll]Spinel.Net.Game.InvItem,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "84cc58f39b0139cc69913bb580cbb9042e6dad88caa747cad05a1853e7da7ca2",
+     "tokens": 215
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemIndex/<ReadAsync>d__9::MoveNext()",
+   "sources": [
+    "manual-dig-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "46bb77b9fcafe4ad6065a9e9291413cbdbc4ada6f26d2c6f4474b8ad1999875d",
+     "tokens": 2375
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemIndex::Number([mscorlib.dll]System.IO.BinaryReader)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ab9208c52084cff85665683689b2d76701a1cbebee67cf6d77c22d99de7d6887",
+     "tokens": 62
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemIndex::PathFor(System.String)",
+   "sources": [
+    "manual-dig-control.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f7aaeb1c7bc310a0747edf2137d69bfa7b9b12154c325d538f141a0484fe2144",
+     "tokens": 20
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemWeight::Carried([mscorlib.dll]System.Collections.Generic.IEnumerable`1<[Spinel.Net.dll]Spinel.Net.Game.InvItem>,[mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.Int64,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo>)",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a395da6f12bbb4ad1c4d595769aa217fcacf386498ee0d7bcccfaaddbd3a8726",
+     "tokens": 387
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemWeight::Heavy(System.Int64,System.Double,System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "845e3e5cc9ed3fd68def9c90cf7f8d6a6866bd39cc84ffa13cdfe5948752930e",
+     "tokens": 26
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemWeight::Of([Spinel.Net.dll]Spinel.Net.Game.InvItem,[mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.Int64,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo>)",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "88984c5595852bd29335bdbc2034360658a924e053eb5917f3da2f4b32e334d3",
+     "tokens": 108
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemsModel/<>c__DisplayClass40_0::<.ctor>b__0([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "106c92c2cc4b2ed3e1568a91402c2f091d54218833213afcf12fff2779b6f487",
+     "tokens": 355
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemsModel::.cctor()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b219aadf2872dced1ad61b3a33a26ec4961988d0e24f1dbc9c1808edea010cff",
+     "tokens": 62
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemsModel::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession,[mscorlib.dll]System.Collections.Generic.IReadOnlyDictionary`2<System.Int64,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo>,[mscorlib.dll]System.Func`1<System.Int32>,[mscorlib.dll]System.Func`1<System.Boolean>)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ae791f66966807998b7b7ddbdcb8dbe8a90e70caa767de3888b4f05b845f8585",
+     "tokens": 1486
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemsModel::Activate([Spinel.Net.dll]Spinel.Net.Game.InvItem,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "746c259515d10a0aeb8ac67d9ef8d4ce313f451f0d52f015104fde4fc30128e1",
+     "tokens": 655
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ItemsModel::CanUse([Spinel.Net.dll]Spinel.Net.Game.InvItem,[Spinel.Game.dll]Spinel.Game.Play.ItemInfo)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c91f86a503ddb6f99ffeebf98133c0b0d1f8acdfa2b64d09f3f00463c40fe9cf",
+     "tokens": 114
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.KeyBindings::Matches([Spinel.Game.dll]Spinel.Game.Play.KeyBinding,[Spinel.Game.dll]Spinel.Game.Play.KeyStroke)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "75823632e185f5340e7a0814ed8b5fae515c26d91b5176a7c7156e13d5bf829a",
+     "tokens": 62
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LevelTables::MonsterField(System.Double,System.Int32)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5633d03ef29dff1722d0b983233c91917a23ff22ae89d99fa42262172a79b48c",
+     "tokens": 80
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LevelTables::MonsterMaxHp(System.Double)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9a0fd55560a4e68f6f2ef8bd4496d2da8ff44faebbfe5bcbdb98efd7bb3113da",
+     "tokens": 79
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LevelTables::PlayerMax([Spinel.Net.dll]Spinel.Net.Game.CharacterStatus,[mscorlib.dll]System.Collections.Generic.IReadOnlyList`1<System.Int32>)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "da2666bed1a7460b5cf75108dbdb6e77fc8847d442cbcd550678a6a4271610b8",
+     "tokens": 29
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LevelTables::PlayerTotal([Spinel.Net.dll]Spinel.Net.Game.CharacterStatus,[mscorlib.dll]System.Collections.Generic.IReadOnlyList`1<System.Int32>,System.Int32)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2289638853a9db304491002bcf222cd5bc351db91245fba1e259f27cf27e6d43",
+     "tokens": 74
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LevelTables::StatBase([mscorlib.dll]System.Collections.Generic.IReadOnlyList`1<System.Int32>,System.Int32)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b2e23c8f6a07bfaf7092755beb022636a7d541cb81fcbe6325e575768192e609",
+     "tokens": 88
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LibconfigIndex::Int([mscorlib.dll]System.IO.BinaryReader)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "056a1d90b76693c47fda2a0fbd93314862c0d153d6c39a7a3c45d1156ad85c7a",
+     "tokens": 34
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LibconfigIndex::OverlayKey([mscorlib.dll]System.Collections.Generic.IEnumerable`1<[Spinel.Formats.dll]Spinel.Formats.Table>,[mscorlib.dll]System.Collections.Generic.IReadOnlyCollection`1<System.UInt64>)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b985970dd34c32bf8c2879275d5ab07418be5483bb56252c44be09c273366986",
+     "tokens": 1245
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LibconfigIndex::ReadStamp(System.Byte[])",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "642046381c8b89a27ff96567ec18cf3ee6f52ca420b15bd159df9322ab19b521",
+     "tokens": 153
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LibconfigIndex::Refusal(System.Byte[],System.UInt64,[mscorlib.dll]System.Collections.Generic.IEnumerable`1<[Spinel.Formats.dll]Spinel.Formats.Table>,[Spinel.Game.dll]Spinel.Game.Play.LibconfigIndex/Stamp&)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "60b081fc6a5e4f98fbf836ae5623f16af31ba0d3102205f4b5b9b4727eb96e86",
+     "tokens": 64
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.LibconfigIndex::Var([mscorlib.dll]System.IO.BinaryReader)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6d77732e03047c5267d593504158e68bd9afa2f48aac524fc3ff5399745f5e35",
+     "tokens": 242
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.MonsterTargets::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession,[mscorlib.dll]System.Func`2<System.String,System.Boolean>,[mscorlib.dll]System.Action`2<System.Int32,[mscorlib.dll]System.Action>)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "aa5220d5f500c4490eb6ad0bd405d8d579b0ced0507be3adace0f134bbb3132b",
+     "tokens": 571
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.MonsterTargets::ApplyAppearTarget([Spinel.Net.dll]Spinel.Net.Game.AppearMessage)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fe5670a98967dbe181a0c474c966b08957367e5ed6ea3700e8ad74e5017b900d",
+     "tokens": 151
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.MonsterTargets::Destroy(System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3b7440820cee9cec92ce05700ec857e0dd58d7e5778ac4227b3c44aed26ed81e",
+     "tokens": 304
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.MonsterTargets::OnAppear([Spinel.Net.dll]Spinel.Net.Game.AppearMessage)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "219286a24017438a30eef2f2eba77fb16055859a656bfc75fcfa383528f6976f",
+     "tokens": 93
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.MonsterTargets::Register([Spinel.Net.dll]Spinel.Net.Game.AppearMessage)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "92dbdccdfd23d81a956c5eef40fa33ef8dd9bf38b3274343dd2d47a40fb14f3a",
+     "tokens": 143
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.MyViewWindow::get_OkCancelShown()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1288e7776b320b99ed3c0b170c1a862c984a7e3052d7f9e524bafaa126bac15e",
+     "tokens": 5
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.PartyFeature::Num(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ProfileFeature::D(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.QuickSlots::UseItem(System.Int64)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "24b7c1be84c7d60a5587199fbc583e1810ac6c6fe5b2ca6acc6589e6d6b78626",
+     "tokens": 660
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.RarityScrollBandText::N(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.RunToggle::Flip()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "49b3273b7fb57215147b01a111c8a831e36353290a3f2002acf2660ba9bebf0d",
+     "tokens": 43
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.RunToggle::get_Mode()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e0ca1ab1a8a510db77d322ee1da12e83d11d3a2ed137230a19161966c45eff0f",
+     "tokens": 39
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.ShopWindowModel::Text(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.SkillsApi::ClaimSkillHits([Spinel.Game.dll]Spinel.Game.Play.ClaimedSkill)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f76d52b876ad9968bdb733176e0f26febb99963a4deddf055cb42fec69e69fcd",
+     "tokens": 88
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.TartarosFeature::D(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.Play.TopUpFeature::IsWaiting([Spinel.Game.dll]Spinel.Game.Play.TopUpOrderState)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "05403d750c4be6e8be1f4e338d7bd4aa1ece944730deeaacadf46231cf4affd1",
+     "tokens": 4
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.ObjectPick::Aimable(System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1c6adec4962a2ba8a103cd65831295e15b0b0f7d0b3cd66319b3fe71a5850fa8",
+     "tokens": 8
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.ObjectPick::Pick([mscorlib.dll]System.Collections.Generic.IEnumerable`1<[Spinel.Game.dll]Spinel.Game.World.WorldActor>,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fc29b1fe12efdf07bc3648ad4e399705a951dee5ac8a601b0ceba9a6f5d5eda0",
+     "tokens": 441
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.ObjectPick::TargetingMask(System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "80645a140df23569bd9fa7576a083e43c824c3171698dc8205c9fbf5e4b33358",
+     "tokens": 10
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.WorldActor::HitTest(System.Double,System.Double)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1ceeeb5d38c8d03a3e904e08478fbd73089eda59bbca4af517a088ebe3c3983e",
+     "tokens": 61
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.WorldActor::get_Moving()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2f0fc5a88fd57fff9761ba15c2401119f2f7f0aa2fa0849df3fcae3f96c29778",
+     "tokens": 6
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.Zone/<LoadZones>d__11::MoveNext()",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ea5bc92d0decfa8ae569625827a9b0a46b7e181ac57af0285c7eac365ed2c65a",
+     "tokens": 329
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Game.dll]Spinel.Game.World.Zone::Zones([Spinel.Formats.dll]Spinel.Formats.Table)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f0058ef6086499add0cd20c9ceb915280ad47050699b87810f4fa964a232a8b1",
+     "tokens": 1073
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.CharacterStatusWire::Read([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9f471e590f29cfd910c8f52f40a5ba357aa579e00b18dd5e9f18ba7780632cb5",
+     "tokens": 192
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Characters/<SelectCharacterAsync>d__14::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "640dab137891689c9d25e025efa732def405f3c7fbecdf821a32f1d482ac6b1b",
+     "tokens": 1122
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Characters::GsError(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1ab48c423bd50a412298fb20bf86406ecfeca11d0d27e95eedba03455eb6cc3b",
+     "tokens": 41
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Connection/Followup/<>c__DisplayClass2_0::<.ctor>b__0([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c4a145ea260587d305c832c77ed4e2c1fcee2b5ce5c959a635de71c755d94ed8",
+     "tokens": 20
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Connection::.ctor(System.String,[Spinel.Net.dll]Spinel.Net.Endpoint,[Spinel.Net.dll]Spinel.Net.ITransport,System.Byte[],[Spinel.Net.dll]Spinel.Net.TraceFn,[mscorlib.dll]System.Func`1<System.Double>,[mscorlib.dll]System.Func`1<System.Int32>)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f9fffdaddfba8b9ef9826b56f4c934d72fe3889ba31054e46a64b6af00502d54",
+     "tokens": 384
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Connection::Receive(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3e2e4d197574cdcdb20f9c82a0328a65550ecc37ed6de9ffa0c6735e5a069608",
+     "tokens": 860
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CharacterStatus::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d3a878fd534d632c05f69be76b97044a275cbf8990db76fe9f81b98e36511824",
+     "tokens": 1840
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CharacterStatus::<.ctor>b__23_5([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ec94c039c5157d693151bc148adac5b8b26494c85278b5ad3ed72be3520a428a",
+     "tokens": 365
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CharacterStatus::<.ctor>b__23_6([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d9bc89de74004617b5a4ae05f8bd08fa8644d4c5030d4cb6d57e39e2a92f1c8a",
+     "tokens": 313
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CharacterStatus::ApplyStart([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e748fa97435d43ee74e0bd0193eb8ecf897a95dd51605c6452b7f9301a4dc5dd",
+     "tokens": 277
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CharacterStatus::Recompute(System.Boolean)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "738e88a52e9a48d9d1ddbf142291697726298428683c8ba290eb885576a8c23b",
+     "tokens": 100
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CharacterStatus::Total(System.Int32,System.Int32)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fa58b04f9fbb0126bd2c7a038946df6e247cfecd0d57ca7e78859a95a6f1cb10",
+     "tokens": 168
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Combat::ParseDamage(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a4050297bc81b51fd15c8b072bbb21ec9dba9420523ab8d0ceb8047fab772716",
+     "tokens": 46
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Combat::ParseMessage([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "gun-combat-control.md",
+    "native-own-effect-lifecycle.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4091f3eb8795c30a252060d7b07d1df73f8b980dc9f85b07c1bff4ef41dd8ec4",
+     "tokens": 682
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Combat::ParseSwing(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "223bc6a503db4b9a9bbb1d7f5b061ead3d253fad30d785d36a101396fb47555f",
+     "tokens": 274
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Combat::ReadDamage([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e7c9e452fd5e9161858269e42fa4f63ba3880975c32aa976e8b5a2b78bf612f9",
+     "tokens": 79
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CombatLink::Attack(System.Int32,System.Int32)",
+   "sources": [
+    "README.md",
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "88a63a47aea75ff87f0713a7b2a24426ed896a8ceb403bf201f50e806730e0a8",
+     "tokens": 173
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CombatLink::BundleEnd([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8e191881674c580d9e6a3ba5c5bc3df66102a6e1aca4b6949611eff77b33a88e",
+     "tokens": 116
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CombatLink::Flush()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "da3596d669b118bada56d024bbf8bb209eeb25fa84c6bc2a4373c2edec599ccc",
+     "tokens": 258
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.CombatLink::Receive([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "gun-combat-control.md",
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6b7be07eee79d9ff4ea9332b59f46e2cf22971b7caa23dbdfed92237b4316996",
+     "tokens": 459
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::AutoSpotPayload(System.Int32,System.Int32,System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b9bedc82506fa88607be28c3b54ea93b6e38d6a8376015fd56c2b60b84f9deb2",
+     "tokens": 6
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::CancelPayload(System.Int32,System.Int32)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "eac3a54746017f552a0decc85c098d7920f2c63789fe01b43437171e2457652c",
+     "tokens": 28
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::Crc(System.Int32,[Spinel.Net.dll]Spinel.Net.Game.DrillCrcParams,System.Int32,System.Int32)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3110c162a8fadf09a184831be6dbb8fefa41b0ed6a5088c80f01530ec7718371",
+     "tokens": 25
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::DigPayload(System.Int32,System.Int32,System.Int32)",
+   "sources": [
+    "manual-dig-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "89f3dfab9a9a7e341bcfd020378fe9562c5469b24008fcdab415ff08908df12c",
+     "tokens": 32
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::EndPayload(System.Int32,System.Int32,System.Int32,System.Int32,[Spinel.Net.dll]Spinel.Net.Game.DrillCrcParams)",
+   "sources": [
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "347f336bd2c3fa3b7a7d79750c9451df070f72ffd7f5f27e11460deba776c530",
+     "tokens": 59
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::ParseBang(System.Byte[],System.Boolean)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9fb5ab8b83bc72e6a834218d2e864a1a768577f7816dd1d6c89343aedce33010",
+     "tokens": 327
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::ParseResult(System.Byte[])",
+   "sources": [
+    "manual-dig-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4808fbebee044beba0b637420e327db87e410c17d3ae2fbd0e0cb73780084dbd",
+     "tokens": 66
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Drill::ParseSpot(System.Byte[],System.Boolean)",
+   "sources": [
+    "manual-dig-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "62e08b7d5023f525dec204686e5eee5e7aa82dbaf310987b00976e0a580e2f10",
+     "tokens": 98
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.EsBlock::.cctor()",
+   "sources": [
+    "native-own-effect-lifecycle.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "cc3456d1af1fda217511f4da8fb759c13cb4a1d5e3cb29f6f721d40a8ee83d4b",
+     "tokens": 1036
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.EsBlock::Read([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "native-own-effect-lifecycle.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "df4c3d95eb084dcfd2c69a944ddeb33525f85feb0f9daa68d00d3b4897f95ee6",
+     "tokens": 452
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameServerLink/<LoginAsync>d__7::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fae1b497ded32ce956531de34e3afa7099ab2c30c2fd550f9f29986ebcd24c1e",
+     "tokens": 1580
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameServerLink::.ctor([Spinel.Net.dll]Spinel.Net.Connection)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3325544dccaae7de444aa4ece4f1daeb8d1ddc0c05af7a459743881807541f8a",
+     "tokens": 58
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameServerLink::Attach([mscorlib.dll]System.Action`1<[Spinel.Net.dll]Spinel.Net.NetFrame>)",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e25247aaabd1f99bdbe63dd28424320c3007a1e88f0173868e7bf858764dc999",
+     "tokens": 218
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameServerLink::Receive([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "838d2c60cde33736fefbda7ffdda3be8e88770feabbe2edc5f185e2cd3e360a0",
+     "tokens": 495
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession/<CompleteZoneChangeAsync>d__77::MoveNext()",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "723a85662b2a6bd2490e9f65a3af0d23a6a703c46ed94d8be9e88677c32700b2",
+     "tokens": 834
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession/<ConnectAsync>d__36::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7dbd950241c584856ca59d107ad256fe968396f7bb963ebbb7a16f6e06fe930d",
+     "tokens": 606
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::.ctor([Spinel.Net.dll]Spinel.Net.Session,[Spinel.Net.dll]Spinel.Net.Game.GameSessionOptions,[Spinel.Net.dll]Spinel.Net.Game.GameServerLink,[Spinel.Net.dll]Spinel.Net.Game.StartState)",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9ce14d1ea55974c8f9f2b35ec30e045a736c60d591436391e0b199c41f311831",
+     "tokens": 353
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::ApplyHeldStop()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "57fb877532c62eceab7936e0a5aa247dbd3d3ab749364f89a2099cbbd383c10c",
+     "tokens": 16
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::ApplyMove([Spinel.Net.dll]Spinel.Net.Game.MoveMessage)",
+   "sources": [
+    "assisted-input-control.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7146fe04501bdff409eb20518b2245749040705193db05dc83fbf344237fe888",
+     "tokens": 211
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::BindGameServer([Spinel.Net.dll]Spinel.Net.Game.GameServerLink)",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "bf3a43643f5d9fc13cb56d0a39f3055bd244b9a1ea80cdd6860a9cb546582355",
+     "tokens": 61
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::Handle([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "assisted-input-control.md",
+    "native-inventory-baseline.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a487e39dd50b2a959d52bac991453aee412f10f8ba0cd772acc1475695c42364",
+     "tokens": 1441
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::OwnMoveEchoed()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "44b2b7ee7127757395b7ffbdd7a1579a7a82f8508d50af215b8ec1c1f431fe02",
+     "tokens": 101
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::RequestMove(System.Double,System.Double,System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1094733bc6816948156584341eeb9a06d953b07eddf2ce3f37dae2a9775aa44b",
+     "tokens": 290
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GameSession::SendMove([Spinel.Net.dll]Spinel.Net.Game.MapPoint,[Spinel.Net.dll]Spinel.Net.Game.Pos,System.Int32)",
+   "sources": [
+    "README.md",
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "925b8c624517b37d2fe8daeb48aa9ca841783ddb32248f2e534682d65d9d2cd3",
+     "tokens": 91
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GmGiveawayWire::ParseHello(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7acc8acb32cb79ea59de229e5d3b9bda0f6165ae5b9820c3a5462a1979eb70a4",
+     "tokens": 121
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GmHello/<>c::<Of>b__1_0([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b3c5c8642bdc6bdfddfb7a089643403b5d5ea9f4ac020b3d855a33639a95b609",
+     "tokens": 19
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GmHello::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "922da49e6dbf1379576d3e18b11d0d9024a592533b222a1c256ccbe650c963a9",
+     "tokens": 618
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GmHello::<.ctor>b__13_0([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "26b5f3fb0aad9e254e4735682f1ac21ec3f51e5b3132b2d2d211d1412b684dc1",
+     "tokens": 7
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GmHello::Of([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0b19d491fa895ed64b6045b2bb3b5f8062d0e57196dc52287a9768e0a237f1c7",
+     "tokens": 76
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GmHello::Take(System.Byte[],System.Boolean)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0dc6a505e63c4eea171bf96757da852a19a09c4a67131820e94b60752b2403b0",
+     "tokens": 104
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.GuildArenaMatch::Known(System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "05403d750c4be6e8be1f4e338d7bd4aa1ece944730deeaacadf46231cf4affd1",
+     "tokens": 4
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Gun::Crc(System.Int32,System.Int32,System.Int32,System.UInt16,System.Boolean)",
+   "sources": [
+    "README.md",
+    "build-ea1a68bd-migration.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "953db2e5f906a2f1cafca99ea86883fc1a3c345e5167017ea901d548fa607365",
+     "tokens": 18
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Gun::ReadKey(System.Byte[])",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fb8d3aef57dc2837b812b39b7c27e68e3854ae12b0930a6ec4abf1d6d07c1a47",
+     "tokens": 36
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Gun::Shot(System.Int32,System.UInt16,System.Int32,System.Int32)",
+   "sources": [
+    "README.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6d5ab85ddb3bfb2393cfbf1513e2aa354557c456df6cdcc5c4e1e7d451b40a34",
+     "tokens": 36
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.InvItem::get_Pieces()",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "71ac080ef4fe8f71f890d25e657078efedb248e5a18b39f2744c51bbc09a739d",
+     "tokens": 13
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "85b24f82021639e71cce3aa16abba52605441e01f1240f65c2e6508186a110a9",
+     "tokens": 2892
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::<.ctor>b__5_11([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a877829acf64548e89bec4bc8775a7adcb71c0c867ffbc61fd3f77d2fbfdbee4",
+     "tokens": 150
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::<.ctor>b__5_12([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5177ecb5ca4cefb9c11eec97f3520c949c97d1a34aa4d1087f9cf3ffebcd06a0",
+     "tokens": 57
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::<.ctor>b__5_13([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "61ec7a08f16667f7932c71f23c3db281a2a9136d4c5c75324ac58987ff857f1f",
+     "tokens": 67
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::<.ctor>b__5_14([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "49639cf4a19ce0897f49d32725f4e259cf17b19b748d9ac067e9a189b1c18c5e",
+     "tokens": 73
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::Apply([mscorlib.dll]System.Collections.Generic.IEnumerable`1<[Spinel.Net.dll]Spinel.Net.Game.ItemChange>)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "457f5a5a338aa2327966af50acf63f62a1ad089a3794eb0588bc63d0d83ac4a4",
+     "tokens": 596
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::RequestUse(System.UInt64)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0d167f9a6653a45245e5fbc17670cabd1c3575cc6c610ea344e2a3b71ad3f4b7",
+     "tokens": 90
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::SetSlot(System.Int32,System.UInt64)",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e95f3842d35895af5570d544d9321c1dd79711e9fe23c8bef79c8b01f755a0d3",
+     "tokens": 106
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Inventory::Special(System.Byte[],System.Boolean)",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "88f72c5024d3ebc52933fc720d2f67ad3805dc8044633d4b12eca043570cd913",
+     "tokens": 78
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Items::ParsePickedUp(System.Byte[])",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "66332855da6e4c601dc6066833b38f8fa80bccabb7730304a00158ea5017ee75",
+     "tokens": 58
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Items::ReadInventoryList(System.Byte[])",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "37ad77e03dc19eb854934d9ae08bbbb837393c9ecf03a56d4e34a5eb1a6ad9e8",
+     "tokens": 114
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Items::ReadItemBody([Spinel.Net.dll]Spinel.Net.PacketReader,System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6826b007fd722c4c023253309e53f9f42c184c2dcdb610a180173ac773a1c78e",
+     "tokens": 145
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Items::ReadItemChange([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b58f409c53b6b8c1c05d2b11ddca05ed47b0c40dd3d5d0d9797733ec4d391a68",
+     "tokens": 62
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Items::ReadOptions([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "87df72f6f74286cf90f8240ba02dcb4a80bea52793efdc9f9be4dc6ebc3c6695",
+     "tokens": 71
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Items::ReadStartEquipment(System.Byte[])",
+   "sources": [
+    "native-inventory-baseline.md",
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f72ffc5d16e565788206de98b6665fbe21cf35b3c8c3fbad510289b506e96c9c",
+     "tokens": 295
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::.cctor()",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f6fbb7b1832b9dea47eabf4cd45ab4781a4d016b5e312ec095894a9f1e83ebdc",
+     "tokens": 163
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ParseAppear(System.Byte[])",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "26150aacd1c225654baf846f6f6d53f5b700e37a056c779b22f88b40512ff4c3",
+     "tokens": 639
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ParseGroundItem(System.Int32,System.Byte[])",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "021de2c44b925668174f37d4de02dd012785ee10750810307710bf05ad3bf108",
+     "tokens": 195
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ParseMove(System.Int32,System.Byte[])",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d29f0323228904c1e9162af4f10d8826ae6034b6375b57bf25be87c5baf3147e",
+     "tokens": 142
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ReadPlayerBody([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e586b72687c85fdf1db9481dddc9c43d48d92bb35c51cd8b1015e2265150e221",
+     "tokens": 529
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ReadStartBody(System.Byte[],System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7b8474628a8a99f203baddcce86572567d87f265cea25759386b291892fa8fe2",
+     "tokens": 45
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ReadStartClock(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "39183b15b4d1968668ca963cb6aa6221023ce7d0ce4909cb299159d71e279f04",
+     "tokens": 63
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ReadStartProfile(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4d7f5bdf8d9639408034d7873f833b1d0238bf42c7037f88fc88eb44bdc25b55",
+     "tokens": 39
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Messages::ReadStartZone(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "77407bba8a2bb943fd71009fac4ee14ca1c13e301d8d823c11046eeebdefddcf",
+     "tokens": 23
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.SecondPasswordGate::NeedsLock(System.Int64,System.Int64,System.Int32,System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f3b49d6d435fbab3541363433d3b8438b98fb2f876144cc8513d79277e713406",
+     "tokens": 44
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.SecondPasswordGate::SendWithLock(System.Int32,System.Byte[],System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b0389819e16755a2f55de351846e55b2f1be650cace6f8ef0fc93162f5481c7e",
+     "tokens": 102
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.ServerNotices::ParseSetItem(System.Byte[])",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "79508ff2d08d5dcd30da6680204cfdeaafe19283eb2d63631df71fdd19877c06",
+     "tokens": 43
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.SkillLink::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "93676c33f85639aab32faabcef8159dfcb055a5803a6cbfe8872608c250df0a5",
+     "tokens": 1088
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.SkillLink::Receive([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2dfead51dcf9898fd4d22c215afbaab32387da2bfbb13b4160122dc2aa133d72",
+     "tokens": 1255
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Skills::ParseEsaHeader(System.Byte[])",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "7a6869b65a0443a58ac044c9b1f7832dce99deeac48e137b671ba80c679b1021",
+     "tokens": 119
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.StartStatsWire::ParseStartStats(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md",
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "73878be934b25c8fb550800d9e0452c0ab4b4842764f61e3d126a9e42ba9cc26",
+     "tokens": 52
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.StartStatsWire::ParseStatBlock(System.Byte[],System.Int32)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e3abc3f611613f151f147eb7925169f70a2eb97733db17afcc7d4ffdb0189a92",
+     "tokens": 126
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.StartStatsWire::StartStats([mscorlib.dll]System.Collections.Generic.IReadOnlyList`1<[Spinel.Net.dll]Spinel.Net.NetFrame>)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "783fe9875a01e62b96d8d72ad8bc97a8e463d79a2e1757cd1c0d4d1f0401d8a1",
+     "tokens": 393
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Status::ParseIndexedValues(System.Byte[],System.Boolean)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b6630ed3e0b4e8fd41983ffd478cda5e773b00778c47588db207a3d589c32689",
+     "tokens": 128
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Status::ReadStatBlock(System.Byte[],System.Int32)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5c85c1c49ae6e97b663b3b1915a64531772d041fd2653654ff224bdd3bfb9735",
+     "tokens": 171
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.TimerItems::Expired(System.UInt64,System.Int32)",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "004b349d4c6593b62b3c2f80d155261f0fb4b4de96d629bcb67db910ce45c8c9",
+     "tokens": 135
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.Warehouse::StartStorageSlots(System.Byte[])",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "773cd353c399c98789c55e04bc549ff4639703f9bad5302f2931d00c4f7e0c5d",
+     "tokens": 13
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Game.WarehouseLink::.ctor([Spinel.Net.dll]Spinel.Net.Game.IGameSession)",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "60656d66b2f763ddbbe4959510f3537c1ae2dfb6fcb1b6ebace2462377c7d38a",
+     "tokens": 839
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayBuild::.cctor()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "98ba627ed81af2f86ff6d27397d4de1ea5b21b757ade793f7a12f0a144d81d68",
+     "tokens": 81
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayBuild::Load(System.String&,System.String&)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "91a2b28444c66c17a2969067c94548846aeacdccc2f4326d766b9888d39b0003",
+     "tokens": 21
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayFrames::Encode(System.Int32,System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "57bb0336f752eebe2286270134280ccb737ca4d816cc1479c8f38724c9094ec5",
+     "tokens": 113
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayFrames::Push(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f10a2aa4ec8d81e3d377cd89dfd5cf82f691cf8b8fbe84130e2f41c2c9ebe310",
+     "tokens": 225
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Ask(System.Double)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3d31d01286fd08d132dfde222e9f5c62b98e8c76bbd37091c03da9aef462e297",
+     "tokens": 108
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Binary([Spinel.Net.dll]Spinel.Net.ILinkSocket,System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fd6be814969a09d813f6f0efa6675bf0492babf0d019899d029bd6d2e83c73e5",
+     "tokens": 57
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Close(System.Int32,System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f70473b7fd71e3871f55bd7cf9992cd5cea0e1334ac3256a3b723449403533a8",
+     "tokens": 398
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Confirm(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f783bf85817948c4b0d0b584ac3da479b8837fd668e02bc916c3e23c97b330c3",
+     "tokens": 110
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::ConnectAsync([Spinel.Net.dll]Spinel.Net.Endpoint,[mscorlib.dll]System.Threading.CancellationToken)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "880f5b8a3e8c2bf362f77be1397929f8c74e8cef00eda78e57fd3204add0a81f",
+     "tokens": 270
+    },
+    {
+     "build": "ea1a68bd89958fae94179f1e0835ffb5",
+     "fingerprint": "7021fc2f0d56cba9f9427e08d9bcabe3f7169a9bd30cd86e787d154a36784285",
+     "tokens": 270,
+     "review": "Only compiler-generated closure ordinals changed (DisplayClass74_0/b__74_0 -> 75_0, DisplayClass81_0 -> 85_0); the renamed closure bodies normalize identically."
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::IsBusy([mscorlib.dll]System.Exception)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "089016fc6a20f4982e9319731c5c60da1f2c1673244771f62d5860cc72424bc6",
+     "tokens": 30
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Opened([Spinel.Net.dll]Spinel.Net.ILinkSocket)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5ba94212614514c6f1e451684eb25da2f11a967a648f80ba49fff08723a9e2a1",
+     "tokens": 192
+    },
+    {
+     "build": "ea1a68bd89958fae94179f1e0835ffb5",
+     "fingerprint": "69d74ffeace7d61b7dfe17cde270d375a8229b98ef34269794a17c65ce16ae47",
+     "tokens": 192,
+     "review": "Only compiler-generated closure ordinals changed (DisplayClass74_0/b__74_0 -> 75_0, DisplayClass81_0 -> 85_0); the renamed closure bodies normalize identically."
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Resumed(System.Int64,System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "af81cf85b45f5e1148c24f71bb7c49f61c95983b516ab1cab2eaaf65fd8bcf60",
+     "tokens": 498
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Send(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "4eea0480d03d3b1b3361a663a49361a79b9398d9205e95c7a6e96defb0fae21d",
+     "tokens": 160
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::StartAttempt(System.Double)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5fd9f919d9444277003b548b3d1f290514945796e8f713f7edfb04194a5b6fa1",
+     "tokens": 156
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Text([Spinel.Net.dll]Spinel.Net.ILinkSocket,System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a5d939304bf113706dd8d3a6abdc4c9d5080d789ce564ff9e2ed29cade3390a0",
+     "tokens": 499
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Tick()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "261f0093c41472d6181c112c0e25d31de75e7d4ac88e75397ee67cb4005aa34f",
+     "tokens": 508
+    },
+    {
+     "build": "ea1a68bd89958fae94179f1e0835ffb5",
+     "fingerprint": "84a7a4c3333ff569b2d19c751d27ba944c08d836f37b0347318401bc34312b4a",
+     "tokens": 518,
+     "review": "Probe-tick counting and reconnect StartAttempt are now gated by pageVisible || new backgroundRunning (+66) instead of pageVisible (+65). Browser-only visibility policy; Net keeps its always-visible foreground policy. Wire frames, thresholds and timers are unchanged."
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.GatewayLink::Unconfirmed()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6c264c71d765e9bad12e3eb11613737749673352ed90d7c04cbdec59d5eee7c6",
+     "tokens": 253
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.LoginAttempt/<RunAsync>d__1::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9f8dd38a4a6121780bfc290d55cc303f86be4ccd535491ae38faf85e9a5293bf",
+     "tokens": 907
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.LoginFailure::Of([mscorlib.dll]System.Exception)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6c6a019a196704679ebdb89c227fa78f56067ce26141540d6a351a264a4a9e06",
+     "tokens": 168
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.LoginFailure::ProblemOf(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "996acdaf27ad88f65fa33933736376b4d68e3a088e0aa7c251f5da7b74a8bd67",
+     "tokens": 21
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.LoginKey::Derive(System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6ada4856aa26f938ed00e9f38ed9c4d0fb1922930231b7476d39ae01daad0a4f",
+     "tokens": 251
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.LoginKey::Text(System.UInt64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Md5::.cctor()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "23993f182bcf71aa63c5ca23c828ecf939d72e84a305c336cdd7086ae8959be7",
+     "tokens": 144
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Md5::Hash(System.Byte[])",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0f67da66835c216f163869d84d7620bfec3627bcc968f871fce0b0e149e17acc",
+     "tokens": 589
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.OpcodeMap::FromSeed(System.Byte[],System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "323e0624e124fc6eb4291475027009e67b29ee00e4b7fd22331496e63048f2a4",
+     "tokens": 519
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.PacketReader::Chars(System.Int32)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6a75848c6fd2383e0f0b2409b9f576450f5f3e3d6886b3ca463f9682795157e1",
+     "tokens": 111
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.PacketReader::Cstr()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e36b91c43ee02e61187da400e149b745f8689da7ccef57fdcd036b91332f55cb",
+     "tokens": 112
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.PacketWriter::Chars(System.String,System.Int32)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "243cd369bad17c958a4f425d27ee11e029a1f1cac779dcad8d6c048627234c12",
+     "tokens": 170
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.PacketWriter::Cstr(System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5a52bc687d3b592b3a519209dd46306bf64c610f268c8ad624f1c479cb4d1780",
+     "tokens": 119
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Session/<>c__DisplayClass26_0::<EnterWorldAsync>b__0([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2f04bcb12052cbdd043510ee256c46dce12355856b0eb775070102c2a6f20990",
+     "tokens": 97
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Session/<EnterWorldAsync>d__26::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a96bf02212b915b528b05e6a418103b23910d10df54695a2b11eb362ba165845",
+     "tokens": 1509
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Session/<SignInAsync>d__22::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a97346c874cce19a6fb7ab78adce6e52f867cbd7a3d189d50d11aba8e557696a",
+     "tokens": 1298
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Session::.cctor()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "10c107ed7157042587118d1a430030980622bc4aae0664c2250fec4d97bb5806",
+     "tokens": 29
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Session::ParseCharacters([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f0626c9d000cfe76c5219d644b471aaaabf0afbcce287fad9803c5a209bb913c",
+     "tokens": 200
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.Session::ReadCharacter([Spinel.Net.dll]Spinel.Net.PacketReader)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3e506a78ac2507d9bd3c9b7f23c9af3df7c4c0053e89d5ae3baa3245b07e5be0",
+     "tokens": 155
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.Net.dll]Spinel.Net.WebSocketTransport::BridgeUrl(System.String,[Spinel.Net.dll]Spinel.Net.Endpoint)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2dd3bb7b1280a87c4f345ab0aa5079e5e9d27a80fe62113561eac8f8dc21ea0a",
+     "tokens": 101
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Custom.dll]Spinel.UI.Custom.PvpView::D(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Custom.dll]Spinel.UI.Custom.RarityActWindow::N(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Hud.Hud::KeyPasses(System.String)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c9c89efe89c35cfd7a534db3e41b9938ca6fde52e9f2e9401d34a9bd637df56b",
+     "tokens": 79
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Hud.Hud::OnKey([Spinel.Game.dll]Spinel.Game.Play.KeyStroke)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5fe29550b9ef02f41823b8c74b45105b891b02da0e83c38e567c7268f75f42a7",
+     "tokens": 717
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.AutoCombatUi/World::IsHpPotion([Spinel.Game.dll]Spinel.Game.Play.ItemInfo)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "187d2b0d9e513ead80f1417f4d9d03de6ec68b3286fd9d4916dcfa4d8a4e72a4",
+     "tokens": 29
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.AutoCombatUi/World::IsMpPotion([Spinel.Game.dll]Spinel.Game.Play.ItemInfo)",
+   "sources": [
+    "target-game-definitions.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "9ed4a5efc52e426e3e7a4d48271e2387fa55e5c7a4a29530ba8bc655465ccbb0",
+     "tokens": 29
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.CardDetailView::<Fill>g__Number|47_1(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0::<Install>b__2()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e5bda3cb275b101594459ba7e6d50e1c69de951535e8e2cf14080f08a5640ee5",
+     "tokens": 103
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0::<Install>g__WeightChanged|0()",
+   "sources": [
+    "native-inventory-baseline.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a9b644bcecc1bc246a9b6a55d44ad963d1b6566a2919372734273f5f2e8647a1",
+     "tokens": 107
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.CarriedWeightUi/<Install>d__2::MoveNext()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "cfdcb8a27181926f886f290c95cc33ae3b195fdb70fddb437c36b7c8acb77d5e",
+     "tokens": 1144
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DigKeySettings::get_SemiAuto()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "11ec54f497afcce39834c760596d48d2ca62f32579bea401f5430d387a50c386",
+     "tokens": 127
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DrillUi/<>c__DisplayClass3_0::<Install>b__16()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "efd4ee242fc61ba752e38951bff025d9d918902b95d111aae1112af449479a01",
+     "tokens": 73
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DrillUi/<>c__DisplayClass3_0::<Install>b__17()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "15a5305d1c76cba3af234bfc9686706d1e6ea7015095d80549540230f33989c8",
+     "tokens": 15
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DrillUi/<>c__DisplayClass3_0::<Install>b__18([Spinel.Net.dll]Spinel.Net.Game.GameEvent)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2684e452fc68afce74e56b6e3c3b51f55c120fbb037da5c159d3bc0e2a279ddf",
+     "tokens": 187
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DrillUi/<Install>d__3::MoveNext()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "38b8004c4407954d83b65ed93be824ddbfdbbcacb186298833df970cd19c80d3",
+     "tokens": 3169
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DrillView::Click([Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.WorldClick)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8e20b8c1a50fbcc5194f289069c2439cff10a739afa72b04d508810a30643ba8",
+     "tokens": 142
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.DrillView::Update(System.Double)",
+   "sources": [
+    "assisted-input-control.md",
+    "manual-dig-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f8694c52ea018a906d31c3ca512243083b9549231b6569d31cbb254d88ebd814",
+     "tokens": 743
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.GuildBattleWindows::Num(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.GuildKit::Num(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.GunFlowingUi/<>c__DisplayClass17_0::<Install>b__2(System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f217f36e9d3299af55334cac24de2ae84d9ee182f59704e20b70ad4975f76825",
+     "tokens": 5
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.GunFlowingUi/<>c__DisplayClass17_0::<Install>b__3([Spinel.Game.dll]Spinel.Game.Play.PlayActor,[Spinel.Net.dll]Spinel.Net.Game.Damage,System.Boolean,System.Boolean)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "97ee5bda3c716e2b4553962ece9648ce9fbddcabb7204c1f6d9aaac6589783de",
+     "tokens": 86
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.GunFlowingUi/<>c__DisplayClass17_0::<Install>b__9(System.Double)",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "444c67eb605e01d337c43ed7f962aebe0fb5c828ecc1c2bc4005fdc48f54fc63",
+     "tokens": 607
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.GunFlowingUi/<Install>d__17::MoveNext()",
+   "sources": [
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "024e51b6c377b49782b8c5dc1a1ab1632ef2ba6a74833b67d9d9ff5d38a410bd",
+     "tokens": 2370
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.MyCampKit::Num(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.PvpUi::D(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.ShopLook::N(System.Int64)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "3edc6730e090dd18b799737522a7c2a7242c4998dd70c726493b5987e922858a",
+     "tokens": 31
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView/<>c__DisplayClass2_0::<Install>b__15([Spinel.Net.dll]Spinel.Net.Game.CombatMessage)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "54bc98cace0ed1d31f4d583d5d49d8d0b976888f04f4a812c8b529f09ccd45fc",
+     "tokens": 122
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView/<>c__DisplayClass2_0::<Install>b__5([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "378703feafbc02b076e3fda6ac9023aedaa4f59fc7acde1ecf5018acb358dc50",
+     "tokens": 35
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView/<>c__DisplayClass2_0::<Install>b__6([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "352fdfaa3e158599c07a683c124b9e654e97333b5b6aea02e5cf77d5b69dbf84",
+     "tokens": 35
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView/<>c__DisplayClass2_0::<Install>b__8([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "5e85ba062754681ac0fff209755cc298cc24bdedd2c8e47f1f3cebeb14e77081",
+     "tokens": 9
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView/Host::SetLoadSpeed(System.Double)",
+   "sources": [
+    "gun-combat-control.md",
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "d15be30ca0a9a6815ed037e576ef683674989845f553ee45867affd1c7ac7a9f",
+     "tokens": 85
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView/Host::State([Spinel.Game.dll]Spinel.Game.Play.Esa.EsaRunner,System.Byte[])",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "6895c3f4563b0ec347750c44faa80b5aacb408f9b806219053b90b8a4659f850",
+     "tokens": 63
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Play.SkillEsaView::Install([Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.IPlayContext,[Spinel.Game.dll]Spinel.Game.Play.SkillsApi)",
+   "sources": [
+    "native-own-effect-lifecycle.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b3b3ab3f2fb067fb402fad931d71e4ed2696ea43f77d7f9a19ff755a1a028ca9",
+     "tokens": 2066
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.CharSelectScreen/<Enter>d__127::MoveNext()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b3e8d5a8a8458c8a43b6d5bbc165c69877089ffaa0ede84fb633900af22cb345",
+     "tokens": 4752
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.CharSelectScreen::<CreateInfoView>b__128_0()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "085074f83d1b955c67bea1cc0a515e99da1b56f683ede11fa261c05c376488df",
+     "tokens": 69
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.CharSelectScreen::<CreateInfoView>b__128_1()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "27da4c3cf1dbcb2b05222d005ad12f4612a9a783a6c6c2d66a28494f1754dcaa",
+     "tokens": 152
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameFlow::get_Current()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8beaae9f91cf736de52b3ac818f28a3f64ba2e140f85cf51080ab9db223b3c08",
+     "tokens": 25
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen/<>c__DisplayClass283_0::<Enter>b__22()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "df1dbb751f22ebff24c151eca8a8094902e9bc3528a90cb8efcedd5ac0e21c0c",
+     "tokens": 6
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen/<Enter>d__283::MoveNext()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "f281ba01eceac02be93119ced6737d4182a7f8b91e02f4d7ccf23e302871b219",
+     "tokens": 7699
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::ActorAt([Spinel.Game.dll]Spinel.Game.World.Point)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "09bc1f9328419830056f207f06f8bde4eb79d109af713ab8d90d668e10ab3b8a",
+     "tokens": 307
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::Advance(System.Double)",
+   "sources": [
+    "assisted-input-control.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "dded5c017aca218a704813842e1ca5964ed7227ede2d0a3d5c3a8afc3d8ce134",
+     "tokens": 2468
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::Appear([Spinel.Net.dll]Spinel.Net.Game.AppearMessage)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fb530f7269e6b9c81be06133cf12bc354497a2dcf054ba908d36e520cb4e96ab",
+     "tokens": 842
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::CameraAxis(System.Int32,System.Int32,System.Double)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8f0b816af02f74b009629b7de473e859fc132b2dcfa4279118e38ecdbc789dcf",
+     "tokens": 80
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::ClickAt([Spinel.Game.dll]Spinel.Game.World.Point)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "8d0d6f0759482bd82cb68bb27f00782f9517006b61528e25a2394a7ff807f523",
+     "tokens": 105
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::ClickWalk([Spinel.Game.dll]Spinel.Game.World.Point,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "e977b9db65166b2cfb23f84081fe6f8cf5c996553ee5d6fdf290fbf64873bb7a",
+     "tokens": 120
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::FollowServerMove([Spinel.Net.dll]Spinel.Net.Game.GameEvent/Move)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ae177d0f500b83a03d2b04588d93e07525afbdec4137bd9e0cdc4da6aacc90bf",
+     "tokens": 351
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::MapPoint([UnityEngine.CoreModule.dll]UnityEngine.Vector2)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "46fc9c3f33975bc9776c9d3a4f5c065d8b23023a94ca0221f75815881d2f9b7f",
+     "tokens": 259
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::PressTaken([UnityEngine.CoreModule.dll]UnityEngine.Vector2,System.Int32,System.Int32,System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "a98f647fe546ad5f948ad9ba98b5d0c2a58477ed8fb22f5489fcfaf7c2918fe5",
+     "tokens": 205
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::PressWalks([UnityEngine.CoreModule.dll]UnityEngine.Vector2,System.Boolean)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "b37e21eecbdf908b2cbf5c754b0e8f6a255c185ea1bb499cc55f11b7bb47da16",
+     "tokens": 455
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::RemoveActor(System.Int32)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ed950679db0b19fa6bd7d0143b85c87e80dd5adf3a294083807c7e85f3fc5233",
+     "tokens": 112
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::StopWalking()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "2f49315b01e8e831c2e28763109bfe21b77d5b006960889f9b5bdb43568a6cd0",
+     "tokens": 56
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::Update()",
+   "sources": [
+    "assisted-input-control.md",
+    "gun-combat-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "82e9273f90a209d15482f7310ae197fe707502b0a857961e97e90622b6773d74",
+     "tokens": 9
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::UpdateCamera(System.Int32,System.Int32)",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "c4a9a359265aca1e1c53f25cf0ad0f23912b378c9292b2e349b6eaf05c48f1cc",
+     "tokens": 835
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GameplayScreen::get_MoveMode()",
+   "sources": [
+    "assisted-input-control.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "1cdc7f3398bed0b6c7d62dc8384ec7a4d7a4a9fc96b51e8a6da485bdf49c007b",
+     "tokens": 5
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GroundItems/<>c__DisplayClass40_0::<Install>b__2([Spinel.Net.dll]Spinel.Net.NetFrame)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "ba36226595a16a74aa9478fb70f0a5c71a16a50bcda78ddaf5775e4d584e8c68",
+     "tokens": 32
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.GroundItems::PickedUp([Spinel.Net.dll]Spinel.Net.Game.PickedUpMessage)",
+   "sources": [
+    "target-state-completion.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "05657769dae78902f41762e27a5ad14e77686fbb3328ab05411dfaf5baa10185",
+     "tokens": 108
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.LoginScreen/<>c__DisplayClass42_0::<Enter>g__Submit|8()",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "fd3fbebe1fe232b5deaaf87534e250583e26d261ba59e6acac38ec050441a87c",
+     "tokens": 299
+    }
+   ]
+  },
+  {
+   "name": "[Spinel.UI.Pc.dll]Spinel.UI.Pc.Screens.LoginScreen::LauncherCheck(System.String,System.String)",
+   "sources": [
+    "current-build-protocol-revalidation.md"
+   ],
+   "accepted": [
+    {
+     "build": "8502ebbf2fc9033d2fba50d02fd92002",
+     "fingerprint": "0a561a86d17b53400e3aef235cd0e8fcc85c0c70c077262c23f24b6be2c74057",
+     "tokens": 194
+    }
+   ]
+  }
+ ]
+}
