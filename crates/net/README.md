@@ -39,11 +39,13 @@ There is no takeover, release-held retry or automatic uncertain gameplay replay.
 Only engine recovery effects authorize another physical attempt, up to five.
 
 A ticket's `not_after` bounds only the send receipt. After the actual send, the
-engine's `ACTION_MS` (5 s) or `DIG_MS` (30 s) window bounds completion. A window
-that closes without a correlated outcome expires the pending action; later
-evidence is not attributed to it. `Quiesce` cancels an active native dig and,
-after a 1 s grace, abandons unresolved ordinary actions before reporting
-`Quiescent` within the engine's 2 s `DRAIN_MS`.
+engine's `ACTION_MS` (5 s) or `DIG_MS` (30 s) window bounds completion. The
+native adapter starts its window at the send, so it closes no later than the
+engine's. When it closes without a correlated outcome, the adapter cancels a dig
+with the normal 48 request, expires the pending action and attributes no later
+evidence to it. `Quiesce` also cancels an active native dig. `Quiescent` is
+reported only when no action is outstanding; otherwise the engine's 2 s
+`DRAIN_MS` closes the session.
 
 `close` waits up to 2.5 seconds and retains its worker on timeout. A finished
 worker can join without a done signal, including after panic. Native `Closed`

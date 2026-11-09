@@ -17,7 +17,8 @@ mode runs without Unity and displays received game state in the native dashboard
   game-coordinate counts, with map identity included in the boundary.
 - Keep one logical action outstanding. Movement, attacking, digging, pickup and
   resource use require an implemented, evidence-backed adapter capability.
-  Without a pickup capability, drops stay on the ground and never block a run.
+  Without a pickup capability, drops stay on the ground and never block a run,
+  but a combat goal cannot start because only pickups count toward it.
 - Defaults are 15 seconds for state freshness, 2 seconds for a send receipt,
   5 seconds for ordinary action confirmation, 30 seconds for a dig cycle and
   2 seconds for establishing quiescence. Confirmation and dig windows start at

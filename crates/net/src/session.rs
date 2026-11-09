@@ -534,8 +534,8 @@ impl Actor {
         let mut aux = startup.aux;
         let mut ordered = startup.ordered;
         let mut dig: Option<PendingDig> = None;
-        let mut barrier: Option<(e::BarrierKey, Instant)> = None;
-        let mut action_until: Option<Deadline> = None;
+        let mut barrier: Option<e::BarrierKey> = None;
+        let mut action_until: Option<Instant> = None;
         let mut ticks = tokio::time::interval(Duration::from_millis(16));
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -561,12 +561,12 @@ impl Actor {
                                 e::Action::DigAt(point)=>decoder.dig_inputs().and_then(|inputs| {
                                     let cycle=crate::dig::Cycle::new(inputs,point)?;let (x,y)=crate::actions::coordinate(point)?;
                                     let mut w=Writer::new();w.u16(x);w.u16(y);w.u8(inputs.mode);
-                                    dig=Some(PendingDig{cycle,mark:0,until:Deadline::after(queued.at.ok_or(NetError::WrongPhase)?,queued.queued,e::DIG_MS),last_tick:Instant::now()});Ok(vec![(44,w)])
+                                    dig=Some(PendingDig{cycle,mark:0,until:Instant::now()+Duration::from_millis(e::DIG_MS),last_tick:Instant::now()});Ok(vec![(44,w)])
                                 }),
                                 _=>Err(NetError::Unsupported),
                             };
                             let plan=match plan {Ok(plan)=>plan,Err(_)=>{self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}};
-                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?)?;action_until=Some(Deadline::after(queued.at.ok_or(NetError::WrongPhase)?,queued.queued,e::ACTION_MS));}
+                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?)?;}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Submitted})?;
                             let mut last_mark=0;
                             for (opcode,payload) in plan {
@@ -575,13 +575,15 @@ impl Actor {
                                     Err(error)=>{self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Unknown})?;return Err(error);}
                                 }
                             }
-                            if let Some(pending)=&mut dig {pending.mark=last_mark;}
+                            // The engine's completion window starts at its Sent receipt, so ours ends no later.
+                            let sent=Instant::now();
+                            match &mut dig {Some(pending)=>{pending.mark=last_mark;pending.until=sent+Duration::from_millis(e::DIG_MS);action_until=None;}None=>action_until=Some(sent+Duration::from_millis(e::ACTION_MS))}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Sent(e::IngressMark(last_mark))})?;
                         }
                         SessionOp::Close=>return Err(NetError::Cancelled),
                         SessionOp::Quiesce(key)=>{
-                            // Settle inside the engine's drain window; the action's own outcome may still arrive first.
-                            barrier=Some((key,Instant::now()+QUIESCE_GRACE));
+                            // Report idle only once nothing is outstanding; otherwise the engine's drain deadline closes the session.
+                            barrier=Some(key);
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
                             if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                         },
@@ -592,17 +594,14 @@ impl Actor {
                     let now=Instant::now();
                     if let Some(pending)=&mut dig {
                         let dt=now.duration_since(pending.last_tick).as_millis().min(u64::MAX as u128) as u64;pending.last_tick=now;
-                        let message=if pending.until.passed() {pending.cycle.cancel()}else{pending.cycle.tick(dt)?};
+                        let expired=now>=pending.until;
+                        let message=if expired {pending.cycle.cancel()}else{pending.cycle.tick(dt)?};
                         if let Some((opcode,payload))=message {g.send(opcode,&payload.0,&mut self.order).await?;}
+                        // No cancellation-ack schema exists: after requesting 48, stop the local simulation.
+                        if expired {dig=None;}
                     }
-                    if action_until.as_ref().is_some_and(Deadline::passed) {decoder.expire_action();action_until=None;}
-                    if let Some((key,grace))=barrier {
-                        if now>=grace {
-                            // No cancellation-ack schema exists: after requesting 48, stop the local simulation.
-                            dig=None;decoder.expire_action();action_until=None;
-                        }
-                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
-                    }
+                    if action_until.is_some_and(|until|now>=until) {decoder.expire_action();action_until=None;}
+                    if let Some(key)=barrier && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                 }
                 result=g.receive(&mut self.order)=>{
                     let raw=result?;let proof_at=raw.received;
@@ -626,7 +625,7 @@ impl Actor {
                         for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
                         for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
                         if dig_ended {dig=None;}
-                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some((key,_))=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
+                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
                         self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts:vec![e::Fact::InventorySettled(e::IngressMark(mark))]},proof_at)?;
@@ -639,31 +638,8 @@ impl Actor {
 struct PendingDig {
     cycle: crate::dig::Cycle,
     mark: u64,
-    until: Deadline,
+    until: Instant,
     last_tick: Instant,
-}
-/// Under the engine's `DRAIN_MS`, so `Quiescent` can follow an expired action in time.
-const QUIESCE_GRACE: Duration = Duration::from_millis(1_000);
-/// An engine-clock deadline measured from when the op was queued (no later than its send).
-struct Deadline {
-    clock: e::At,
-    queued: Instant,
-    until: u64,
-}
-impl Deadline {
-    fn after(clock: e::At, queued: Instant, window: u64) -> Self {
-        Self {
-            clock,
-            queued,
-            until: clock.0.saturating_add(window),
-        }
-    }
-    fn passed(&self) -> bool {
-        self.clock
-            .0
-            .saturating_add(self.queued.elapsed().as_millis().min(u64::MAX as u128) as u64)
-            >= self.until
-    }
 }
 pub(crate) fn support(decoder: &Decoder, quiesce: bool) -> Result<e::Support> {
     Ok(e::Support {

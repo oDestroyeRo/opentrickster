@@ -18,6 +18,10 @@ impl Engine {
             if !digging && !support.basic_attack {
                 blockers.push(Blocker::NeedsCapability(Capability::BasicAttack));
             }
+            // Combat gains only come from pickups, so a combat goal could never be reached.
+            if !digging && draft.goal.is_some() && !support.pickup {
+                blockers.push(Blocker::NeedsCapability(Capability::Pickup));
+            }
         }
         if let Some((map, point)) = self.book.own.position {
             if map != draft.boundary.parts().0 {

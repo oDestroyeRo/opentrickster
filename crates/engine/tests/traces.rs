@@ -1347,6 +1347,25 @@ fn unsupported_pickup_leaves_drops_and_keeps_attacking() {
 }
 
 #[test]
+fn combat_goal_without_pickup_cannot_start() {
+    let mut capabilities = support();
+    capabilities.pickup = false;
+    let goal = Some(Goal {
+        item: ItemKind(1),
+        gained: 1,
+    });
+    let mut h = Harness::with(false, capabilities, baseline(), goal);
+    let state = h.facts(vec![entity(1, Point { x: 101, y: 100 }, Some(false))]);
+    assert!(
+        state
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsCapability(Capability::Pickup))
+    );
+    assert!(acts(&h.command(Command::Start)).is_empty());
+}
+
+#[test]
 fn manual_input_supersedes_an_older_quiescence_barrier() {
     let mut h = Harness::new(false);
     let id = h.start_attack();
