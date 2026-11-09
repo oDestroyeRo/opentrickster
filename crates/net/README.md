@@ -154,9 +154,17 @@ pass for that build; a pin migration turns it off again. When accepted:
 - Each later decoded delta, a 233 or a change of total 6 re-emits both facts.
 - A missing definition, an unrepresentable sum or a delta before H reports
   nothing for the session. After a report, a late 231, an undecoded Inventory
-  opcode, a row naming an uncached UID or a missing definition fails the session
-  with `Uncertain`. The engine has no fact that forgets a value, so the session
-  reports `Lost`; only a fresh startup after an engine reconnect reports them again.
+  opcode, a row naming an uncached UID (including a 68 for a new UID) or a missing
+  definition fails the session with `Uncertain`. The engine has no fact that
+  forgets a value, so the session reports `Lost`; only a fresh startup after an
+  engine reconnect reports them again.
+- The page bridge forwards the undecoded Inventory opcodes header-only
+  (`page::HEADER_ONLY`), so the assisted observer sees them and invalidates
+  without any item data crossing IPC.
+- Known limit: `ordered.rs` releases a buffered Aux group and later Aux-0
+  packets in raw order, while the client applies Aux-0 packets at once. If both
+  touch the same UID before the group flushes, the cache can diverge silently.
+  Trial A/B must check for this overlap before the cutoff is accepted.
 
 Native code sends24, ordinary288+29 and the full timed44->45/371->49->50 dig
 exchange, including real48 cancellation counters. Native movement policy is

@@ -1418,6 +1418,8 @@ mod tests {
                 (35, vec![]),
                 (561, change(1, 1, 7, 999, 1)),
                 (561, change(2, 1, 99, 48, 1)),
+                // 68 only updates an existing row, so a new UID diverges from the client.
+                (68, change(2, 1, 7, 99, 1)),
             ] {
                 let mut startup = startup(true, &ROWS);
                 assert_eq!(

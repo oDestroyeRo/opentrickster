@@ -32,6 +32,11 @@ const incoming=messages.filter(m=>m.kind==='frame'&&m.direction==='inbound');ass
 const accepted=Buffer.from(incoming[0].data,'base64');assert.equal(accepted.length,6);assert.equal(accepted[0],0);
 const redacted=Buffer.from(incoming[1].data,'base64').subarray(6);assert.equal(redacted.length,69);
 for(let i=0;i<redacted.length;i++)assert.equal(redacted[i],i>=17&&i<=38||[53,54,56,57].includes(i)?85:0);
+const inventoryInput=cfg.headerOnly[0];assert.equal(cfg.headerOnly.length,10);
+gs.fire('message',{data:frame(inventoryInput,Buffer.from('SYNTHETIC-ITEM-ROWS'),3)});
+const headerOnly=Buffer.from(messages.filter(m=>m.kind==='frame'&&m.direction==='inbound').at(-1).data,'base64');
+assert.equal(headerOnly.length,6);assert.equal(headerOnly[0],0);assert.equal(headerOnly[1],0);assert.equal(headerOnly[4],3);
+assert.ok(!JSON.stringify(messages).includes(Buffer.from('SYNTHETIC-ITEM-ROWS').toString('base64')));
 assert.ok(!JSON.stringify(messages).includes('SYNTHETIC-AUTH'));
 assert.ok(!JSON.stringify(messages).includes('SYNTHETIC-PRIVATE-TOKEN'));
 assert.ok(!messages.some(m=>m.data===Buffer.from(auth).toString('base64')));
