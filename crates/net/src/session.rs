@@ -1024,6 +1024,45 @@ impl Startup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// The engine learns a maximum only from a resource fact. The StartSet's 233 is usually
+    /// the frame at H, so its resources carry the maxima the StartSet proves. A later 233
+    /// carries the current maxima.
+    #[test]
+    fn every_233_reports_its_resources_with_the_proven_maxima() {
+        let session = crate::test_support::maxima_session();
+        let mut startup = Startup::new(0);
+        startup
+            .decoder
+            .set_definitions(Some(session.definitions.clone()));
+        let packet = |(opcode, aux, payload): &(u16, u16, Vec<u8>), mark| Packet {
+            opcode: *opcode,
+            aux: *aux,
+            payload: Zeroizing::new(payload.clone()),
+            mark,
+            received: Instant::now(),
+        };
+        let start = &session.frames[..=session.h];
+        for (mark, frame) in (1..).zip(start) {
+            startup.push(packet(frame, mark)).unwrap();
+        }
+        assert!(startup.ready());
+        let maxima = |facts: &[e::Fact]| {
+            let last = |hp: bool| {
+                facts.iter().rev().find_map(|fact| match fact {
+                    e::Fact::Hp(gauge) if hp => Some(gauge.maximum.map(|m| m.get())),
+                    e::Fact::Mp(gauge) if !hp => Some(gauge.maximum.map(|m| m.get())),
+                    _ => None,
+                })
+            };
+            [last(true).flatten(), last(false).flatten()]
+        };
+        let proven = startup.decoder.maxima();
+        assert!(proven.iter().all(Option::is_some));
+        assert_eq!(maxima(&startup.facts), proven[..2]);
+        let mark = start.len() as u64 + 1;
+        let facts = startup.decoder.apply(&packet(&start[session.h], mark));
+        assert_eq!(maxima(&facts.unwrap()), proven[..2]);
+    }
     #[test]
     fn only_second_password_state_zero_proceeds() {
         let list = |state: u32, fails: u32| {

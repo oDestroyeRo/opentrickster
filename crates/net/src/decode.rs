@@ -716,6 +716,10 @@ impl Decoder {
                 if !live {
                     self.parts
                         .start_slots(&self.slots, |uid| lookup(&self.items, uid));
+                    // At H the StartSet closes here, so the resources below carry its maxima.
+                    if self.status.closes_start_set(p.mark) {
+                        self.parts.finish_start(|uid| lookup(&self.items, uid));
+                    }
                 }
                 self.missing_slots.clear();
                 self.missing_slot_refs = [0; 23];
@@ -775,8 +779,8 @@ impl Decoder {
                 });
                 out.extend([
                     Fact::Profile(profile),
-                    Fact::Hp(gauge(hp)),
-                    Fact::Mp(gauge(mp)),
+                    Fact::Hp(resources::gauge(hp, self.maximum(9))),
+                    Fact::Mp(resources::gauge(mp, self.maximum(3))),
                 ]);
                 if let Some(point) = self.point {
                     out.push(Fact::Position { map, point });

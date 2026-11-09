@@ -264,7 +264,7 @@ Bind order decides whether the page saw the StartSet. A page bound before the ga
 
 `crates/net/src/resources.rs` keeps the `CharacterStatus` inputs per decoder and applies frames in arrival order. `crates/net/src/parts.rs` keeps the `GameParts` inputs alongside.
 
-- **StartSet boundary.** Frames through the startup cutoff H are treated as the StartSet, the same boundary the accepted inventory cutoff uses. In the StartSet only 233 and the soul-seed opcodes act on `CharacterStatus`. A StartSet 233 recomputes once the frame at H has been applied, after the whole StartSet aura. `Parts` closes its own StartSet replay at the same frame.
+- **StartSet boundary.** Frames through the startup cutoff H are treated as the StartSet, the same boundary the accepted inventory cutoff uses. In the StartSet only 233 and the soul-seed opcodes act on `CharacterStatus`. A StartSet 233 recomputes once the frame at H has been applied, after the whole StartSet aura. `Parts` closes its own StartSet replay at the same frame. When that frame is the 233, the replay closes before Net reports the 233's HP and MP, so the Baseline carries the maxima the StartSet proves.
 - **Live frames.** After H, the block, points, buff, override and aura frames act as described above.
 - **Unknown on doubt.** An input becomes unknown when a frame's effect is not provable:
   - a 109 shorter than 26 bytes;
