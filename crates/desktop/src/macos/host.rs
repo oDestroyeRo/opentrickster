@@ -157,6 +157,9 @@ impl EmbeddedHost {
             })
             .with_focused(false)
             .with_devtools(false)
+            // The game page saves the last Game ID in its storage. A non-persistent store keeps
+            // that, like every other page datum, in memory for this session only.
+            .with_incognito(true)
             .with_initialization_script_for_main_only(policy, true)
             .with_navigation_handler(move |url| {
                 if navigation_close.get() {

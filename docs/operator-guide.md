@@ -46,6 +46,10 @@ session is open at a time; to change modes, see [Switch modes](#switch-modes).
 2. Log in inside the game and choose your character.
 3. Wait for the status **Ready**.
 
+The game page keeps nothing between launches: the app discards its saved
+Game ID, settings and downloaded files when the session ends. The game loads
+its files again on each **Load game**.
+
 The toolbar badge reads **Keys go to Game** or **Keys go to Dashboard**. Press
 ⌃Tab or click the badge to switch. A click outside the game sends keys back to
 the dashboard.
