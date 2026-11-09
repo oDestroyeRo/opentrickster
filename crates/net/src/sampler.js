@@ -4,6 +4,8 @@
   const samplerBuild = "ea1a68bd89958fae94179f1e0835ffb5";
   // At runtime Il2CppType.data for classes and primitives is a handle into the loaded metadata, not an index.
   const metadataCells = [4659832,4659828], typeDefinitions = [7487400,1019502,15447];
+  // Metadata-usage cells hold (kind << 29) | (index << 1) | 1 until the first method that uses them runs.
+  const cellWords = {3243056:536899443,3244824:536902459,3246444:536903493,3246812:536904109,3247516:536905459,3248924:536907653,3250128:536909255,3250132:536909263,3250708:536910259,3256436:536919877,3258196:536923117,3258208:536923129,3297464:2684369017,3299016:2684369793,3301272:2684370921,3309924:2684375243,3332756:2684386627,3332764:2684386631,3333184:2684386841,3333192:2684386845,3334068:2684387283,3334072:2684387285,3334088:2684387293,3334428:2684387463,3334644:2684387571,3335044:2684387771};
   const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,10529:17,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
   const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6764:24,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10304:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
   let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
@@ -79,16 +81,33 @@
       if (u32(c + 128) < size || u32(c + 128) > 65536) unavailable("type");
       return p;
     }
-    function root(cell, id, offset) {
-      const c = klass(pointer(cell), id), statics = pointer(c + 76);
-      return object(pointer(statics + offset), id);
+    // f2690 replaces a cell's usage word with its class or method when a method that uses the cell first runs, so the
+    // pinned word means the client has not run such a method yet. Any other odd word means the pin is wrong.
+    function cell(p) {
+      const v = u32(p);
+      if (v === cellWords[p]) return null;
+      if (!v || v % 2) unavailable("build");
+      return extent(v, 4);
     }
-    function statics(cell, id) { return pointer(klass(pointer(cell), id) + 76); }
+    const methodCell = p => cell(p) ?? unavailable("cold");
+    // A class's static fields, or null while no method has touched them: its TypeInfo cell is unresolved or the class is
+    // uninitialized, so every static still holds its default.
+    function statics(p, id) {
+      const c = cell(p);
+      if (c === null) return null;
+      const s = u32(klass(c, id) + 76);
+      return s ? extent(s, 4) : null;
+    }
+    function root(p, id, offset) {
+      const s = statics(p, id), o = s && u32(s + offset);
+      return o ? object(o, id) : null;
+    }
     function context(method) {
       extent(method, 40);
-      return extent(pointer(method + 28), 56);
+      const ctx = u32(method + 28);
+      if (!ctx) unavailable("cold");
+      return extent(ctx, 56);
     }
-    const methodCell = pointer;
     function array(p, stride, limit, element) {
       extent(p, 16);
       const c = pointer(p), count = integer(i32(p + 12), 0, limit);
@@ -274,7 +293,7 @@
     // InputStateBuffers.GetFrontBufferForDevice f34662 maps from m_Device.m_DeviceIndex (GetDeviceIndex f33849).
     function stateValue(p, id, device) {
       if (id === 10580 || pointer(p + 68) !== device) unavailable("input");
-      const buffers = statics(3250128,10529), index = i32(device + 176);
+      const buffers = statics(3250128,10529) ?? unavailable("cold"), index = i32(device + 176);
       if (index < 0 || index >= i32(buffers + 16)) unavailable("input");
       const front = u32(pointer(buffers + 12) + index * 8);
       if (!front) unavailable("input");
@@ -307,7 +326,9 @@
       const method = methodCell(3309924), ctx = context(method);
       klass(pointer(method+16),10275,[9067]);
       if (u32(klass(pointer(ctx+4),9067)+132) !== 4) unavailable("generic");
-      const manager = object(pointer(statics(3250132,10206) + 4),10330);
+      const system = statics(3250132,10206), managerAt = system && u32(system + 4);
+      if (!managerAt) unavailable("cold");
+      const manager = object(managerAt,10330);
       let value;
       if (bool(manager + 736)) {
         if (bool(p + 104) || bool(p + integer(u32(ctx + 16),164,224))) unavailable("input");
@@ -318,7 +339,7 @@
         value = stateValue(p, id, device);
       }
       let threshold = f32(p + 244);
-      if (threshold <= 0) threshold = f32(statics(3243056,10583));
+      if (threshold <= 0) threshold = f32(statics(3243056,10583) ?? unavailable("cold"));
       finite(threshold,0.000001,1);
       return value >= threshold;
     }
@@ -346,6 +367,7 @@
     if (u32(header) !== 0xfab11baf || typeDefinitions.some((v, i) => u32(header + 236 + 4 * i) !== v)) unavailable("build");
     const typeBase = metadata + typeDefinitions[0], typeStride = typeDefinitions[1] / typeDefinitions[2];
     const flow = root(0x318d9c,2621,4), engine = root(0x31b074,13665,0);
+    if (!flow || !engine) unavailable("cold");
     if (pointer(flow + 16) !== engine) unavailable("changing");
     const screen = object(pointer(flow + 84),2669), stage = object(pointer(engine + 20),13686);
     const input = object(pointer(engine + 28),13644), own = object(pointer(screen + 236),5467);
@@ -379,7 +401,9 @@
     if (drill && (pointer(drill + 24) !== fsm || pointer(assist + 8) !== drill || pointer(drill + 20) !== session)) unavailable("changing");
     const hud = object(pointer(screen + 324),5357), binding = bindings(pointer(hud + 80));
     // Keyboard.MakeCurrent f34170 stores any Keyboard. FastKeyboard, the only subclass, declares no fields.
-    const keyboard = pointer(statics(3250708,10299)), keyboardClass = type(pointer(keyboard) + 16).id;
+    const keyboardStatics = statics(3250708,10299), keyboard = keyboardStatics && u32(keyboardStatics);
+    if (!keyboard) unavailable("cold");
+    const keyboardClass = type(pointer(keyboard) + 16).id;
     if (![10299,10304].includes(keyboardClass)) unavailable("type");
     object(keyboard,keyboardClass);
     const keys = array(pointer(keyboard + 304),4,256,10591);
@@ -456,12 +480,20 @@
     }
     let automaticPet = false;
     if (drill && pet) automaticPet = dictionary(pointer(data + 32),9024,null,512,methodCell(3297464)).some(row => u64(row.key) === pet.id) && (u32(zoneInfo+40)&1)===0;
-    const skins = statics(0x31b760,2484);
-    if (!bool(skins+4)) unavailable("cold");
-    const skin = integer(i32(skins),0,1);
-    const semiAuto = nullable(statics(0x318318,3185),3332756,3332764,2,8962,1,bool);
-    if (semiAuto === null) unavailable("binding");
-    const manual = !(skin === 1 && semiAuto) && !automaticPet;
+    // DigAssist.DigKey f20166 sends the Custom skin's dig key to the helper while DigKeySettings.SemiAuto is set.
+    let manual = false;
+    if (drill && !automaticPet) {
+      const skins = statics(0x31b760,2484);
+      if (!skins || !bool(skins+4)) unavailable("cold");
+      manual = true;
+      if (integer(i32(skins),0,1) === 1) {
+        // get_SemiAuto f44679 caches PlayerPrefs "spinel.custom.digKeySemiAuto" in a static bool? on its first call.
+        // Before that the setting exists only in native storage, so manual is unknown.
+        const settings = statics(0x318318,3185);
+        const semiAuto = settings && cell(3332756) && cell(3332764) ? nullable(settings,3332756,3332764,2,8962,1,bool) : null;
+        manual = semiAuto === null ? null : !semiAuto;
+      }
+    }
     const actors = [], actorIds = new Set([ownId]);
     function actor(p) {
       object(p,5467);
@@ -504,16 +536,20 @@
     // EditBox.Focused takes keys before the HUD. While features install, a key or menu without a registered action
     // waits in waitMenu/waitAction, then in due until Hud.Update replays it at a time the caller does not choose.
     // Hud.keyMask is not read: GameUiMode.KeyBit f21420 gives Dig and Run no bit, so KeyOn passes them under every mask.
+    // Statics no method has touched hold their defaults: no focused EditBox, no HudCover covers and no EventSystem.
     const edit = statics(3246444,2375);
-    if (u32(edit + 24) !== 0 || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
-    const covers = pointer(statics(3248924,5358));
-    if (dictionary(covers,9203,8935,256).length) unavailable("routing");
-    const eventSystems = list(pointer(statics(3246812,14184)),14184,4,8);
+    if ((edit && u32(edit + 24) !== 0) || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
+    const coverStatics = statics(3248924,5358), covers = coverStatics ? u32(coverStatics) : 0;
+    if (covers && dictionary(covers,9203,8935,256).length) unavailable("routing");
+    const systemStatics = statics(3246812,14184), systems = systemStatics ? u32(systemStatics) : 0;
+    if (!systems) unavailable("routing");
+    const eventSystems = list(systems,14184,4,8);
     if (eventSystems.count !== 1) unavailable("routing");
     const es = object(pointer(eventSystems.data),14184);
     if (u32(es + 36) || !bool(es + 40) || bool(es + 41)) unavailable("routing");
+    // UiPressOrigin.get_LeftOnUi f50216 and get_RightOnUi f50217 are false while Current is null.
     const origins = root(3258196,2481,0);
-    if (bool(origins + 32) || bool(origins + 33)) unavailable("routing");
+    if (origins && (bool(origins + 32) || bool(origins + 33))) unavailable("routing");
     const attackTargets = idSet(pointer(combat + 104),9023,9023), waiting = idSet(pointer(combat + 128)), striking = idSet(pointer(combat + 124));
     const fading = new Set();
     for (const row of orderedMap(pointer(combat + 136),9023,6083,512,3334644)) {
@@ -534,7 +570,7 @@
     }
     const zoneId = integer(i32(zoneInfo+8),1,65535);
     const equipment = [1,4,7,8,9,22].map(slot => u64(slots.data+slot*8).toString());
-    const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,skin,semiAuto,equipment])];
+    const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,manual,equipment])];
     const geometryChanged = !previousGeometry || geometryKey.some((v,i) => v !== previousGeometry[i]);
     // Cached world/pick facts need a later MapPoint probe under the new geometry.
     const probePosition = vec(screen+624), probeTime = f64(screen+632);

@@ -1032,6 +1032,8 @@ def derive(build, build_id, unity, artifacts):
         if v in wanted:
             hits.setdefault(wanted[v], []).append(start + 4 * k)
     out['cells'] = {f'{kind} {name}': unique(hits.get((kind, name), []), f'{kind} {name}') for kind, name in CELLS}
+    # The usage word each cell holds until the first method that uses it resolves it.
+    out['cellWords'] = {label: build.u32(cell) for label, cell in out['cells'].items()}
     by_name = {}
     for mi in build.slot_of:
         by_name.setdefault(build.method_name(mi), []).append(mi)
@@ -1058,7 +1060,7 @@ def derive(build, build_id, unity, artifacts):
 
 # Sections that hold build-local indices and addresses. Every other difference is a
 # layout, generic-context, code or toolchain change that needs a semantic review.
-MOVES = ('typedefMax', 'types', 'cells', 'slots', 'runtime')
+MOVES = ('typedefMax', 'types', 'cells', 'cellWords', 'slots', 'runtime')
 
 
 def compare(old, new):

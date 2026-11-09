@@ -120,7 +120,9 @@ pub(crate) struct DigState {
     pub(crate) auto_flag: bool,
     pub(crate) automatic: bool,
     pub(crate) crazy: bool,
-    pub(crate) manual: bool,
+    /// `None` until the client caches its semi-automatic dig setting.
+    #[serde(deserialize_with = "present")]
+    pub(crate) manual: Option<bool>,
     pub(crate) automatic_pet: bool,
     pub(crate) map_allowed: bool,
     #[serde(deserialize_with = "present")]
@@ -442,7 +444,7 @@ fn combat_idle(s: &Snapshot) -> bool {
 }
 
 fn manual(d: &DigState) -> bool {
-    d.manual
+    d.manual == Some(true)
         && d.map_allowed
         && !d.automatic_pet
         && d.assist == 0
@@ -1070,9 +1072,11 @@ mod tests {
                 .steps,
             vec![NormalInput::LeftDown]
         );
-        dig(&mut s).manual = false;
-        assert!(candidate(&s, action, None).is_err());
-        dig(&mut s).manual = true;
+        for unknown_or_semi_auto in [None, Some(false)] {
+            dig(&mut s).manual = unknown_or_semi_auto;
+            assert!(candidate(&s, action, None).is_err());
+        }
+        dig(&mut s).manual = Some(true);
         dig(&mut s).fsm = 5;
         s.motion.fsm = 5;
         dig(&mut s).in_state = true;

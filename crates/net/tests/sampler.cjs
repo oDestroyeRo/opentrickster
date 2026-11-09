@@ -483,6 +483,7 @@ function checkConstants() {
   for (const [id, size] of Object.entries(constant("typeSizes"))) assert.equal(size, pins.instanceSizes[names[id]], `typeSizes ${id} is ${names[id]}`);
   for (const [id, kind] of Object.entries(constant("typeKinds"))) assert.equal(kind, pins.typeKinds[names[id]], `typeKinds ${id} is ${names[id]}`);
   assert.deepEqual(constant("metadataCells"), [pins.runtime.s_GlobalMetadata, pins.runtime.s_GlobalMetadataHeader]);
+  assert.deepEqual(constant("cellWords"), Object.fromEntries(Object.entries(pins.cells).map(([label, cell]) => [cell, pins.cellWords[label]])));
   assert.deepEqual(constant("typeDefinitions"), pins.runtime.typeDefinitions);
   assert.equal(constant("samplerBuild"), pins.build);
 }
@@ -605,8 +606,34 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   assert.equal(arrived.dig.toolUsable, true);
   cases++;
 
-  check("tagged flow", ({h}) => h.raw(CELL("TypeInfo Spinel.UI.Pc.Screens.GameFlow"), "ptr", 0x200086e7));
-  check("null engine", ({h}) => h.raw(CELL("TypeInfo Spinel.Engine.Unity.SpinelEngine"), "ptr", 0));
+  check("tagged flow", ({h}) => h.raw(CELL("TypeInfo Spinel.UI.Pc.Screens.GameFlow"), "ptr", 0x200086e7), "unavailable", "build");
+  check("null engine", ({h}) => h.raw(CELL("TypeInfo Spinel.Engine.Unity.SpinelEngine"), "ptr", 0), "unavailable", "build");
+  // A cell holds its pinned usage word until a method that uses it first runs. Statics then keep their defaults: no
+  // focused EditBox, no HudCover cover, no UiPressOrigin press, no EventSystem, and no cached semi-auto setting.
+  const unusedCell = label => ({h}) => h.raw(CELL(label), "ptr", pins.cellWords[label]);
+  const outcomeOf = (name, change, outcome) => check(name, change, outcome === "ready" ? "ready" : "unavailable", outcome === "ready" ? undefined : outcome);
+  const unusedOutcome = {
+    "TypeInfo Spinel.UI.Pc.Play.DigKeySettings": "ready", "MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<bool>": "ready",
+    "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<bool>": "ready", "TypeInfo Spinel.UI.Pc.EditBox": "ready",
+    "TypeInfo Spinel.UI.Pc.Hud.HudCover": "ready", "TypeInfo Spinel.UI.Pc.UiPressOrigin": "ready", "TypeInfo UnityEngine.EventSystems.EventSystem": "routing",
+  };
+  // Buttons whose frame press is current never reach these cells; the uncached cases below cover them.
+  const INPUT_CELLS = ["MethodRef Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl`1::get_value()<r4>", "TypeInfo UnityEngine.InputSystem.InputSystem",
+    "TypeInfo UnityEngine.InputSystem.Controls.ButtonControl", "TypeInfo UnityEngine.InputSystem.LowLevel.InputStateBuffers"];
+  for (const label of Object.keys(pins.cells).filter(label => !INPUT_CELLS.includes(label))) {
+    const unused = outcomeOf(`${label} not used yet`, unusedCell(label), unusedOutcome[label] ?? "cold");
+    if (/DigKeySettings|<bool>/.test(label)) assert.equal(unused.dig.manual, null, label);
+    check(`${label} holding another usage word`, ({h}) => h.raw(CELL(label), "ptr", pins.cellWords[label] + 2), "unavailable", "build");
+  }
+  const classic = check("classic skin needs no semi-auto setting", f => { f.h.set(f.p.skins, "chosen", 0); unusedCell("TypeInfo Spinel.UI.Pc.Play.DigKeySettings")(f); }, "ready");
+  assert.equal(classic.dig.manual, true);
+  check("dig settings unread without the drill feature", f => { noDrill(f); unusedCell("TypeInfo Spinel.UI.Pc.UiSkins")(f); }, "ready");
+  for (const [name, outcome] of [["Spinel.UI.Pc.Play.DigKeySettings", "ready"], ["Spinel.UI.Pc.Hud.HudCover", "ready"], ["Spinel.UI.Pc.Screens.GameFlow", "cold"], ["UnityEngine.EventSystems.EventSystem", "routing"]]) {
+    outcomeOf(`${name} statics not initialized`, ({h}) => h.raw(h.cls(name) + 76, "ptr", 0), outcome);
+  }
+  check("no current GameFlow", ({h}) => h.set(h.statics("Spinel.UI.Pc.Screens.GameFlow"), "Current", 0), "unavailable", "cold");
+  check("no current keyboard", ({h}) => h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", 0), "unavailable", "cold");
+  check("no current UiPressOrigin", ({h}) => h.set(h.statics("Spinel.UI.Pc.UiPressOrigin"), "Current", 0), "ready");
   check("misaligned object", ({h, p}) => h.raw(h.addr(p.flow, "Screen"), "ptr", p.screen + 1));
   check("truncated object", ({h, p}) => h.raw(h.addr(p.flow, "Screen"), "ptr", h.buffer.byteLength - 8));
   // A Dictionary`2 is 48 bytes; one cut short by the end of memory must be refused before any read.
@@ -633,8 +660,8 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("host override with zero first component", ({h, p}) => h.set(p.stage, "hostOverride.hasValue", true));
   check("nonfinite zoom", ({h, p}) => h.set(p.stage, "Current.WorldZoom", NaN));
   const services = "MethodRef mscorlib.dll|System.Collections.Generic.Dictionary`2::TryGetValue(!TKey,!TValue&)<System.Type,object>";
-  check("unresolved method", ({h}) => h.raw(CELL(services), "ptr", 0xa0003fdb));
-  check("unresolved context", ({h}) => h.raw(h.u32(CELL(services)) + 28, "ptr", 0));
+  check("unresolved method", ({h}) => h.raw(CELL(services), "ptr", pins.cellWords[services]), "unavailable", "cold");
+  check("unresolved context", ({h}) => h.raw(h.u32(CELL(services)) + 28, "ptr", 0), "unavailable", "cold");
   check("wrong specialization", ({h, p}) => h.raw(p.actors, "ptr", h.u32(p.serviceDict)));
   check("invalid slot stride", ({h}) => h.raw(h.cls(PAIRS) + 140, "int", 4));
   check("used beyond slots", ({h, p}) => h.set(p.actors, "used", 2));
@@ -741,6 +768,11 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("uncached key of another device", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_Device", f.h.object("UnityEngine.InputSystem.FastKeyboard")); }, "unavailable", "input");
   check("uncached device outside the current buffers", f => { const s = uncached(f); stateKey(f, s); f.h.set(s.device, "m_DeviceIndex", 1); }, "unavailable", "input");
   check("uncached device without a front buffer", f => { const s = uncached(f); stateKey(f, s); f.h.write(s.mapping, "ptr", 0); }, "unavailable", "input");
+  for (const label of INPUT_CELLS) {
+    const pressing = f => { const s = uncached(f); stateKey(f, s); s.bit(20); };
+    check(`${label} not used yet`, f => { pressing(f); unusedCell(label)(f); }, "unavailable", "cold");
+    check(`${label} holding another usage word`, f => { pressing(f); f.h.raw(CELL(label), "ptr", pins.cellWords[label] + 2); }, "unavailable", "build");
+  }
   check("uncached AnyKeyControl", f => {
     const s = uncached(f), any = f.h.set(f.h.object("UnityEngine.InputSystem.Controls.AnyKeyControl"), "m_Device", s.device);
     f.h.set(f.p.keyboard, "ctrlKey", any);
@@ -772,7 +804,7 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   }, "ready");
   check("foreign nullable specialization", ({h}) => h.raw(h.u32(CELL("MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<vt:UnityEngine.Vector2>")) + 16, "ptr", h.cls(["System.Nullable`1", I32])));
   check("nullable field overlap", ({h}) => h.raw(h.rgctx(["System.Nullable`1", "UnityEngine.Vector2"]) + 12, "int", 5));
-  check("unknown manual setting", ({h, p}) => h.set(p.semi, "semiAuto.hasValue", false));
+  assert.equal(check("unknown manual setting", ({h, p}) => h.set(p.semi, "semiAuto.hasValue", false), "ready").dig.manual, null);
   check("cold drill parameter", ({h, p}) => { h.set(p.fsm, "State", 5); h.set(p.drill, "inDrillState", true); });
   check("native page zoom", f => { f.context.visualViewport = {scale: 2, offsetLeft: 0, offsetTop: 0}; });
   check("non-canvas DOM editor", f => { f.context.document.activeElement = {tagName: "INPUT"}; });
@@ -813,6 +845,11 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("pressed flag on a waiting action", ({h, p}) => h.set(p.actions[0], "[0].m_Flags", 64), "unavailable", "input");
   const semi = check("semi-auto retained", ({h, p}) => h.set(p.semi, "semiAuto.value", true), "ready");
   assert.equal(semi.dig.manual, false);
+  const switched = fixture();
+  assert.equal(switched.sample().snapshot.revision, 1);
+  switched.h.set(switched.p.semi, "semiAuto.value", true);
+  assert.equal(switched.sample().snapshot.revision, 2, "a changed dig route is a new revision");
+  cases++;
   const assist = check("helper state 2 is busy", ({h, p}) => h.set(p.assist, "State", 2), "ready");
   assert.equal(assist.dig.assist, 2);
   const automatic = check("automatic drill phase", ({h, p}) => h.set(p.drill, "Auto", h.set(h.object("Spinel.Game.Play.AutoDrill"), "State", 2)), "ready");
