@@ -867,6 +867,47 @@ fn manual_input_during_sent_action_prevents_later_automation_attribution() {
 }
 
 #[test]
+fn a_slow_idle_proof_without_a_run_keeps_the_session_and_asks_again() {
+    let mut h = Harness::new(false);
+    let manual = h.event(Event::ManualInput);
+    let key = barrier(&manual).expect("quiescence requested");
+    for _ in 0..3 {
+        let expired = h.wake(DRAIN_MS);
+        assert_eq!(closes(&expired), 0);
+        assert_eq!(barrier(&expired), Some(key));
+        assert_eq!(expired.snapshot.phase, Phase::Ready);
+        assert!(
+            expired
+                .snapshot
+                .blockers
+                .contains(&Blocker::NeedsQuiescence)
+        );
+    }
+    let settled = h.event(Event::Quiescent(key));
+    assert!(
+        !settled
+            .snapshot
+            .blockers
+            .contains(&Blocker::NeedsQuiescence)
+    );
+    assert!(settled.snapshot.allowed.contains(&Control::Start));
+}
+
+#[test]
+fn manual_play_during_a_run_without_a_pending_action_keeps_the_session() {
+    let mut h = Harness::new(false);
+    let start = h.command(Command::Start);
+    assert!(acts(&start).is_empty());
+    let manual = h.event(Event::ManualInput);
+    let key = barrier(&manual).expect("quiescence requested");
+    let expired = h.wake(DRAIN_MS);
+    assert_eq!(closes(&expired), 0);
+    assert_eq!(barrier(&expired), Some(key));
+    let settled = h.event(Event::Quiescent(key));
+    assert_eq!(settled.snapshot.phase, Phase::Paused(Pause::ManualInput));
+}
+
+#[test]
 fn manual_input_while_idle_still_requires_new_quiescence() {
     let mut h = Harness::new(false);
     h.command(Command::Start);

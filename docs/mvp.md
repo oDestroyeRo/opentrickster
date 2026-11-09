@@ -25,6 +25,10 @@ mode runs without Unity and displays received game state in the native dashboard
   the actual send, not at the ticket's issue. These are conservative application
   defaults, not server guarantees; supported normal actions may require measured
   adjustments recorded with their evidence.
+- An expired quiescence window closes the session only while an action of ours
+  may be in flight or a Stop is draining. Otherwise the app keeps the session,
+  repeats the same quiescence request in fresh 2-second windows, and holds the
+  next action until the game is idle.
 - Stop a run after three consecutive correlated rejected actions. A confirmed
   action resets the rejection streak.
 - Pause on fainting, uncertain state, resource or drill limits, a reached goal,
