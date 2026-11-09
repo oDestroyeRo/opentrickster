@@ -29,7 +29,7 @@ UnityEngine.InputSystem.Controls.AnyKeyControl UnityEngine.InputSystem.Controls.
 UnityEngine.InputSystem.Controls.DiscreteButtonControl UnityEngine.InputSystem.Controls.KeyControl
 UnityEngine.InputSystem.InputControl`1 UnityEngine.InputSystem.InputSystem UnityEngine.InputSystem.InputManager
 UnityEngine.InputSystem.InputAction UnityEngine.InputSystem.InputActionMap UnityEngine.InputSystem.InputActionState
-UnityEngine.InputSystem.Keyboard UnityEngine.EventSystems.EventSystem
+UnityEngine.InputSystem.Keyboard UnityEngine.InputSystem.FastKeyboard UnityEngine.EventSystems.EventSystem
 Spinel.UI.Pc.Screens.GameFlow Spinel.Engine.Unity.SpinelEngine Spinel.UI.Pc.Screens.GameplayScreen
 Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone Spinel.Engine.Unity.Stage Spinel.Engine.StageLayout
 Spinel.Engine.Unity.GameInput Spinel.Engine.Unity.World.MapView Spinel.Engine.Unity.World.ActorView

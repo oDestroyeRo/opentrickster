@@ -672,6 +672,14 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   assert.equal(check("default press point", f => cachedButton(f, 0, 1), "ready").input.modifiers[0], true);
   check("stale cached modifier value", f => { cachedButton(f, 0.5, 1); f.h.set(f.p.modifiers[0], "m_CachedValueIsStale", true); }, "unavailable", "input");
   check("processors evaluated on every read", f => { cachedButton(f, 0.5, 1); f.h.set(f.p.modifiers[0], "evaluateProcessorsEveryRead", true); }, "unavailable", "input");
+  // Keyboard.current holds whatever MakeCurrent f34170 stored; the client's own keyboard is the precompiled FastKeyboard.
+  const fastKeyboard = ({h, p}) => {
+    const k = h.set(h.object("UnityEngine.InputSystem.FastKeyboard"), {m_Keys: p.keys, shiftKey: p.modifiers[0], ctrlKey: p.modifiers[1], altKey: p.modifiers[2]});
+    h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", k);
+    return k;
+  };
+  check("FastKeyboard is the current keyboard", fastKeyboard, "ready");
+  check("current keyboard of another class", ({h}) => h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", h.object(BUTTON)), "unavailable", "type");
   const gun = check("actual equipped gun branch", ({h, p}) => {
     const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1}), info = h.set(h.object(INFO), {Id: 9000n, Type: 2, SubType: 54});
     h.set(p.slots, "[1]", 502n);

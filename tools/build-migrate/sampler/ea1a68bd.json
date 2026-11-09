@@ -175,6 +175,11 @@
    "UnityEngine.InputSystem.InputControl`1<r4>",
    "UnityEngine.InputSystem.InputControl"
   ],
+  "UnityEngine.InputSystem.FastKeyboard": [
+   "UnityEngine.InputSystem.Keyboard",
+   "UnityEngine.InputSystem.InputDevice",
+   "UnityEngine.InputSystem.InputControl"
+  ],
   "UnityEngine.InputSystem.InputAction": [],
   "UnityEngine.InputSystem.InputActionMap": [],
   "UnityEngine.InputSystem.InputActionState": [],
@@ -1651,6 +1656,7 @@
   "UnityEngine.InputSystem.Controls.ButtonControl": 248,
   "UnityEngine.InputSystem.Controls.DiscreteButtonControl": 272,
   "UnityEngine.InputSystem.Controls.KeyControl": 256,
+  "UnityEngine.InputSystem.FastKeyboard": 320,
   "UnityEngine.InputSystem.InputAction": 236,
   "UnityEngine.InputSystem.InputActionMap": 168,
   "UnityEngine.InputSystem.InputActionState": 120,
@@ -1935,6 +1941,7 @@
   "UnityEngine.InputSystem.Controls.ButtonControl": 10583,
   "UnityEngine.InputSystem.Controls.DiscreteButtonControl": 10586,
   "UnityEngine.InputSystem.Controls.KeyControl": 10591,
+  "UnityEngine.InputSystem.FastKeyboard": 10304,
   "UnityEngine.InputSystem.InputAction": 10214,
   "UnityEngine.InputSystem.InputActionMap": 10230,
   "UnityEngine.InputSystem.InputActionState": 10248,

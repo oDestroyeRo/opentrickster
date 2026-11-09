@@ -5,7 +5,7 @@
   // At runtime Il2CppType.data for classes and primitives is a handle into the loaded metadata, not an index.
   const metadataCells = [4659832,4659828], typeDefinitions = [7487400,1019502,15447];
   const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
-  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
+  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10304:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
   let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
   const sampleHex = value => typeof value === "string" && /^[1-9a-f][0-9a-f]{0,15}$/.test(value);
   const unavailable = code => { throw code; };
@@ -312,7 +312,11 @@
     if (pointer(combat + 20) !== session || pointer(gun + 20) !== session) unavailable("changing");
     if (drill && (pointer(drill + 24) !== fsm || pointer(assist + 8) !== drill || pointer(drill + 20) !== session)) unavailable("changing");
     const hud = object(pointer(screen + 324),5357), binding = bindings(pointer(hud + 80));
-    const keyboard = object(pointer(statics(3250708,10299)),10299), keys = array(pointer(keyboard + 304),4,256,10591);
+    // Keyboard.MakeCurrent f34170 stores any Keyboard. FastKeyboard, the only subclass, declares no fields.
+    const keyboard = pointer(statics(3250708,10299)), keyboardClass = type(pointer(keyboard) + 16).id;
+    if (![10299,10304].includes(keyboardClass)) unavailable("type");
+    object(keyboard,keyboardClass);
+    const keys = array(pointer(keyboard + 304),4,256,10591);
     function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4)); }
     const modifiers = [272,276,280].map(o => button(pointer(keyboard + o)));
     // f34098/f34099 read Key 57/58; get_Item f34042 indexes by Key - 1.
