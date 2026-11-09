@@ -34,6 +34,8 @@ pub(crate) struct GameDefinitions {
     pub(crate) zones: BTreeMap<u16, (i32, i32)>,
     pub(crate) zone_labels: BTreeMap<u16, String>,
     pub(crate) normal_form_effects: Vec<i32>,
+    /// `gulim13.fnt2`: 999 levels x 12 stats x 3 columns of player stat bases.
+    pub(crate) player_levels: Vec<f64>,
 }
 #[derive(Clone, Copy, Deserialize)]
 pub(crate) struct DrillMeta {
@@ -101,6 +103,10 @@ struct RawDrill {
     nature: i32,
 }
 #[derive(Deserialize)]
+struct RawLevelTables {
+    player: Vec<f64>,
+}
+#[derive(Deserialize)]
 struct RawDefinitions {
     build: String,
     item_types: BTreeMap<u32, (i32, i32)>,
@@ -113,6 +119,7 @@ struct RawDefinitions {
     zone_labels: BTreeMap<u16, String>,
     normal_form_effects: Vec<i32>,
     movement_mode: Option<u8>,
+    level_tables: RawLevelTables,
 }
 impl GameDefinitions {
     pub(crate) fn descriptor(&self, id: u32) -> Option<ItemDescriptor> {
@@ -167,6 +174,7 @@ impl GameDefinitions {
             || d.gun_slots.len() != 4
             || d.gun_slots.iter().any(|s| *s > 22)
             || d.normal_form_effects.len() != 6
+            || d.level_tables.player.len() != crate::resources::PLAYER_LEVELS
         {
             return Err(NetError::BuildChanged);
         }
@@ -178,6 +186,9 @@ impl GameDefinitions {
             {
                 return Err(NetError::Malformed);
             }
+        }
+        if d.level_tables.player.iter().any(|v| !v.is_finite()) {
+            return Err(NetError::Malformed);
         }
         Ok(Self {
             item_types: d.item_types,
@@ -205,6 +216,7 @@ impl GameDefinitions {
             zones: d.zones,
             zone_labels: d.zone_labels,
             normal_form_effects: d.normal_form_effects,
+            player_levels: d.level_tables.player,
         })
     }
 }

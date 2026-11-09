@@ -166,6 +166,7 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
     // The immutable Unity data pin binds the relevant-overlay absence proof (#27,
     // re-proved for this build by tools/build-migrate). Any new Unity/public asset
     // fingerprint is refused before this resolver runs.
+    let mut player_levels = Vec::new();
     for (n, b) in public.iter().enumerate().skip(3) {
         let values = std::str::from_utf8(b)
             .map_err(|_| NetError::Malformed)?
@@ -176,6 +177,10 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
             || values.iter().any(|v| !v.is_finite())
         {
             return Err(NetError::Malformed);
+        }
+        // `CombatData.Load` reads player stat bases from gulim13.fnt2.
+        if n == 3 {
+            player_levels = values;
         }
     }
     if items.len() != 18118 || drills.len() != 191 || gun_params.len() != 611 || zones.len() != 696
@@ -206,6 +211,7 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
             .iter()
             .map(|b| i32::from_le_bytes(*b))
             .collect(),
+        player_levels,
     }))
 }
 
@@ -748,5 +754,6 @@ mod tests {
         assert_eq!(data.gun_slots, [4, 9, 1, 22]);
         assert_eq!(data.items[&2001].hp, 200);
         assert!(!data.items.contains_key(&19907));
+        assert_eq!(data.player_levels.len(), crate::resources::PLAYER_LEVELS);
     }
 }

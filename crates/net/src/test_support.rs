@@ -170,6 +170,7 @@ pub(crate) fn definitions(
         zones: BTreeMap::new(),
         zone_labels: BTreeMap::new(),
         normal_form_effects: Vec::new(),
+        player_levels: Vec::new(),
     })
 }
 
