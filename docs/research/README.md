@@ -1,6 +1,6 @@
 # Implementation evidence
 
-These reports are unchanged copies of their published research commits. Statements
+The static reports are unchanged copies of their published research commits. Statements
 about a report's original branch, single-file scope and checks describe that
 publication. They do not certify the production adapters or the complete MVP.
 
@@ -14,6 +14,7 @@ the recovered contracts. Older builds and prototype labels are not interchangeab
 | Own/entity state, effects, inventory and action-result layouts | [State completion](target-state-completion.md) | `cb587e23` | Current and prior build joins; receipt, result and inventory mutation remain distinct. |
 | Native inventory startup and carried weight | [Inventory baseline](native-inventory-baseline.md) | `ce0cf202` | Exact replay/cache/weight oracle and comparison procedure; the candidate native cutoff remains unaccepted until a passive Unity comparison and serialized native boot pass. |
 | Clientless authentication and initial state | [Native startup](native-startup-current-build.md) | `5de55dbf` | One standalone script reached the existing character without Unity. This is not production Rust adapter or gameplay proof. |
+| Production Rust authentication and initial state | [Rust startup verification](native-rust-startup.md) | Tested code `504e6c61` | One native sequence, matching own label, position, HP, MP, and joined cleanup. No gameplay or complete-inventory proof. |
 | Full manual dig | [Manual dig control](manual-dig-control.md) | `b1a12a97` | Complete timed controller and serializers; actual tool/spot state and server acceptance require runtime evidence. |
 | Normal gun attack and attribution | [Gun combat control](gun-combat-control.md) | `efccf799` | Equipment, timing, request and own-result paths; live effect baselines and gameplay remain separate. |
 | Own effect baseline and gun reload-speed lifetime | [Own effect lifecycle](native-own-effect-lifecycle.md) | `1614063e` | Positive own appearance baseline, attached/detached lifetimes and conservative recovery; actual effects, reload continuity and accepted shots still need runtime evidence. |

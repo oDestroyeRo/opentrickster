@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  contracts:
+    name: Engine and network contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt
+          rustup default 1.99.1
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Test engine and network
+        run: cargo test --workspace --locked
+      - name: Test sampler heap cases
+        run: node crates/net/tests/sampler.cjs
+      - name: Lint engine and network
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
