@@ -38,7 +38,7 @@ This work parsed public bytes only. It performed no login, game socket, gameplay
 | `BaseOverrides` → `recomputedBase` | 784 `b__23_7` f12577@`384bd1`: wide indexed values; stats ≤ 11 set `BaseOverrides[stat]`; no recompute. `Recompute(clear)` f12557@`38381a` clears `BaseOverrides` when `clear` is set, then copies it into `recomputedBase`. | 784, plus every recompute | Implemented. |
 | `Buffs` | 283 `b__23_5` f12575@`3845ce`: wide indexed values; stats ≤ 11 overwrite `Buffs[stat]`; unlisted stats keep their value. Then the `Recompute(false)` body runs inline. | 283 | Implemented. |
 | `SoulSeedLink.Aura.Bonus` → `recomputedAura` | `SoulSeedLink` ctor f12516@`37fcfe` replays the StartSet through `Receive` f12517@`380266`, then hooks 1065, 1068, 1070, 1071, 1072 and 1073 (RVA `5EC725B7…`). Effects: 1070 sets `Aura = ParseAura` f12506@`37eb06` (I32 type, remaining and level, then 12 I32 bonuses) and emits `AuraStarted`; 1071 resets the aura and emits `AuraEnded`; 1065 runs `ParsePlanted` f12504 and then resets the aura with no aura event. `SoulSeedAura` ctor f12484 zeroes `Bonus`. `CharacterStatus` `b__23_0` f12569 runs the `Recompute(false)` body on `AuraStarted` and `AuraEnded`. `Recompute` copies `Bonus[i]`, or 0 past its length. | 1065, 1070, 1071 | Implemented. |
-| `GameParts` | `AvatarStats::Part` f13849@`3db5d2`, set only by the `AvatarStats` ctor f13847@`3dad29` once the asynchronous `AvatarStatsUi` install completes. It adds the worn equipment snapshot, the own set bonuses and the imprint bonus. See [`GameParts`](#gameparts). | Item deltas (68, 561, 160, 770, 262, 246, 260, 843), 518, 521, 1386 and 1387 in and after the StartSet; StartSet 231 and 233; live 82, 85, 151 and 837; 230 and 437 for `Me`; any of 183 denied opcodes. | Implemented for the installed steady state. Unknown whenever an input is unproven. |
+| `GameParts` | `AvatarStats::Part` f13849@`3db5d2`, set only by the `AvatarStats` ctor f13847@`3dad29` once the asynchronous `AvatarStatsUi` install completes. It adds the worn equipment snapshot, the own set bonuses and the imprint bonus. See [`GameParts`](#gameparts). | Item deltas (68, 561, 160, 770, 262, 246, 260, 843), 518, 521, 1386, 1387, 1487 and 1489 in and after the StartSet; StartSet 231 and 233; live 82, 85, 151 and 837; 230 and 437 for `Me`; any of 181 denied opcodes. | Implemented for the installed steady state. Unknown whenever an input is unproven. |
 
 The handlers for 631, 636 and 651 (`b__23_10`, `_12` and `_14`) only emit a `Reset` event, so they are not inputs. 826 `b__23_8` writes `Properties`, which `Total` does not read. 245 and 285 (`b__23_17`) write only TM level and TM experience.
 
@@ -168,7 +168,7 @@ The client ignores a live 231 or 233. After H, Net applies a 231 alone, so a lis
 - `ItemHolders` ctor f25046@`7b0545` hooks 518 and 521 (`b__19_0` f25056, `b__19_1` f25057) into its own `Special` f25047@`7b0ae7`. `Take` f25052@`7b1010` calls `Inventory::Consume` f13081@`3a2426`. `ConsumeLoaded` f25053@`7b14e0` calls `Take`. `ConsumeThrown` f25054@`7b1555` calls `Take` and `Inventory::Apply`. Skill scripts reach them through `SkillEsaView/Host::ConsumeLoaded` f45405@`edfa09` and `ConsumeItem` f45407@`edfb00`. Net does not model them.
 - `TutorialSystemUi/<>c__DisplayClass59_0::<Install>b__0` f40934@`cfeb3f` wraps one `ItemChange` and calls `Inventory::Apply`. Its `TutorialCourse` source was not traced.
 
-**Denied opcodes.** A backward call and delegate trace from the `Inventory` mutators found every opcode whose handler can change rows or slots outside the modelled hooks. `parts::UNMODELED` lists all 183. Any of them, StartSet included, makes `GameParts` unknown for the rest of the session.
+**Denied opcodes.** A backward call and delegate trace from the `Inventory` mutators found every opcode whose handler can change rows or slots outside the modelled hooks: 183 in all. Net models two of them, 1487 and 1489, as [soul frames](#soul-frames). `parts::UNMODELED` lists the other 181. Any of them, StartSet included, makes `GameParts` unknown for the rest of the session.
 
 | Owner | Opcodes |
 | --- | --- |
@@ -177,8 +177,8 @@ The client ignores a live 231 or 233. After H, Net applies a 231 alone, so a lis
 | `TradeLink` | 94, 95, 96, 98, 100–105, 170, 171, 174, 175, 178, 179 |
 | `PlayerShopLink` | 342, 343, 345, 346, 348, 349, 351, 353, 354, 356, 358, 360, 363, 367–370, 449, 473, 558, 853 |
 | `PetWindows` | 706, 859, 860, 862, 863, 865, 866, 878, 879, 881, 882, 884, 885, 913, 914, 916, 917, 919, 920, 976, 979, 980, 984, 986, 987, 1208, 1209, 1211, 1212, 1214, 1215, 1217, 1218, 1287, 1288, 1290, 1291, 1293, 1294 |
-| `GuardianState` | 1098, 1100, 1102, 1103, 1106, 1108, 1141, 1142, 1144, 1173, 1174, 1177, 1178, 1179, 1184, 1185, 1487, 1488 |
-| `SoulLink` | 1091, 1465, 1467, 1468, 1470, 1471, 1473, 1474, 1476, 1477, 1479, 1480, 1482, 1487, 1489, 1490, 1491 |
+| `GuardianState` | 1098, 1100, 1102, 1103, 1106, 1108, 1141, 1142, 1144, 1173, 1174, 1177, 1178, 1179, 1184, 1185, 1488 |
+| `SoulLink` | 1091, 1465, 1467, 1468, 1470, 1471, 1473, 1474, 1476, 1477, 1479, 1480, 1482, 1490, 1491 |
 | `QuestBook` | 150, 195, 219, 831, 873 |
 | `EquipComposingLink` | 859, 860, 862, 863, 865, 866 |
 | `EquipMergeLink` | 1270, 1271, 1273 |
@@ -192,6 +192,38 @@ The client ignores a live 231 or 233. After H, Net applies a 231 alone, so a lis
 | One opcode each | `ItemsModel` 89, `CompoundLink` 190, `ExchangeShopLink` 255, `PlayerNoticesFeature` 293, `CashShopLink` 335, `ItemMixLink` 705, `GuildBattleFeature` 720, `ResetMixLink` 735, `LookChangeFeature` 788, `MegaphoneItems` 802, `RShopLink` 898, `FortuneLink` 975, `MyViewRecords` 1088, `DecomposeLink` 1266, `BoxesModel` 1284, `HarconShopLink` 1391, `MeltingLink` 1429, `SlotExtendLink` 1435, `GhostExchangeLink` 1443 |
 
 Two registrations do not name a literal opcode. `PlayerShopLink` `b__3_22` and `b__3_23` handle 32531 and 32532, which only open a window or emit `Logout`. `EquipMergeLink` `b__23_3` handles 1276 and 1277, which only emit `Closed`. None of them is denied.
+
+### Soul frames
+
+A 1489 and a 1487 arrive right after H at login. Two components hook them, and neither exists until a UI or feature creates it:
+
+- `SoulLink` hooks both, from RVA `160A8C84…`. `Soul::SoulOf` f12508@`37ecdd` creates it for `TartarosFeature`, `SoulSeedFeature`, `StatusBarUi` and `GuardianUi`.
+- `GuardianState` hooks 1487. `GuardianState::Of` f23856@`74d227` creates it for `SoulUi` and `GuardianUi`.
+
+Each ctor, `SoulLink` f12513@`37ef8d` and `GuardianState` f23857@`74d309`, replays the StartSet through `Receive` and then hooks its opcodes. Every other I32 constant or static array that holds 1487 or 1489 belongs to a script, effect, prime or Unicode table. The handlers parse the whole frame before they act:
+
+- **1489.** `SoulLink::Receive` f12514@`37f4ee` calls `Soul::ParseSync` f12492@`37deaf`. It reads an I32, then `Soul::ReadChanges` f12488@`37dbd2` reads a U16 count and that many `Items::ReadItemChange` f12862@`395d6a` into a new list. `Receive` then sets `Soul` and emits `SoulChanged`. For each change whose UID `Inventory` holds, it calls `Inventory::Consume` f13081@`3a2426` for one piece. Last, it passes the list to `Inventory::Apply`, which only raises `ItemsChanged` when the list is empty.
+- **1487 in `SoulLink`.** A payload shorter than 4 bytes returns. Otherwise `SetSoul` f12520@`3809ba` stores an I32 and emits `SoulChanged`.
+- **1487 in `GuardianState`.** `Receive` f23858@`74de23` calls `SoulManage::ParseState` f12531@`381137`. It reads 37 bytes of fixed fields, then a U8 flag at offset 37 and, when the flag is non-zero, a `ReadItemChange` at offset 38. `PenaltyLine` f23861@`74ee69` then shows or queues a system line. `Receive` stores the state, passes a parsed change to `Inventory::Apply`, and invokes `Changed`.
+
+Nothing else reaches a row or slot:
+
+- `SoulLink::Emit` f12518@`3804ca` catches each listener's exception. `SoulLink::On` f12521 has two callers. `TartarosFeature::OnEvent` f18214@`58358f` ignores `SoulChanged`. `StatusBarUi` `b__5` f41025@`d079fb` calls `StatusBar::SetSoul` f40864@`cfa528`, which stores two fields and repaints.
+- `GuardianState::add_Changed` f23854 has two callers. Their handlers are `GuardianPageView::OnChanged` f45627@`ef57f1` and `MyViewGuardianPage::OnChanged` f58358@`14335a6`.
+- `Inventory::Emit` f12893@`397d86` catches each listener's exception.
+- The direct-call closures of the parsers, `SetSoul`, `Emit`, `PenaltyLine`, these listeners and `Inventory::Emit` reach no `Inventory` mutator, `AvatarStats::Rebuild` f13848 or `CharacterStatus::Recompute` f12557. Both `Receive` closures reach `Inventory::Apply`.
+
+A read past the payload throws from `PacketReader::Need` f9830@`2e1ed2`, before any effect. `GameSession::Handle` f20915@`65de1f` catches a handler's exception, logs it and runs the next handler (`65dff6`). `LateHooks::Flush` f13119@`3a3fc2` does the same for the frames it replays to a late hook (`3a4496`). A ctor's StartSet replay does not catch: its `finally` rethrows (`37f2be`, `74d806`), as `ImprintLink`'s does (`39cc22`). The install that created the component then fails. Each ctor sets every field its replay touches before the replay, and `Items::InventoryOf` f12878@`396a2d` creates the inventory on demand, so a frame that parses cannot throw there.
+
+Net applies these rules in and after the StartSet:
+
+- A 1489 with count 0, or a 1487 of at least 38 bytes with flag 0, leaves `Parts` unchanged. The client ignores trailing bytes.
+- A frame that parses with an item change makes `GameParts` unknown. Whether a lazy component exists to apply it, and when its ctor replays a StartSet change, is unobservable.
+- A frame that throws leaves `Parts` unchanged after H. In the StartSet it makes `GameParts` unknown, because it fails a later install.
+
+The login frames, a 6-byte 1489 and a 38-byte 1487, are too short to hold an item change. They keep the maxima whatever their count or flag.
+
+The other `SoulLink` and `GuardianState` opcodes stay denied. 1467, 1473, 1479 and 1491 change rows through `Inventory::Apply` or `Soul::ApplyProperty`. The others reach the same `Receive` and were not modelled.
 
 ### Install and steady state
 
@@ -233,7 +265,7 @@ The page bridge forwards only `page::INCOMING` payloads and `page::HEADER_ONLY` 
   - a 1065 while the aura is non-zero, because `ParsePlanted` runs before the reset.
 - **Recomputes Net cannot observe.** Imprint frames recompute only when their parser succeeds, and 82, 85 and 837 recompute only after the install. Each such frame makes unknown whatever it would have changed. A later recompute that always runs restores what it can prove.
 - **`GameParts`.** `Parts` mirrors the 23 client slots (each a UID, empty, or unproven), the UIDs whose client row is unproven, loaded ammunition, `Me`, the own set multiset and imprint emptiness. It reports `Part` only when all of these hold:
-  - the StartSet has closed and no denied opcode has arrived;
+  - the StartSet has closed, no denied opcode has arrived, and no soul frame has carried an item change or thrown in the StartSet;
   - no worn change waits for a rebuild, and the imprint list is provably empty;
   - every slot is proven, no worn UID is unproven, and every worn row's catalog entry and `StatPlus` list exist;
   - the set term is proven.
@@ -273,12 +305,12 @@ Static validation passed:
 - **The install is assumed to complete after H with both tables loaded.** A failed load leaves the client's `Part` without the equipment or set term, while Net reports both. The oracle shows this as `readable NO`.
 - **The cached maxima can lag the derived value.** The install raises no recompute, so the displayed maxima exclude `GameParts` until the next recompute.
 - **Frame-free consumers are not modelled.** Net does not model `ItemHolders` consumption from skill scripts or the `TutorialSystemUi` item change. If one changes a worn row or slot, the client's next rebuild differs from Net's. Native sessions send their own actions, so these paths run only where the official client runs skills or the tutorial.
-- **Denied opcodes end derived maxima for the session.** Any trade, shop, NPC, pet, guardian, quest or crafting frame, StartSet included, leaves `GameParts` unknown until a new session.
+- **Denied opcodes end derived maxima for the session.** Any trade, shop, NPC, pet, guardian, quest or crafting frame, StartSet included, leaves `GameParts` unknown until a new session. A 1487 or 1489 does so only when it carries an item change, or throws in the StartSet.
 - **A live 231 diverges rows.** The client ignores it, so any listed row that differs from Net's cache becomes unproven.
 - **Imprint entries are not modelled.** Any non-empty imprint list leaves the term unknown.
 - **The JSON definitions carry no set bonuses.** A non-empty own set list is unknown on that path. On ea1a68bd the JSON path is refused anyway.
 - **The page path never derives maxima.** Forwarding the needed frames is the follow-up.
-- **Carried weight ignores the denied callers.** After H, the carried-weight model fails only on a late 231, a stray row or an `Inventory` hook without a grammar (`page::HEADER_ONLY`). The trace above found 177 more opcodes whose handlers can change rows, and a parsed 1387 applies an item change too. Any of them can change the client's carried weight while Net's stays as it was. This affects the accepted inventory cutoff, not the maxima, and needs its own fix.
+- **Carried weight ignores the denied callers.** After H, the carried-weight model fails only on a late 231, a stray row or an `Inventory` hook without a grammar (`page::HEADER_ONLY`). The trace above found 177 more opcodes whose handlers can change rows: the other 175 denied opcodes, and 1487 and 1489 when they carry an item change. A parsed 1387 applies an item change too. Any of them can change the client's carried weight while Net's stays as it was. This affects the accepted inventory cutoff, not the maxima, and needs its own fix.
 - **Server enforcement is unprovable**, as described above.
 - **S282 invalidation is unchanged.** It still clears on the earlier opcode list. It does not clear on imprint, aura or 649/629/634 recomputes, and it clears on some frames that never recompute in this build.
 - **Malformed known frames are stricter in Net.** Net's strict 282, 283 and 784 parsers reject trailing bytes that the client ignores. For 282 and 283 that still fails the frame, as before. For 784 it makes the overrides unknown.

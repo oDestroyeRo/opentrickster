@@ -15,9 +15,9 @@ const DEFERRED: usize = 1024;
 
 /// Opcodes whose client handlers change inventory rows or slots through paths Net does
 /// not model: the `Inventory` hooks without a decoder grammar, and every other caller of
-/// `Inventory.Apply` or `Consume` that a frame reaches. Any of them, StartSet included,
-/// leaves `GameParts` unknown for the session. Sorted. The `Inventory` hook for 261 has an
-/// empty body, so 261 is not listed.
+/// `Inventory.Apply` or `Consume` that a frame reaches except the soul frames 1487 and
+/// 1489. Any of them, StartSet included, leaves `GameParts` unknown for the session.
+/// Sorted. The `Inventory` hook for 261 has an empty body, so 261 is not listed.
 pub(crate) const UNMODELED: &[u16] = &[
     71, 73, 74, 75, 77, 78, 89, 94, 95, 96, 98, 100, 101, 102, 103, 104, 105, 112, 113, 115, 116,
     117, 140, 143, 150, 168, 169, 170, 171, 174, 175, 178, 179, 190, 195, 199, 202, 219, 255, 293,
@@ -28,8 +28,8 @@ pub(crate) const UNMODELED: &[u16] = &[
     1091, 1098, 1100, 1102, 1103, 1106, 1108, 1141, 1142, 1144, 1152, 1173, 1174, 1177, 1178, 1179,
     1184, 1185, 1208, 1209, 1211, 1212, 1214, 1215, 1217, 1218, 1237, 1240, 1266, 1270, 1271, 1273,
     1284, 1287, 1288, 1290, 1291, 1293, 1294, 1312, 1314, 1365, 1366, 1367, 1368, 1369, 1391, 1429,
-    1435, 1443, 1450, 1465, 1467, 1468, 1470, 1471, 1473, 1474, 1476, 1477, 1479, 1480, 1482, 1487,
-    1488, 1489, 1490, 1491,
+    1435, 1443, 1450, 1465, 1467, 1468, 1470, 1471, 1473, 1474, 1476, 1477, 1479, 1480, 1482, 1488,
+    1490, 1491,
 ];
 
 /// What Net's inventory cache holds for a UID.
@@ -170,6 +170,8 @@ impl Parts {
             837 if live => self.set_item(b),
             1386 => self.imprint_list(b),
             1387 => self.imprint_used(b, live, &cached),
+            1487 => self.soul_state(b, live),
+            1489 => self.soul_sync(b, live),
             _ => {}
         }
     }
@@ -461,7 +463,8 @@ impl Parts {
     /// parse applies the change to `Inventory` and raises `Used`. Before H the change
     /// waits for `ImprintLink`'s replay.
     fn imprint_used(&mut self, b: &[u8], live: bool, cached: &impl Fn(u64) -> Cached) {
-        let Some((op, kind, uid)) = b.get(20..).and_then(item_change) else {
+        let Some((op, kind, uid)) = b.get(20..).and_then(|b| item_change(&mut Reader::new(b)))
+        else {
             return;
         };
         self.imprints_empty = false;
@@ -482,6 +485,41 @@ impl Parts {
             self.changes.push(change);
         } else {
             self.lost = true;
+        }
+    }
+    /// 1487 reaches `SoulLink`, which reads at most an I32 and changes no row, and
+    /// `GuardianState`. There `SoulManage.ParseState` reads 37 bytes, then a U8 flag and,
+    /// when it is set, a `ReadItemChange` that `Receive` applies to `Inventory`.
+    fn soul_state(&mut self, b: &[u8], live: bool) {
+        let changes = match b.get(37) {
+            Some(0) => Some(false),
+            Some(_) => b
+                .get(38..)
+                .and_then(|b| item_change(&mut Reader::new(b)))
+                .map(|_| true),
+            None => None,
+        };
+        self.soul(changes, live);
+    }
+    /// 1489 reaches only `SoulLink`. `Soul.ParseSync` reads an I32, then a U16 count of
+    /// `ReadItemChange`s. `Receive` consumes a held piece for each change, then applies
+    /// them all to `Inventory`.
+    fn soul_sync(&mut self, b: &[u8], live: bool) {
+        let mut r = Reader::new(b);
+        let count = r.take(4).and_then(|_| r.u16()).ok();
+        let parsed = count.filter(|&n| (0..n).all(|_| item_change(&mut r).is_some()));
+        self.soul(parsed.map(|n| n > 0), live);
+    }
+    /// `changes`: whether a 1487 or 1489 parsed with an item change, or `None` when a read
+    /// threw. The client ignores trailing bytes. A throw comes before any effect, and the
+    /// session catches it per handler. `SoulLink` and `GuardianState` exist only once a UI
+    /// or feature creates them, and their ctors replay the StartSet with no catch. So when
+    /// a change applies is unobservable, and a StartSet frame that throws fails that install.
+    fn soul(&mut self, changes: Option<bool>, live: bool) {
+        match changes {
+            Some(false) => {}
+            None if live => {}
+            _ => self.lost = true,
         }
     }
 
@@ -548,8 +586,7 @@ fn u64_at(b: &[u8], at: usize) -> Option<u64> {
 /// `ReadItemChange`: U8 op, U8 kind, then `ReadItemBody`, which reads nothing for a kind
 /// outside 1..=3 and otherwise U32 ID, U64 UID, U16 count and, unless Kind 1, four state
 /// bytes. Ops 2 and 4 of Kind 2 add a U8 count of 12-byte options.
-fn item_change(b: &[u8]) -> Option<(u8, u8, u64)> {
-    let mut r = Reader::new(b);
+fn item_change(r: &mut Reader<'_>) -> Option<(u8, u8, u64)> {
     let op = r.u8().ok()?;
     let kind = r.u8().ok()?;
     if !(1..=3).contains(&kind) {
@@ -772,10 +809,9 @@ mod tests {
     fn uid(uid: u64) -> [u8; 8] {
         uid.to_le_bytes()
     }
-    /// A 1387 payload: U32, U64 and U64, then one `ReadItemChange`.
-    fn used(op: u8, kind: u8, uid: u64) -> Vec<u8> {
-        let mut b = vec![0; 20];
-        b.extend([op, kind]);
+    /// One `ReadItemChange` of ID 1 and count 1, with no options.
+    fn change_bytes(op: u8, kind: u8, uid: u64) -> Vec<u8> {
+        let mut b = vec![op, kind];
         if (1..=3).contains(&kind) {
             b.extend(1u32.to_le_bytes());
             b.extend(uid.to_le_bytes());
@@ -787,6 +823,26 @@ mod tests {
                 b.push(0);
             }
         }
+        b
+    }
+    /// A 1387 payload: U32, U64 and U64, then one `ReadItemChange`.
+    fn used(op: u8, kind: u8, uid: u64) -> Vec<u8> {
+        let mut b = vec![0; 20];
+        b.extend(change_bytes(op, kind, uid));
+        b
+    }
+    /// A 1489 payload: an I32, then a U16 count and that many `ReadItemChange`s.
+    fn sync(changes: &[&[u8]]) -> Vec<u8> {
+        let mut b = vec![0; 4];
+        b.extend((changes.len() as u16).to_le_bytes());
+        changes.iter().for_each(|change| b.extend(*change));
+        b
+    }
+    /// A 1487 payload: 37 bytes, then the change flag and the bytes after it.
+    fn state(flag: u8, rest: &[u8]) -> Vec<u8> {
+        let mut b = vec![0; 37];
+        b.push(flag);
+        b.extend(rest);
         b
     }
     /// An 837 payload. Only the low 16 bits of the leading U32 name the character.
@@ -806,9 +862,82 @@ mod tests {
         // Modelled, or hooks that only emit events (35, 41, 83, 86) or do nothing (261).
         for opcode in [
             15, 35, 41, 68, 82, 83, 85, 86, 151, 160, 230, 231, 233, 246, 260, 261, 262, 437, 518,
-            521, 561, 770, 837, 843, 999, 1386, 1387, 1389,
+            521, 561, 770, 837, 843, 999, 1386, 1387, 1389, 1487, 1489,
         ] {
             assert!(UNMODELED.binary_search(&opcode).is_err(), "{opcode}");
+        }
+    }
+    #[test]
+    fn soul_frames_without_an_item_change_keep_the_term() {
+        let mut fx = Fx::new();
+        fx.row(11, PLAIN, 1, &[]);
+        fx.slots(&[(0, 11)]);
+        // The lazy ctors replay these StartSet frames without a throw.
+        fx.frame(1489, &sync(&[]), false);
+        fx.frame(1487, &state(0, &[]), false);
+        fx.finish();
+        // The login frames after H: a 6-byte 1489 and a 38-byte 1487.
+        fx.frame(1489, &sync(&[]), true);
+        fx.frame(1487, &state(0, &[]), true);
+        assert_eq!(fx.values(), PLAIN_SUM);
+        // The client ignores trailing bytes.
+        let remove = change_bytes(3, 1, 11);
+        let mut b = sync(&[]);
+        b.extend(&remove);
+        fx.frame(1489, &b, true);
+        fx.frame(1487, &state(0, &remove), true);
+        assert_eq!(fx.values(), PLAIN_SUM);
+    }
+    #[test]
+    fn a_soul_frame_with_an_item_change_loses_the_term() {
+        let set = change_bytes(2, 1, 12);
+        let remove = change_bytes(3, 1, 13);
+        for live in [false, true] {
+            for (opcode, b) in [
+                (1489, sync(&[&set])),
+                (1489, sync(&[&set, &remove])),
+                (1487, state(1, &set)),
+            ] {
+                let mut fx = Fx::new();
+                if live {
+                    fx.start(&[]);
+                }
+                fx.frame(opcode, &b, live);
+                fx.start(&[]);
+                assert_eq!(fx.values(), NONE, "{opcode} {live}");
+            }
+        }
+    }
+    #[test]
+    fn a_soul_frame_that_throws_loses_the_term_only_in_the_start_set() {
+        let set = change_bytes(2, 2, 12);
+        let cut = &set[..set.len() - 1];
+        let mut counted = sync(&[]);
+        counted[4] = 1;
+        let thrown = [
+            (1489, vec![0; 5]),
+            // The login length cannot hold a change, whatever the count says.
+            (1489, counted),
+            (1489, sync(&[&set, cut])),
+            // `SoulLink` returns early below 4 bytes; `GuardianState` still throws.
+            (1487, vec![0; 3]),
+            (1487, vec![0; 37]),
+            (1487, state(1, &[])),
+            (1487, state(1, cut)),
+        ];
+        // The session catches each throw before any effect.
+        let mut fx = Fx::new();
+        fx.start(&[]);
+        for (opcode, b) in &thrown {
+            fx.frame(*opcode, b, true);
+        }
+        assert_eq!(fx.values(), ZERO);
+        // The StartSet replay in a later `SoulLink` or `GuardianState` ctor rethrows.
+        for (opcode, b) in thrown {
+            let mut fx = Fx::new();
+            fx.frame(opcode, &b, false);
+            fx.start(&[]);
+            assert_eq!(fx.values(), NONE, "{opcode} {}", b.len());
         }
     }
     #[test]

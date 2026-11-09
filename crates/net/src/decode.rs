@@ -2127,6 +2127,42 @@ mod tests {
         assert_eq!(maxima(&d), [Some(100), None, None]);
     }
     #[test]
+    fn login_soul_frames_after_h_keep_derived_maxima() {
+        let mut definitions =
+            crate::test_support::definitions(&[(7, crate::test_support::Def::Plain { weight: 1 })]);
+        let data = std::sync::Arc::get_mut(&mut definitions).unwrap();
+        data.player_levels = vec![1000.0; crate::resources::PLAYER_LEVELS];
+        data.items.get_mut(&7).unwrap().stat_plus.as_mut().unwrap()[9] = 50.0;
+        let mut d = Decoder::new();
+        d.set_definitions(Some(definitions));
+        let at = |opcode, mark, b| {
+            let mut p = packet(opcode, b);
+            p.mark = mark;
+            p
+        };
+        let mut list = vec![1, 0];
+        list.extend(item(1, 42, 1));
+        d.apply(&at(231, 1, list)).unwrap();
+        let mut stats = vec![0; 251];
+        stats[..8].copy_from_slice(&42u64.to_le_bytes());
+        d.startup_cutoff(2);
+        d.apply(&at(233, 2, stats)).unwrap();
+        assert_eq!(d.maximum(9).map(|m| m.get()), Some(1050));
+        // The `SoulLink` and `GuardianState` frames that follow H change no row.
+        d.apply(&at(1489, 3, vec![0; 6])).unwrap();
+        d.apply(&at(1487, 4, vec![0; 38])).unwrap();
+        assert_eq!(d.maximum(9).map(|m| m.get()), Some(1050));
+        let r = &d.readiness;
+        assert!(r.hp_maximum_known && r.mp_maximum_known && r.weight_maximum_known);
+        // A 1489 that carries an item change may reach the client inventory at any time.
+        // I32 soul, U16 count 1, then op 3 (remove) of row 42.
+        let mut sync = vec![0, 0, 0, 0, 1, 0, 3];
+        sync.extend(item(1, 42, 0));
+        d.apply(&at(1489, 5, sync)).unwrap();
+        assert_eq!(d.maximum(9), None);
+        assert!(!d.readiness.hp_maximum_known);
+    }
+    #[test]
     fn resource_composites_keep_old_current_time_and_never_guess_a_reduction() {
         let mut d = Decoder::new();
         let original = std::time::Instant::now() - std::time::Duration::from_secs(2);
