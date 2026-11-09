@@ -650,7 +650,7 @@ impl Actor {
                             // The engine's completion window starts at its Sent receipt, so ours ends no later.
                             let sent=Instant::now();
                             match &mut dig {Some(pending)=>{pending.mark=last_mark;pending.until=sent+Duration::from_millis(e::DIG_MS);action_until=None;decoder.drilling(true);}None=>action_until=Some(sent+Duration::from_millis(e::ACTION_MS))}
-                            if let e::Action::MoveTo(point)=ticket.action {decoder.walking(point);}
+                            if matches!(ticket.action,e::Action::MoveTo(_)) {decoder.walking();}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Sent(e::IngressMark(last_mark))})?;
                         }
                         SessionOp::Close=>return Err(NetError::Cancelled),
@@ -660,13 +660,18 @@ impl Actor {
                             // Report idle only once nothing is outstanding; otherwise the engine's drain deadline closes the session.
                             barrier=Some(key);
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
-                            if !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
+                            if !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                         },
                         _=>return Err(NetError::WrongPhase),
                     }
                 }
                 _=ticks.tick()=>{
                     let now=Instant::now();
+                    // No frame reports the end of a walk: the client ends it locally, at about this estimate.
+                    if let Some((to,_,due))=decoder.walk_end() && now>=due {
+                        decoder.end_walk(to,now);
+                        for result in decoder.take_correlated() {self.emit_at(Event::Facts{revision:e::EvidenceKey((result.mark<<2)|3),ingress:e::IngressMark(result.mark),facts:result.facts},result.received)?;}
+                    }
                     if let Some(pending)=&mut dig {
                         let dt=now.duration_since(pending.last_tick).as_millis().min(u64::MAX as u128) as u64;pending.last_tick=now;
                         let expired=now>=pending.until;
@@ -690,7 +695,7 @@ impl Actor {
                         } else {held=Some(waiting);}
                     }
                     if action_until.is_some_and(|until|now>=until) {lost|=barrier.is_some()&&decoder.action_pending();decoder.expire_action();action_until=None;}
-                    if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
+                    if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                 }
                 result=login.gateway.receive(&mut login.order)=>self.login_frame(login,result?).await?,
                 result=g.receive(&mut self.order)=>{
@@ -712,7 +717,7 @@ impl Actor {
                         for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
                         for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
                         if dig_ended {dig=None;decoder.drilling(false);}
-                        if !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
+                        if !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
                         let mut facts=vec![e::Fact::InventorySettled(e::IngressMark(mark))];
@@ -1547,8 +1552,9 @@ mod tests {
                             .map(|(opcode, payload)| (opcode, 0, payload)),
                     );
                     if scenario > 0 {
-                        // A walk without learned 3010 holds the reload at zero.
-                        startup.push((24, 0, fixture::walk(fixture::OWN, (110, 210))));
+                        // A walk without learned 3010 holds the reload at zero until it ends,
+                        // seconds after the ticket window.
+                        startup.push((24, 0, fixture::walk(fixture::OWN, (400, 200))));
                     }
                     game.send(send(startup)).await.unwrap();
                     let entry = read(&mut game, &mut incoming, &mut order).await;
@@ -1686,6 +1692,210 @@ mod tests {
                 login.gateway.close().await;
                 server.await.unwrap();
             }
+        });
+    }
+
+    #[test]
+    fn loopback_move_arrives_when_the_walk_ends_and_the_dig_waits_for_it() {
+        use crate::codec::{Frames, OpcodeMap};
+        use crate::gun_tests as fixture;
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        type Ws = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
+        async fn frame(ws: &mut Ws) -> Message {
+            loop {
+                match ws.next().await.unwrap().unwrap() {
+                    Message::Text(text) if text == "p" || text.starts_with("a ") => {}
+                    message => return message,
+                }
+            }
+        }
+        async fn read(ws: &mut Ws, frames: &mut Frames, order: &mut u64) -> Packet {
+            let Message::Binary(bytes) = tokio::time::timeout(Duration::from_secs(5), frame(ws))
+                .await
+                .expect("client frame")
+            else {
+                panic!("expected binary")
+            };
+            let mut packets = frames.push(&bytes, order).unwrap();
+            assert_eq!(packets.len(), 1);
+            packets.remove(0)
+        }
+        async fn next(events: &mpsc::Receiver<crate::TimedEvent>) -> (Event, Instant) {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                match events.try_recv() {
+                    Ok(timed) => return (timed.event, timed.received),
+                    Err(_) if Instant::now() < deadline => {
+                        tokio::time::sleep(Duration::from_millis(2)).await
+                    }
+                    Err(error) => panic!("no session event: {error:?}"),
+                }
+            }
+        }
+        let target = e::Point { x: 140, y: 200 };
+        // The server ends the walk 4 px short of the target and never sends a stop.
+        let end = e::Point { x: 136, y: 200 };
+        // A 36 px walk at 115 px/s: ceil((36 * 9/8 + 32) * 1000 / 115) + 32 ms.
+        let walk = Duration::from_millis(663);
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut login = tokio_tungstenite::accept_async(socket).await.unwrap();
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut game = tokio_tungstenite::accept_async(socket).await.unwrap();
+                let mut incoming = Frames::new(b"c2s");
+                let outgoing = OpcodeMap::current(b"s2c");
+                let mut order = 0;
+                let send = |packets: Vec<(u16, Vec<u8>)>| {
+                    let mut bytes = Vec::new();
+                    for (opcode, payload) in packets {
+                        bytes.extend_from_slice(&outgoing.encode(opcode, 0, &payload).unwrap());
+                    }
+                    Message::Binary(bytes.into())
+                };
+                assert_eq!(read(&mut game, &mut incoming, &mut order).await.opcode, 4);
+                let mut startup = vec![(5, vec![])];
+                startup.extend(fixture::drill_startup());
+                // A walk the server started, in place: the client still runs it out.
+                startup.push((24, fixture::walk(fixture::OWN, (100, 200))));
+                game.send(send(startup)).await.unwrap();
+                assert_eq!(read(&mut game, &mut incoming, &mut order).await.opcode, 5);
+                assert_eq!(read(&mut game, &mut incoming, &mut order).await.opcode, 511);
+                game.send(send(vec![(512, fixture::KEY.to_le_bytes().to_vec())]))
+                    .await
+                    .unwrap();
+                let request = read(&mut game, &mut incoming, &mut order).await;
+                let from = e::Point { x: 100, y: 200 };
+                let expected = crate::actions::movement(from, target, 1).unwrap();
+                assert_eq!((request.opcode, &request.payload[..]), (24, &expected.0[..]));
+                game.send(send(vec![(24, fixture::walk(fixture::OWN, (136, 200)))]))
+                    .await
+                    .unwrap();
+                let echoed = Instant::now();
+                let dig = read(&mut game, &mut incoming, &mut order).await;
+                assert!(echoed.elapsed() >= walk, "dig sent during the walk");
+                assert_eq!((dig.opcode, &dig.payload[..]), (44, &[136, 0, 200, 0, 1][..]));
+                assert!(matches!(frame(&mut game).await, Message::Close(_)));
+                assert!(matches!(frame(&mut login).await, Message::Close(_)));
+            });
+            let (ops, rx) = channel::channel(32);
+            let (events, event_rx) = mpsc::sync_channel(256);
+            let (_cancel, cancel_rx) = watch::channel(false);
+            let mut actor = Actor {
+                profile: VerifiedProfile {
+                    first_host: "127.0.0.1".into(),
+                    first_port: 1234,
+                    marker: Zeroizing::new("synthetic".into()),
+                    client_version: Zeroizing::new(vec![1, 2, 3, 4]),
+                    definitions: Some(fixture::definitions()),
+                },
+                credentials: NetCredentials::new("ExampleId".into(), "ExampleOnlyA1".into())
+                    .unwrap(),
+                ops: rx,
+                cancel: cancel_rx,
+                events,
+                fault: Arc::new(Mutex::new(None)),
+                readiness: Arc::new(Mutex::new(crate::Readiness::default())),
+                descriptors: Arc::new(Mutex::new(std::collections::BTreeMap::new())),
+                order: 0,
+                attempt: 0,
+                last_action: None,
+            };
+            let mut login = LoginLink {
+                gateway: Gateway::open_url(&format!("ws://{address}")).await.unwrap(),
+                order: 0,
+            };
+            let mut game = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
+            let ticket = GameTicket {
+                uid: 42,
+                info: 7,
+                crc: 99,
+                host: "127.0.0.1".into(),
+                port: 1234,
+            };
+            let driver = async {
+                let (Event::Baseline { support, .. }, baseline) = next(&event_rx).await else {
+                    panic!("baseline first")
+                };
+                assert!(support.move_to && support.dig_cycle);
+                let tickets = crate::test_support::engine_tickets(&[
+                    e::Action::MoveTo(target),
+                    e::Action::DigAt(end),
+                ]);
+                let op = |op| QueuedOp {
+                    op,
+                    at: Some(e::At(0)),
+                    queued: Instant::now(),
+                };
+                // The in-place walk takes ceil(32 * 1000 / 115) + 32 = 311 ms.
+                let (_, barrier) = tickets[0];
+                ops.try_send(op(SessionOp::Quiesce(barrier))).unwrap();
+                let idle = loop {
+                    if let (Event::Quiescent(key), at) = next(&event_rx).await {
+                        assert_eq!(key, barrier);
+                        break at;
+                    }
+                };
+                let waited = idle.duration_since(baseline);
+                assert!(waited >= Duration::from_millis(250), "{waited:?}");
+                ops.try_send(op(SessionOp::Act(tickets[0].0.clone())))
+                    .unwrap();
+                let mut echo = None;
+                let arrival = loop {
+                    let (event, at) = next(&event_rx).await;
+                    let Event::Facts { facts, .. } = event else {
+                        continue;
+                    };
+                    if facts
+                        .iter()
+                        .any(|f| matches!(f, e::Fact::Position { point, .. } if *point == end))
+                    {
+                        echo = Some(at);
+                    }
+                    if facts.iter().any(|f| {
+                        matches!(f, e::Fact::Outcome(o) if *o == e::Outcome::Arrived { target, at: end })
+                    }) {
+                        break at;
+                    }
+                };
+                let waited = arrival.duration_since(echo.expect("echo before the arrival"));
+                assert!(waited >= walk && waited < walk + Duration::from_millis(250), "{waited:?}");
+                let (_, barrier) = tickets[1];
+                ops.try_send(op(SessionOp::Quiesce(barrier))).unwrap();
+                while !matches!(next(&event_rx).await, (Event::Quiescent(key), _) if key == barrier) {}
+                ops.try_send(op(SessionOp::Act(tickets[1].0.clone())))
+                    .unwrap();
+                let mut receipts = Vec::new();
+                while receipts.len() < 2 {
+                    if let (Event::Receipt { action, delivery }, _) = next(&event_rx).await {
+                        assert_eq!(action, tickets[1].0.id);
+                        receipts.push(delivery);
+                    }
+                }
+                assert!(matches!(
+                    receipts.as_slice(),
+                    [e::Delivery::Submitted, e::Delivery::Sent(_)]
+                ));
+                ops.try_send(QueuedOp {
+                    op: SessionOp::Close,
+                    at: None,
+                    queued: Instant::now(),
+                })
+                .unwrap();
+            };
+            let (result, ()) =
+                tokio::join!(actor.game_server(&mut game, &mut login, &ticket), driver);
+            assert_eq!(result, Err(NetError::Cancelled));
+            game.close().await;
+            login.gateway.close().await;
+            server.await.unwrap();
         });
     }
 
