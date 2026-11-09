@@ -305,7 +305,7 @@
     if (drillAt && !assistAt) unavailable("cold");
     if (assistAt && !drillAt) unavailable("changing");
     const skills = object(wanted.get(8027),8027);
-    if (u32(skills+52) || u32(skills+56) || u32(skills+188) || bool(skills+124) || bool(skills+125)) unavailable("routing");
+    if (u32(skills+52) || u32(skills+56) || u32(skills+188) || bool(skills+125)) unavailable("routing");
     const combat = object(wanted.get(6104),6104), gun = object(wanted.get(6632),6632);
     const drill = drillAt ? object(drillAt,6259) : null, assist = assistAt ? object(assistAt,6218) : null;
     const fsm = object(pointer(combat + 112),5810), fsmState = integer(i32(fsm + 8),0,64);
@@ -429,8 +429,9 @@
     }
     // EditBox.Focused takes keys before the HUD. While features install, a key or menu without a registered action
     // waits in waitMenu/waitAction, then in due until Hud.Update replays it at a time the caller does not choose.
+    // Hud.keyMask is not read: GameUiMode.KeyBit f21420 gives Dig and Run no bit, so KeyOn passes them under every mask.
     const edit = statics(3246444,2375);
-    if (u32(edit + 24) !== 0 || i32(hud + 68) !== 0 || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
+    if (u32(edit + 24) !== 0 || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
     const covers = pointer(statics(3248924,5358));
     if (dictionary(covers,9203,8935,256).length) unavailable("routing");
     const eventSystems = list(pointer(statics(3246812,14184)),14184,4,8);

@@ -640,7 +640,9 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   cases++;
   check("malformed boolean", ({h, p}) => h.raw(h.addr(p.screen, "ready"), "byte", 2));
   check("modal UI", ({h, p}) => h.set(p.eventSystem, "m_CurrentSelected", p.screen));
-  check("key routing masked", ({h, p}) => h.set(p.hud, "keyMask", 1));
+  // Hud..ctor f48528 sets keyMask (+68) to 0x7FFFF and set_UiMode f48477 rewrites it from GameUiMode.Masks f21418.
+  // KeyPasses f48492 tests it through KeyOn f21422, which passes any name KeyBit f21420 gives no bit, as Dig and Run.
+  for (const mask of [0x7ffff, 12289, 0]) check(`HUD key mask ${mask} leaves Dig and Run routed`, ({h, p}) => h.raw(p.hud + 68, "int", mask), "ready");
   check("unknown binding", ({h, p}) => h.set(p.digBinding, "Code", h.string("Key1")));
   check("modifier binding", ({h, p}) => h.set(p.digBinding, "Modifier", 1));
   check("conflicting run/dig", ({h, p}) => h.set(p.runBinding, "Code", h.string("KeyF")));
@@ -695,6 +697,8 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("duplicate fading key", ({h, p}) => h.set(p.combat, "fading", h.orderedMap(I32, AGING, [[73, h.object(AGING)], [73, h.object(AGING)]])), "unavailable", "generic");
   check("selected skill consumes world input", ({h, p}) => h.set(p.skills, "target", p.monster));
   check("pending held cast", ({h, p}) => h.set(p.skills, "heldCast", p.monster));
+  // SkillsApi..ctor f17848 is the only writer of combatPlaysEsa (+124): CombatModel was present at install.
+  check("combat ESA playback is a setting, not pending input", ({h, p}) => h.raw(p.skills + 124, "byte", 1), "ready");
   const noDig = check("source map dig refusal", ({h, p}) => h.set(p.zoneInfo, "Type", 5), "ready");
   assert.equal(noDig.dig.mapAllowed, false);
   for (const option of [0, 1]) {

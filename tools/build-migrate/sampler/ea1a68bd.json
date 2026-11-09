@@ -543,10 +543,6 @@
    125,
    "bool"
   ],
-  "Spinel.Game.Play.SkillsApi.combatPlaysEsa": [
-   124,
-   "bool"
-  ],
   "Spinel.Game.Play.SkillsApi.heldCast": [
    188,
    "Spinel.Net.Game.SkillCast"
@@ -690,10 +686,6 @@
   "Spinel.UI.Pc.Hud.Hud.due": [
    148,
    "System.Action"
-  ],
-  "Spinel.UI.Pc.Hud.Hud.keyMask": [
-   68,
-   "i4"
   ],
   "Spinel.UI.Pc.Hud.Hud.waitAction": [
    140,
@@ -1710,6 +1702,9 @@
   "Spinel.Game.dll|Spinel.Game.Play.DrillFeature::get_MyPoint()": "c0683b920d91e24f7288da720ebea42288f0f3ee9951c6609173216408194e04",
   "Spinel.Game.dll|Spinel.Game.Play.DrillFeature::get_ProgressPercent()": "7d5513284df1a7438d8f8abe837a69d60941652feda10468a1aa5d62f63452d6",
   "Spinel.Game.dll|Spinel.Game.Play.DrillFeature::get_WornDrill()": "4e1556e111ac74c080d682e603b861237a9ffb10f147ec929cc728095e290e57",
+  "Spinel.Game.dll|Spinel.Game.Play.GameUiMode::KeyBit(string)": "370e518592fd0302f0d4dca793a81a4e486e2e5addba4ad484b90b0b2dcd0172",
+  "Spinel.Game.dll|Spinel.Game.Play.GameUiMode::KeyOn(i4,string)": "d720ba5aaabd0e4aeaafbdf56d2320b5f62fa027dc995554e1e675f536e12ef3",
+  "Spinel.Game.dll|Spinel.Game.Play.GameUiMode::QuickSlotKey(string)": "167b0decf5aba3fce15041de4ac6c0e8c86073540ec39e736c63fd9c26a04f71",
   "Spinel.Game.dll|Spinel.Game.Play.GunFlowing::HoldsGun(Spinel.Net.Game.Inventory,System.Func`2<i8,Spinel.Game.Play.ItemInfo>)": "cb38d106fd006dc94dcd13c8d1d56f1fa7ed1e68f030e719e9a2f2575fd1ac1e",
   "Spinel.Game.dll|Spinel.Game.Play.GunFlowing::Info(i8)": "60b4ebc24845eabde51f8ed18aeebd31793a05ce4c84393c04204fa3f9a2bd8a",
   "Spinel.Game.dll|Spinel.Game.Play.GunFlowing::MayShow()": "9466886d7132576df4af6488136bf97224443c5653754bd47a0f984ed5579245",
@@ -1722,6 +1717,12 @@
   "Spinel.Game.dll|Spinel.Game.Play.KeyBindings::Matches(System.Collections.Generic.Dictionary`2<string,System.Collections.Generic.List`1<Spinel.Game.Play.KeyBinding>>,string,vt:Spinel.Game.Play.KeyStroke)": "ee11aaa54e85a4b702b8db818f1ed8115d2a511353c7171ae7236d443d4e8c37",
   "Spinel.Game.dll|Spinel.Game.Play.MyViewWindow::get_OkCancelShown()": "3338bf456346f4fbfaea98e9415648b611b9ea5476a12af0f3eb0bfbc84c9234",
   "Spinel.Game.dll|Spinel.Game.Play.RunToggle::get_Mode()": "9c51007193296618c8808c7c81af8c4a6aa42628c02922b78e705c02c9892870",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::.ctor(Spinel.Net.Game.IGameSession,Spinel.Game.Play.SkillTables,Spinel.Game.Play.CombatModel)": "90e1dba8ae4d420d1deb1c1632d08a9f9a2c00858f8dd8043640e13d2c9c5a55",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::OnEvent(Spinel.Net.Game.SkillEvent)": "cdeeca45faa1c5cdacc8c930200c203733a4b52a47f78e21fd6a45500ee05c9b",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::PlayHeldCast()": "3aaf7c0e49750837df6d924835de71e59334702f09a3abfcabcf9d13a8401894",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::SetUiWait(bool)": "4fcd55ca8e56799a58fc6cd9a1223983858ee64046f54524c5ac129e54521a75",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::Update(r8)": "ce258b54ad615a34c2d0456bc38127b0da2e0c592884d66dc5fa277944a100c9",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::WorldClick(i4,r8,r8,vt:System.Nullable`1<vt:Spinel.Game.Play.PlayActor>,vt:Spinel.Game.Play.PlayActor,System.Func`3<r8,r8,bool>,bool)": "5df23c8bc38bd9e5c9e26fb1fa5cc9fc855026ea3457e5456a4cabcb0214911c",
   "Spinel.Game.dll|Spinel.Game.World.ObjectPick::Pick(System.Collections.Generic.IEnumerable`1<Spinel.Game.World.WorldActor>,bool)": "58b3420dc1eac594e2ef4571edc40befb7774bedf4e1196bd5d52c5592b2e57e",
   "Spinel.Game.dll|Spinel.Game.World.Portals::RegionAt(System.Collections.Generic.IReadOnlyList`1<Spinel.Game.World.WarpRegion>,r8,r8)": "32b869301cf65aee2a57158970094a3df223397f5da4b5836e64a069a04f7b61",
   "Spinel.Game.dll|Spinel.Game.World.WorldActor::HitTest(r8,r8)": "9ecd2b390dd91b88cf2b69ab27c92f2170987662b360027e89fc3b29f1223fa8",
@@ -1737,6 +1738,7 @@
   "Spinel.Net.dll|Spinel.Net.Game.Inventory::.ctor(Spinel.Net.Game.IGameSession)": "965e231a157b23d2c84d9e616e787a7236de8ecc3e510df7be1b067340dec539",
   "Spinel.Net.dll|Spinel.Net.Game.Inventory::Get(u8)": "c66c72d47238c2acfd97641d45ece9aa4686d7319d80574830ea9deed8284ed1",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud/<>c__DisplayClass68_0::<RegisterMenuButton>b__1()": "3b7cff1cf4ca1a8f007ba854ee60ed53dfe3af48a014810b3f5dc8a59757b34c",
+  "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::KeyPasses(string)": "b1e8da2fe184002faa0b8e881b4210c3af72d7bb44230b2a5e05357b7a43466f",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::OnKey(vt:Spinel.Game.Play.KeyStroke)": "8c75c30048439ca5966dd0db37a025dba2ab528411e22de35392dc7aaca91ab7",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::OnKeyUp(vt:Spinel.Game.Play.KeyStroke)": "48455d2fa3bf6b548c9f5e61df8a5a241f11c32739ef60253c79c42eeb0c83ac",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::PressHotkey(string)": "ab1b44a04cedbf31e0294453d99fb1e62e3086c65b5c2dea49ee8f792cd1de15",
