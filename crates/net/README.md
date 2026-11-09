@@ -2,7 +2,7 @@
 
 This crate implements the production gateway, existing-character authentication,
 state decoder, public catalog resolver, and passive embedded input boundary for
-build `8502ebbf2fc9033d2fba50d02fd92002`. It is a partial delivery of #21.
+build `ea1a68bd89958fae94179f1e0835ffb5`. It is a partial delivery of #21.
 The remaining native action paths and live acceptance belong to #21 and #23.
 
 ## Runtime ownership
@@ -180,29 +180,33 @@ The independent item, empty-bottom, and drill-limit fixtures produce the same
 49 bytes and callback counts in Rust. These are synthetic checks, not live digs.
 
 The ordinary and gun serializers were independently rejoined to the current
-fingerprinted WASM. Current qualified method rows and original body hashes are:
+fingerprinted WASM. The [build `ea1a68bd` migration](../../docs/research/build-ea1a68bd-migration.md)
+proved their normalized bodies unchanged from `8502ebbf`. Current qualified method rows
+and original body hashes are:
 
 | Method | Metadata row | Function | Original body | SHA-256 |
 | --- | ---: | ---: | --- | --- |
-| `GameSession.SendMove` | 72109 | 13282 | `0x3af3d2`, 231 bytes | `afc0f5d09209358b022c5206c66b19c822b422c9293e59ad50ccead4ad6beb27` |
-| `CombatLink.Attack` | 71389 | 13224 | `0x3ab9b0`, 386 bytes | `896c77ef2b3c6126729e9c5b43300cade7b9eb58f737d20f513b399d49ae1f7d` |
-| `GunFlowing.HoldsGun` | 40842 | 22105 | `0x6c92d4`, 614 bytes | `3f0fc813b866cf9fa110a49956c2ecac16984d12b127d58b2b3cb91899860d72` |
-| `GunFlowing.Shoot` | 40858 | 22123 | `0x6ca3c6`, 427 bytes | `59a8337b00214947a04b04793224d7866000a63aaf77e329248f69a5ce5e6b95` |
-| `Gun.Crc` | 72623 | 11831 | `0x35756a`, 30 bytes | `6dcbf85444a0383346b827c7555c8749e0979b27e8ceae970dd4cc17bc2aca02` |
-| `Gun.Shot` | 72624 | 11832 | `0x357589`, 89 bytes | `21d30c791e936c978358415f734b0ae547db96031564eda61a796f74910a3269` |
+| `GameSession.SendMove` | 72131 | 20903 | `0x65d730`, 231 bytes | `afc2879c67969afcb3a8fe98d0de800907e7ac6b8ed2008ec80305fbbc7280b7` |
+| `CombatLink.Attack` | 71411 | 10814 | `0x31f22c`, 386 bytes | `48ca4eaf9704d4f735b03a03720ad3b867ffcc44d9ee7c8019e66d8c9c12ec93` |
+| `GunFlowing.HoldsGun` | 40861 | 24383 | `0x77a669`, 614 bytes | `10abc2bbde9fb343a8a2bd8210c5e3e54140ffedc869f1650f4790800a8fd7cb` |
+| `GunFlowing.Shoot` | 40877 | 24401 | `0x77b75b`, 427 bytes | `b0582e31b320f45c43fdc9b3e026b61bbb255196d8a465b22d3ad1beb754d370` |
+| `Gun.Crc` | 72645 | 12914 | `0x398d39`, 30 bytes | `6dcbf85444a0383346b827c7555c8749e0979b27e8ceae970dd4cc17bc2aca02` |
+| `Gun.Shot` | 72646 | 12915 | `0x398d58`, 89 bytes | `b8299b57e7f6a6920fb671275255d40ab233808be2a491877661842a93ed4726` |
 
 `SendMove` writes four U16 values and a U8 mode, then sends logical 24 at
-`0x3af467`. The domain uses integer coordinates, so fractional origin rounding
-is not introduced. `Attack` sends 288 at `0x3aba13`, then 29 at `0x3abac5`.
-`CombatModel.WorldClick` calls that function at `0x53e236` after its gun
+`0x65d7c5`. The domain uses integer coordinates, so fractional origin rounding
+is not introduced. `Attack` sends 288 at `0x31f28f`, then 29 at `0x31f341`.
+`CombatModel.WorldClick` calls that function at `0x54ab21` after its gun
 interception. `HoldsGun` traverses configured equipment slots and resolves an
-item metadata subtype, comparing it with 54 at `0x6c950d` through `0x6c9512`.
-The old build's wire opcodes are never used.
+item metadata subtype, comparing it with 54 at `0x77a8a2` through `0x77a8a7`.
+Earlier builds' wire opcodes are never used.
 
 Account-free checks are reproducible with `cargo test -p opentrickster-net` and
 `cargo clippy -p opentrickster-net --all-targets -- -D warnings`. The ignored
 `verified_public_cache` test additionally requires `OPENTRICKSTER_PUBLIC_CACHE`
 to name an outside-Git cache with the pinned public files. It reads the cache
-without making a network request or reading credentials. Loopback WebSocket
+without making a network request or reading credentials. When the deployment
+changes, [`tools/build-migrate`](../../tools/build-migrate/README.md) re-derives
+every pin from public artifacts and checks these Rust literals against them. Loopback WebSocket
 tests prove local transport and handshake behavior with synthetic identities;
 they do not establish target-server acceptance.

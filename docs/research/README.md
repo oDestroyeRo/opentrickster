@@ -5,12 +5,16 @@ about a report's original branch, single-file scope and checks describe that
 publication. They do not certify the production adapters or the complete MVP.
 
 The current implementation profile targets build
-`8502ebbf2fc9033d2fba50d02fd92002`. Validate its asset fingerprints before using
-the recovered contracts. Older builds and prototype labels are not interchangeable.
+`ea1a68bd89958fae94179f1e0835ffb5`. The reports below were written for
+`8502ebbf2fc9033d2fba50d02fd92002`; the [build `ea1a68bd` migration](build-ea1a68bd-migration.md)
+records which of their joins were re-proved and which pins moved. Validate asset
+fingerprints before using the recovered contracts. Older builds and prototype
+labels are not interchangeable.
 
 | Contract | Report | Original commit | Evidence and limit |
 | --- | --- | --- | --- |
 | Framing, opcode maps, authentication/bootstrap compatibility | [Current-build revalidation](current-build-protocol-revalidation.md) | `df5fe0a5` | Pinned static joins and synthetic checks; no live acceptance in this report. |
+| Migration to build `ea1a68bd` | [Build ea1a68bd migration](build-ea1a68bd-migration.md) | This change | Rerunnable static re-derivation of every Net pin and normalized body comparison; no live acceptance. |
 | Own/entity state, effects, inventory and action-result layouts | [State completion](target-state-completion.md) | `cb587e23` | Current and prior build joins; receipt, result and inventory mutation remain distinct. |
 | Native inventory startup and carried weight | [Inventory baseline](native-inventory-baseline.md) | `ce0cf202` | Exact replay/cache/weight oracle and comparison procedure; the candidate native cutoff remains unaccepted until a passive Unity comparison and serialized native boot pass. |
 | Clientless authentication and initial state | [Native startup](native-startup-current-build.md) | `5de55dbf` | One standalone script reached the existing character without Unity. This is not production Rust adapter or gameplay proof. |

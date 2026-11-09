@@ -10,7 +10,7 @@ use zeroize::Zeroizing;
 pub(crate) const MAX_PAYLOAD: usize = 32745;
 pub(crate) const MAX_BUFFER: usize = 1_048_576;
 pub(crate) const MAX_PACKETS: usize = 4096;
-const SEED: &str = "Yi9ApMr88JAXsVztVJYSxdzPbba7CrrOlJ0GmnNHLXI=";
+const SEED: &str = "2/WjKXyCAPUpaeCR6GvABIVYGlCB4ya96Nes0dnYxfQ=";
 
 pub(crate) struct OpcodeMap {
     wire: Vec<u16>,
@@ -291,13 +291,13 @@ mod tests {
         for (dir, wire, inv) in [
             (
                 b"c2s",
-                "db98aa5f8e2df90f4d4baa756a9fad7849f6d307e2c155f5b6b5c9ba58c11fe1",
-                "9e374006761f9bf18e3a59b6b4914c86b673f22230d9bab238e4c56120e350e4",
+                "977a07329e40e76a8e9c7defd7f4fddab0b4a91549ddfb91c6b4ad9b330e1b74",
+                "2748c043b44b39d14b2167a03bf980d9465300b7b9c1d6bdc465df3adfa98b15",
             ),
             (
                 b"s2c",
-                "e0386023dd44e6cd0e70099542b5f9943969feff662b5797cb73e5edab72f58d",
-                "c5d1b355f0c5cf75af90935158df8d6b7309e860710b760fb1f04207169c6b9c",
+                "127612d7863ef59d81ec45955eb0d94c63b17aff20202aebb559694becec7e5c",
+                "c0d04331f75045d8c167e591dc4743386c42911238195e372413d353bd248faf",
             ),
         ] {
             let m = OpcodeMap::current(dir);

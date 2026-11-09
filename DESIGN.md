@@ -28,7 +28,7 @@ Its prototypes remain illustrative; implementation and runtime proof are tracked
 - The game page sizes its own canvas. Its desktop default is 1280 × 720 CSS pixels, scaled to fit the rectangle it gets (#4). The app keeps the game rectangle at 16:9.
 - The webview receives keyboard input while it has focus. Command shortcuts and Escape need joint verification with GPUI (#4).
 - Nobody knows yet whether the game is readable at a given minimum size (#4). The design proposes 960 × 540.
-- The implementation profile is pinned to build `8502ebbf2fc9033d2fba50d02fd92002` and the fingerprints in [current-build revalidation](docs/research/current-build-protocol-revalidation.md). Earlier build `f5e972fa` and invented prototype label `7c21e0b4` are not compatibility checks.
+- The implementation profile is pinned to build `ea1a68bd89958fae94179f1e0835ffb5` through the [build `ea1a68bd` migration](docs/research/build-ea1a68bd-migration.md), which re-proved the fingerprints in [current-build revalidation](docs/research/current-build-protocol-revalidation.md). Earlier build `f5e972fa` and invented prototype label `7c21e0b4` are not compatibility checks.
 - A [production Rust startup test](docs/research/native-rust-startup.md) completed one sign-in, existing-character selection, initial-state receipt, and joined cleanup without Unity. Inventory readiness, recovery, and gameplay remain under [MVP delivery #19](https://github.com/oDestroyeRo/opentrickster/issues/19). The earlier [standalone probe](docs/research/native-startup-current-build.md) tested a separate implementation.
 
 The screenshots and prototype messages remain sample data. Production defaults

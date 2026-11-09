@@ -145,7 +145,7 @@ impl GameDefinitions {
         let items = crate::profile::read_bounded(&items, 24 * 1024 * 1024)?;
         verify_hash(
             &defs,
-            "4a7c86ea510f3c2789f07c59715a0f00aae6fe10f93ddc898601b02399a27cc3",
+            "d2d724bc329e4eef19f55089473530fd5481d6eaefbea72bd4e7ea51e9986d8e",
         )?;
         verify_hash(
             &items,

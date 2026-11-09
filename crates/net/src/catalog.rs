@@ -77,21 +77,21 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
         .map(|f| pinned(cache, f))
         .collect::<Result<Vec<_>>>()?;
     let key = metadata
-        .get(0x4ed2a8..0x4ed2b8)
+        .get(0x4edd98..0x4edda8)
         .ok_or(NetError::BuildChanged)?;
     verify_hash(
         key,
         "b5b8c3c831b51613bc8701615db8ec52cda99e4610d0f452a9c984619ba9dea0",
     )?;
     let effects = metadata
-        .get(0x4d09c8..0x4d09e0)
+        .get(0x4d14b8..0x4d14d0)
         .ok_or(NetError::BuildChanged)?;
     verify_hash(
         effects,
         "65a96e5111fde179295e050214fd70276da0446bb6fec006bfc2bc87b759efc3",
     )?;
     let slots = metadata
-        .get(0x4d16d0..0x4d16e0)
+        .get(0x4d21c0..0x4d21d0)
         .ok_or(NetError::BuildChanged)?;
     verify_hash(
         slots,
@@ -163,8 +163,9 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
             .entry(id)
             .or_insert(row.get("Name").ok_or(NetError::Malformed)?.clone());
     }
-    // The immutable Unity data pin binds #27's relevant-overlay absence proof.
-    // Any new Unity/public asset fingerprint is refused before this resolver runs.
+    // The immutable Unity data pin binds the relevant-overlay absence proof (#27,
+    // re-proved for this build by tools/build-migrate). Any new Unity/public asset
+    // fingerprint is refused before this resolver runs.
     for (n, b) in public.iter().enumerate().skip(3) {
         let values = std::str::from_utf8(b)
             .map_err(|_| NetError::Malformed)?
