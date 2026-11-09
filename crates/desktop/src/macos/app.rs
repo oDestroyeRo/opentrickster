@@ -2,7 +2,6 @@ mod adapter;
 
 use super::{
     controller::Controller,
-    credential_load::{CredentialLoad, Revision},
     embedded_input::EmbeddedInput,
     host::{EmbeddedHost, HostEpoch, HostEvent, HostInbox, HostQueue, HostSource, PageIdentity},
     input::TextInput,
@@ -120,21 +119,6 @@ enum CloseStage {
     Abandoned,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SavedPassword {
-    None,
-    /// This sign-in's Keychain write, identified by its sequence number, is still running.
-    Writing(u64),
-    /// This sign-in wrote the Keychain entry.
-    Written,
-    /// The server rejected the credentials while their Keychain write was still running.
-    RejectedWhileWriting(u64),
-    /// The server rejected the credentials this sign-in wrote.
-    Rejected,
-}
-
-const KEYCHAIN: &str = "org.opentrickster.desktop/game";
-
 enum Runtime {
     Live(Box<Controller>),
     Verification(Box<Snapshot>),
@@ -169,12 +153,7 @@ pub struct Desktop {
     pub alerts: super::alerts::Alerts,
     background: Background,
     credentials: Option<NetCredentials>,
-    credential_revision: Revision,
     quit_requested: bool,
-    pub remember_password: bool,
-    pub keychain_status: &'static str,
-    saved_password: SavedPassword,
-    keychain_writes: u64,
     pub client_failure: Option<&'static str>,
     cache: Option<std::path::PathBuf>,
     menu_fingerprint: Cell<Option<MenuState>>,
@@ -229,12 +208,7 @@ impl Desktop {
             alerts: super::alerts::Alerts::new(),
             background: Background::new(),
             credentials: None,
-            credential_revision: Revision::default(),
             quit_requested: false,
-            remember_password: false,
-            keychain_status: "The password is used for this session only.",
-            saved_password: SavedPassword::None,
-            keychain_writes: 0,
             client_failure: None,
             menu_fingerprint: Cell::new(None),
             cache,
@@ -387,14 +361,6 @@ impl Desktop {
             Command::CancelConnect => self.allowed(Control::CancelConnect),
             _ => false,
         };
-        let authenticating = match &command {
-            Command::Open => self.allowed(Control::Open),
-            Command::Reconnect => self.allowed(Control::Reconnect),
-            _ => false,
-        };
-        if revoke || authenticating {
-            self.credential_revision.invalidate();
-        }
         if revoke {
             self.credentials.take();
             self.password.update(cx, |input, cx| input.clear(cx));
@@ -445,8 +411,6 @@ impl Desktop {
         if !self.allowed(Control::Open) {
             return;
         }
-        self.credential_revision.invalidate();
-        self.saved_password = SavedPassword::None;
         let id = zeroize::Zeroizing::new(self.account.read(cx).value().to_owned());
         let password =
             zeroize::Zeroizing::new(self.password.update(cx, |input, cx| input.take(cx)));
@@ -454,90 +418,8 @@ impl Desktop {
             self.say("Enter a valid Game ID and password.");
             return;
         };
-        if self.remember_password {
-            let task = cx.write_credentials(KEYCHAIN, &id, password.as_bytes());
-            self.keychain_writes += 1;
-            let write = self.keychain_writes;
-            self.saved_password = SavedPassword::Writing(write);
-            cx.spawn(async move |app, cx| {
-                let saved = task.await.is_ok();
-                let _ = app.update(cx, |app, cx| {
-                    // Delete only an entry this write stored, and only after it finished.
-                    app.saved_password = match app.saved_password {
-                        SavedPassword::Writing(w) if w == write && saved => SavedPassword::Written,
-                        SavedPassword::RejectedWhileWriting(w) if w == write && saved => {
-                            SavedPassword::Rejected
-                        }
-                        SavedPassword::Writing(w) | SavedPassword::RejectedWhileWriting(w)
-                            if w == write =>
-                        {
-                            SavedPassword::None
-                        }
-                        other => other,
-                    };
-                    app.keychain_status = if saved {
-                        "Password stored in macOS Keychain."
-                    } else {
-                        "The password could not be stored. Sign-in does not require storage."
-                    };
-                    cx.notify();
-                });
-            })
-            .detach();
-        }
         self.credentials = Some(credentials);
         self.command(Command::Open, window, cx);
-    }
-    pub fn load_saved_password(&mut self, cx: &mut Context<Self>) {
-        if self.snapshot().mode != Mode::Clientless
-            || self.quit_requested
-            || !self.can_authenticate()
-        {
-            return;
-        }
-        self.credential_revision.invalidate();
-        let request = self.credential_context(cx);
-        let task = cx.read_credentials(KEYCHAIN);
-        cx.spawn(async move |app, cx| {
-            // Protect results even if the entity disappears before update runs.
-            let result = task.await.map(|entry| {
-                entry.map(|(id, bytes)| {
-                    (zeroize::Zeroizing::new(id), zeroize::Zeroizing::new(bytes))
-                })
-            });
-            let _ = app.update(cx, |app, cx| {
-                if !request.accepts(
-                    &app.credential_context(cx),
-                    app.snapshot().mode,
-                    app.quit_requested,
-                    app.can_authenticate(),
-                ) {
-                    return;
-                }
-                match result {
-                    Ok(Some((mut id, bytes))) => match std::str::from_utf8(&bytes) {
-                        Ok(password) => {
-                            app.account
-                                .update(cx, |input, cx| input.set(std::mem::take(&mut *id), cx));
-                            app.password
-                                .update(cx, |input, cx| input.set(password.to_owned(), cx));
-                            app.keychain_status = "Saved password loaded from macOS Keychain.";
-                        }
-                        Err(_) => app.keychain_status = "The saved password could not be read.",
-                    },
-                    _ => app.keychain_status = "No saved password is available in macOS Keychain.",
-                }
-                cx.notify();
-            });
-        })
-        .detach();
-    }
-    fn credential_context(&self, cx: &App) -> CredentialLoad {
-        CredentialLoad::new(
-            self.credential_revision.clone(),
-            self.account.read(cx).revision(),
-            self.password.read(cx).revision(),
-        )
     }
     pub fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.ticks += 1;
@@ -558,22 +440,6 @@ impl Desktop {
             } else {
                 "Waiting for the game connections to close. The next mode remains locked."
             });
-        }
-        if self.saved_password == SavedPassword::Rejected {
-            self.saved_password = SavedPassword::None;
-            let task = cx.delete_credentials(KEYCHAIN);
-            cx.spawn(async move |app, cx| {
-                let removed = task.await.is_ok();
-                let _ = app.update(cx, |app, cx| {
-                    app.keychain_status = if removed {
-                        "The rejected password was removed from macOS Keychain."
-                    } else {
-                        "The rejected password could not be removed from macOS Keychain."
-                    };
-                    cx.notify();
-                });
-            })
-            .detach();
         }
         if let Some(controller) = self.controller_mut() {
             controller.wake();

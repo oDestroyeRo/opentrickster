@@ -1,7 +1,6 @@
 mod alerts;
 mod app;
 mod controller;
-mod credential_load;
 mod embedded_input;
 mod host;
 mod input;

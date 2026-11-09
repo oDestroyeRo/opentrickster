@@ -1,7 +1,6 @@
 // Adapted from gpui 0.2.2 examples/input.rs, Zed Industries, Apache-2.0.
 use std::ops::Range;
 
-use super::credential_load::Revision;
 use crate::text;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, ElementId, ElementInputHandler, Entity,
@@ -37,7 +36,6 @@ pub struct TextInput {
     enabled: bool,
     focus_handle: FocusHandle,
     content: String,
-    revision: Revision,
     placeholder: SharedString,
     selected_range: Range<usize>,
     selection_reversed: bool,
@@ -54,7 +52,6 @@ impl TextInput {
             enabled: true,
             focus_handle: cx.focus_handle(),
             content: value.into(),
-            revision: Revision::default(),
             placeholder: "".into(),
             selected_range: value.len()..value.len(),
             selection_reversed: false,
@@ -66,9 +63,6 @@ impl TextInput {
     }
     pub fn value(&self) -> &str {
         &self.content
-    }
-    pub(super) fn revision(&self) -> Revision {
-        self.revision.clone()
     }
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         self.reset();
@@ -83,7 +77,6 @@ impl TextInput {
     pub fn set(&mut self, value: String, cx: &mut Context<Self>) {
         self.content.zeroize();
         self.content = value;
-        self.revision.invalidate();
         self.selected_range = self.content.len()..self.content.len();
         self.marked_range = None;
         cx.notify();
@@ -289,7 +282,6 @@ impl TextInput {
     }
 
     fn reset(&mut self) {
-        self.revision.invalidate();
         self.content.zeroize();
         self.content.clear();
         self.selected_range = 0..0;
@@ -366,7 +358,6 @@ impl EntityInputHandler for TextInput {
             self.content[0..range.start].to_owned() + new_text + &self.content[range.end..];
         self.content.zeroize();
         self.content = replacement;
-        self.revision.invalidate();
         self.selected_range = range.start + new_text.len()..range.start + new_text.len();
         self.marked_range.take();
         cx.notify();
@@ -396,7 +387,6 @@ impl EntityInputHandler for TextInput {
             self.content[0..range.start].to_owned() + new_text + &self.content[range.end..];
         self.content.zeroize();
         self.content = replacement;
-        self.revision.invalidate();
         if !new_text.is_empty() {
             self.marked_range = Some(range.start..range.start + new_text.len());
         } else {

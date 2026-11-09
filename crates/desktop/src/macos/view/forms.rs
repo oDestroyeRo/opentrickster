@@ -68,36 +68,7 @@ impl Desktop {
                     .child(self.account.clone())
                     .child(label("Password", theme))
                     .child(self.password.clone())
-                    .child(
-                        button(
-                            "remember-password",
-                            if self.remember_password {
-                                "☑  Store password in macOS Keychain"
-                            } else {
-                                "□  Store password in macOS Keychain"
-                            },
-                            self.can_authenticate(),
-                            false,
-                            theme,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| {
-                            if app.can_authenticate() {
-                                app.remember_password = !app.remember_password;
-                                cx.notify();
-                            }
-                        })),
-                    )
-                    .child(
-                        button(
-                            "load-password",
-                            "Use saved password",
-                            self.can_authenticate(),
-                            false,
-                            theme,
-                        )
-                        .on_click(cx.listener(|app, _, _, cx| app.load_saved_password(cx))),
-                    )
-                    .child(label(self.keychain_status, theme))
+                    .child(label("The password is used for this session only.", theme))
                     .child(
                         button("sign-in", "Sign in", self.can_authenticate(), true, theme)
                             .on_click(cx.listener(|app, _, w, cx| app.sign_in(w, cx))),

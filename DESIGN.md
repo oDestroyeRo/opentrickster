@@ -621,7 +621,7 @@ In clientless mode, the board takes the place of the game pane and the strip.
 
 The connect panel replaces the board before a character is in the world.
 
-- When offline, it shows "Connect without the game client", a short explanation, **Game ID** and **Password** fields, a "Store the password in macOS Keychain" checkbox, and **Sign in**. When the service rejects the ID or password, a "Sign-in failed" alert appears above the fields. The app stores the password only after the ID and password pass the local format check, and removes the stored password when the service rejects them.
+- When offline, it shows "Connect without the game client", a short explanation, **Game ID** and **Password** fields, the note "The password is used for this session only.", and **Sign in**. When the service rejects the ID or password, a "Sign-in failed" alert appears above the fields. The app never stores the password; it asks for it again after disconnect, mode change or quit.
 - While connecting, it shows four steps: Signing in, Choose a world, Choose a character, and Entering the world. The world list appears at the second step and the character list at the third. The first and fourth steps show a spinner. **Cancel** returns to the offline form.
 
 ### System sheet

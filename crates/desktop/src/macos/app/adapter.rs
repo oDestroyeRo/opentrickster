@@ -193,7 +193,6 @@ impl Desktop {
             return;
         }
         self.quit_requested = true;
-        self.credential_revision.invalidate();
         self.credentials.take();
         if let Some(session) = self.adapter.as_ref().map(Adapter::session) {
             self.close_adapter(session);
@@ -205,15 +204,7 @@ impl Desktop {
             error,
             NetError::InvalidCredentials | NetError::Refused | NetError::SecurityRequired
         ) {
-            self.credential_revision.invalidate();
             self.credentials.take();
-        }
-        if error == NetError::InvalidCredentials {
-            self.saved_password = match self.saved_password {
-                SavedPassword::Written => SavedPassword::Rejected,
-                SavedPassword::Writing(write) => SavedPassword::RejectedWhileWriting(write),
-                other => other,
-            };
         }
         let halt = if error == NetError::BuildChanged {
             engine::Halt::BuildChanged
@@ -390,7 +381,6 @@ impl Desktop {
                 observation.event,
                 Event::Failed(engine::Halt::SessionReplaced)
             ) {
-                self.credential_revision.invalidate();
                 self.credentials.take();
             }
             if matches!(observation.event, Event::Closed)

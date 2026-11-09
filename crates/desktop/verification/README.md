@@ -126,7 +126,7 @@ remains distinct from observed-empty inventory; labels stay explicitly unknown
 until a received catalog resolves them.
 Notifications request macOS permission only when a real alert is emitted from a
 bundled app. An unavailable or denied notification keeps the alert in the panel.
-Optional password storage uses macOS Keychain and is never required to connect.
+The app never stores the password. It is kept in memory for the current session only.
 
 ## Implementation decisions
 
@@ -139,7 +139,7 @@ The single retained native credential capability contains only Net's opaque,
 zeroizing normalized ID and derived key. The password input clears at handoff.
 A fresh native session receives a capability clone only after the old resource's
 actual Closed/join fence. Explicit disconnect, mode switch, quit and authorization
-failure clear the retained capability. Keychain loading is an explicit action.
+failure clear the retained capability.
 
 For embedded cleanup, Net's correlated ack must prove actual close events for
 all page-owned sockets. Desktop then loads `about:blank`, waits for native
