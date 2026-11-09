@@ -71,7 +71,7 @@ So StartSet aura frames reach the live aura before the 233 recompute, and they t
 
 ### Equipment
 
-`Rebuild` f13848@`3db34f` fills a 23-entry snapshot. For each slot UID it stores `InvItem::Clone` f13049@`39f52f` of the `Inventory::Get` f12892@`397d1f` row, or null when the inventory holds no such row. The snapshot is a copy, so a later change to a worn row reaches `Part` only at the next `Rebuild`. `Rebuild` also calls `EquipmentBonuses::ItemProperties` f20522@`63e30e`, which `Part` does not read.
+`Rebuild` f13848@`3db34f` fills a 23-entry snapshot. A zero slot UID marks an empty slot, and its entry stays null: `i64.eqz` at `3db4b4` skips the slot before the `Inventory::Get` f12892@`397d1f` call at `3db542`. For every other slot UID, `Rebuild` stores `InvItem::Clone` f13049@`39f52f` of the `Get` row, or null when the inventory holds no such row. The snapshot is a copy, so a later change to a worn row reaches `Part` only at the next `Rebuild`. `Rebuild` also calls `EquipmentBonuses::ItemProperties` f20522@`63e30e`, which `Part` does not read.
 
 `Equipment` skips null entries and rows whose `ItemId` is 0. For every other entry it adds the inlined `ItemStat` f13853@`3dbc40`:
 
@@ -138,7 +138,7 @@ Net does not model list entries. It proves the term 0 only while the list is pro
 
 ### Inventory behind the snapshot
 
-`Part` reads the client's `Inventory` rows and slots, so Net mirrors them for every worn UID.
+`Part` reads the client's `Inventory` rows and slots, so Net mirrors them for every worn UID. A UID-0 row is never worn: `Rebuild` skips a zero UID, and clearing a slot writes zero, so no change to that row moves a slot.
 
 **Replay.** The `Inventory` ctor f13069@`3a0235` replays the StartSet in two passes, then hooks live frames. The first pass stores the 231 rows and the 233 slots. A 233 slot keeps a UID only when the row is already held. The second pass runs `Special` f13070@`3a1b4d` for 518 and 521. StartSet item deltas are not replayed, so their rows are unproven until a later StartSet 231 lists them again. `ImprintLink` applies StartSet 1387 item changes after this replay.
 

@@ -273,8 +273,16 @@ impl Parts {
         }
         self.slots[slot] = Some(uid);
     }
-    /// Every known slot holding `uid` becomes unproven.
+    /// Whether a known slot holds `uid`. Zero marks an empty slot, never a worn row.
+    fn worn(&self, uid: u64) -> bool {
+        uid != 0 && self.slots.contains(&Some(uid))
+    }
+    /// Every known slot holding `uid` becomes unproven. Clearing a slot writes zero, so
+    /// an empty slot stays empty.
     fn forget(&mut self, uid: u64) {
+        if uid == 0 {
+            return;
+        }
         for slot in &mut self.slots {
             if *slot == Some(uid) {
                 *slot = None;
@@ -352,11 +360,7 @@ impl Parts {
     /// equal Net's old row.
     fn put(&mut self, uid: u64, same: bool, live: bool) {
         let unproven = self.diverged.remove(&uid);
-        if uid == 0 {
-            // Empty slots read a UID-0 row through `Inventory.Get`.
-            self.lost = true;
-        }
-        if live && (unproven || !same) && self.slots.contains(&Some(uid)) {
+        if live && (unproven || !same) && self.worn(uid) {
             self.stale = true;
         }
     }
@@ -368,32 +372,26 @@ impl Parts {
     /// A row only Net changed: the client's row, or whether it holds one, is unproven.
     fn diverge(&mut self, uid: u64) {
         self.diverged.insert(uid);
-        if uid == 0 {
-            self.lost = true;
-        }
     }
     /// A change only the client applies.
     fn client_change(&mut self, change: Change, live: bool) {
         match change {
             Change::Set(uid) => {
                 self.diverge(uid);
-                if live && self.slots.contains(&Some(uid)) {
+                if live && self.worn(uid) {
                     self.stale = true;
                 }
             }
             Change::Remove(uid) => {
-                // A UID-0 row cannot exist unless `GameParts` is already lost.
-                if uid != 0 {
-                    self.diverged.insert(uid);
-                }
+                self.diverge(uid);
                 self.clear_first(uid, live);
             }
         }
     }
     /// A row the client may have changed or removed, in a way Net cannot tell.
     fn consumed(&mut self, uid: u64, live: bool) {
-        self.diverged.insert(uid);
-        if self.slots.contains(&Some(uid)) {
+        self.diverge(uid);
+        if self.worn(uid) {
             self.forget(uid);
             self.stale |= live;
         }
@@ -547,6 +545,10 @@ impl Parts {
         let mut total = 0i32;
         for slot in self.slots {
             let uid = slot?;
+            // `Rebuild` skips a zero UID, an empty slot, before `Inventory.Get`.
+            if uid == 0 {
+                continue;
+            }
             if self.diverged.contains(&uid) {
                 return None;
             }
@@ -1326,11 +1328,27 @@ mod tests {
         assert_eq!(fx.values(), NONE);
     }
     #[test]
-    fn a_uid_zero_row_or_an_unmodelled_frame_loses_the_term() {
+    fn empty_slots_never_read_a_uid_zero_row() {
         let mut fx = Fx::new();
-        fx.start(&[]);
-        fx.delta(561, 2, 0, PLAIN, 1, &[], true);
+        fx.list(0, PLAIN, 1, &[], false);
+        fx.list(11, PLAIN, 1, &[], false);
+        fx.start(&[(0, 11)]);
+        // `Rebuild` skips a zero UID before `Inventory.Get`.
+        assert_eq!(fx.values(), PLAIN_SUM);
+        // So the UID-0 row is never worn, whatever happens to it.
+        fx.delta(561, 2, 0, WIDE, 1, &[], true);
+        fx.list(0, PLAIN, 1, &[], true);
+        fx.frame(151, &uid(0), true);
+        assert_eq!(fx.values(), PLAIN_SUM);
+        // Clearing a slot writes zero, so an 82 that may store UID 0 in slot 0 leaves the
+        // empty slots empty.
+        fx.equip(82, 0, 0);
         assert_eq!(fx.values(), NONE);
+        fx.equip(82, 11, 0);
+        assert_eq!(fx.values(), PLAIN_SUM);
+    }
+    #[test]
+    fn an_unmodelled_frame_loses_the_term() {
         for live in [false, true] {
             let mut fx = Fx::new();
             if live {
