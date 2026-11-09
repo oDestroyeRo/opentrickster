@@ -310,7 +310,10 @@ impl Desktop {
     }
 
     pub(super) fn board(&self, theme: Theme, cx: &mut Context<Self>) -> Stateful<Div> {
-        if self.snapshot().own.position.is_none() {
+        // A closed session keeps the last known position; sign-in must stay reachable.
+        if self.snapshot().own.position.is_none()
+            || matches!(self.snapshot().phase, Phase::Offline | Phase::Error(_))
+        {
             return div()
                 .id("connect-board")
                 .flex_1()
