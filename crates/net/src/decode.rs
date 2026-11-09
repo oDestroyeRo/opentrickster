@@ -825,12 +825,9 @@ impl Decoder {
                 // Faint never awards a kill. Its packet contains no attacker attribution.
             }
             42 => {
-                r.u16()?;
-                r.take(24)?;
-                if r.remaining() >= 2 {
-                    r.u16()?;
-                }
-                r.end()?;
+                // Combat.ParseDamage reads a U16 Target and 24 damage bytes, then a U16 Guard
+                // only if two bytes remain. It never checks the end and ignores any later bytes.
+                r.take(26)?;
             }
             231 => {
                 let count = r.u16()? as usize;
@@ -1821,6 +1818,22 @@ mod tests {
         assert!(d.apply(&ground(1, 4)).is_err());
         assert!(d.apply(&ground(2, 3)).is_err());
         assert!(d.apply(&ground(2, 5)).is_err());
+    }
+    #[test]
+    fn damage_accepts_every_length_the_client_parses() {
+        let mut d = Decoder::new();
+        for aux in [0, 1] {
+            let damage = |len| Packet {
+                aux,
+                ..packet(42, vec![0; len])
+            };
+            for len in 0..26 {
+                assert!(d.apply(&damage(len)).is_err(), "{len} bytes, aux {aux}");
+            }
+            for len in [26, 27, 28, 29, 30, 31, crate::codec::MAX_PAYLOAD] {
+                assert!(d.apply(&damage(len)).is_ok(), "{len} bytes, aux {aux}");
+            }
+        }
     }
     #[test]
     fn raw_incarnations_are_not_reused_and_faint_is_not_kill() {
