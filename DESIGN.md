@@ -29,7 +29,7 @@ Its prototypes remain illustrative; implementation and runtime proof are tracked
 - The webview receives keyboard input while it has focus. Command shortcuts and Escape need joint verification with GPUI (#4).
 - Nobody knows yet whether the game is readable at a given minimum size (#4). The design proposes 960 × 540.
 - The implementation profile is pinned to build `8502ebbf2fc9033d2fba50d02fd92002` and the fingerprints in [current-build revalidation](docs/research/current-build-protocol-revalidation.md). Earlier build `f5e972fa` and invented prototype label `7c21e0b4` are not compatibility checks.
-- A [bounded native startup probe](docs/research/native-startup-current-build.md) completed sign-in, existing-character selection and initial-state receipt without Unity. That standalone script does not prove the production Rust adapter, recovery or gameplay. Those remain under [MVP delivery #19](https://github.com/oDestroyeRo/opentrickster/issues/19).
+- A [production Rust startup test](docs/research/native-rust-startup.md) completed one sign-in, existing-character selection, initial-state receipt, and joined cleanup without Unity. Inventory readiness, recovery, and gameplay remain under [MVP delivery #19](https://github.com/oDestroyeRo/opentrickster/issues/19). The earlier [standalone probe](docs/research/native-startup-current-build.md) tested a separate implementation.
 
 The screenshots and prototype messages remain sample data. Production defaults
 and shared contracts are specified in [MVP behavior](docs/mvp.md) and

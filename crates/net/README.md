@@ -131,12 +131,12 @@ Unattributed HP falls, captions and faint alone cannot award outcomes.
 
 | Remaining part of #21/#23 | Current boundary |
 | --- | --- |
-| Sampler review | Root owns a scoped correction for the independent geometry/type/catalog findings on frozen 3abe. Assisted gameplay acceptance waits for that patch and review. |
+| Sampler review | Root applied the geometry, type, and active-parameter corrections. Independent specification review and live correspondence remain open. |
 | Native gun controller | Serializer and source-backed profile/key/skill/ammo prerequisites exist. Tick/CRC/effect-lifetime controller integration remains unfinished. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
 | Carried weight | Source31 gives a bounded comparison recipe; no accepted complete native inventory cutoff yet. |
-| Runtime acceptance | No account credentials, game-server socket or gameplay was used here. Root owns serialized live proof and Desktop integration. |
+| Runtime acceptance | One production Rust startup and joined cleanup passed. Gameplay, inventory readiness, and Desktop integration remain open. See the [runtime report](../../docs/research/native-rust-startup.md). |
 
 These gaps remain visible in support/readiness and cannot be called a completed
 MVP. S282 totals become unknown on source-backed recompute events. Potion
