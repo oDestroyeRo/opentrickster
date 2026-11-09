@@ -1148,6 +1148,17 @@ impl Engine {
             .as_ref()
             .is_some_and(|barrier| self.now >= barrier.deadline)
         {
+            // With no action of ours in flight, a slow idle proof only holds the next action.
+            // Keep the same barrier and ask again instead of dropping the player's session.
+            if self.run.as_ref().is_none_or(|run| {
+                run.pending.is_none() && !matches!(run.stage, Stage::Draining(AfterDrain::Stop))
+            }) && let Some(barrier) = &mut self.barrier
+            {
+                barrier.deadline = At(self.now.0.saturating_add(DRAIN_MS));
+                let key = barrier.key;
+                self.emit(SessionOp::Quiesce(key), io);
+                return;
+            }
             if let Some(run) = &mut self.run
                 && !matches!(run.stage, Stage::Draining(AfterDrain::Stop))
             {
