@@ -314,13 +314,37 @@ impl Actor {
         fl.close().await;
         let (host, port, ticket) = result?;
         let mut ls = self.open_gateway(&host, port).await?;
-        let result = self.login_server(&mut ls, &ticket).await;
-        ls.close().await;
-        let ticket = result?;
-        let mut gs = self.open_gateway(&ticket.host, ticket.port).await?;
-        let result = self.game_server(&mut gs, &ticket).await;
-        gs.close().await;
+        let ticket = match self.login_server(&mut ls, &ticket).await {
+            Ok(ticket) => ticket,
+            Err(error) => {
+                ls.close().await;
+                return Err(error);
+            }
+        };
+        let mut login = LoginLink {
+            gateway: ls,
+            order: 0,
+        };
+        let result = match self.open_gateway(&ticket.host, ticket.port).await {
+            Ok(mut gs) => {
+                let result = self.game_server(&mut gs, &mut login, &ticket).await;
+                gs.close().await;
+                result
+            }
+            Err(error) => Err(error),
+        };
+        login.gateway.close().await;
         result
+    }
+    /// The client answers 2028 only on the login link and keeps nothing else from it in game.
+    async fn login_frame(&mut self, login: &mut LoginLink, packet: Packet) -> Result<()> {
+        if packet.opcode == 2028 {
+            login
+                .gateway
+                .send(2028, &ping_millis()?, &mut login.order)
+                .await?;
+        }
+        Ok(())
     }
     async fn receive(&mut self, gateway: &mut Gateway, deadline: Instant) -> Result<Packet> {
         loop {
@@ -332,13 +356,7 @@ impl Actor {
                 result=tokio::time::timeout_at(deadline.into(),gateway.receive(&mut self.order))=>result.map_err(|_|NetError::Timeout)??,
             };
             if packet.opcode == 2028 {
-                let millis = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_err(|_| NetError::Io)?
-                    .as_millis() as u32;
-                gateway
-                    .send(2028, &millis.to_le_bytes(), &mut self.order)
-                    .await?;
+                gateway.send(2028, &ping_millis()?, &mut self.order).await?;
                 continue;
             }
             return Ok(packet);
@@ -376,8 +394,7 @@ impl Actor {
                 result=gateway.receive(&mut self.order)=>{
                     let p=result?;
                     if p.opcode==2028 {
-                        let ms=SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_|NetError::Io)?.as_millis() as u32;
-                        gateway.send(2028,&ms.to_le_bytes(),&mut self.order).await?;
+                        gateway.send(2028,&ping_millis()?,&mut self.order).await?;
                     } else {
                         if matches!(p.opcode,11503|11508|2001|2013|2|159|2002) {return Err(NetError::Refused);}
                         unrelated+=1;if unrelated>MAX_PACKETS {return Err(NetError::Capacity);}
@@ -498,7 +515,12 @@ impl Actor {
         }
         Err(NetError::Capacity)
     }
-    async fn game_server(&mut self, g: &mut Gateway, ticket: &GameTicket) -> Result<()> {
+    async fn game_server(
+        &mut self,
+        g: &mut Gateway,
+        login: &mut LoginLink,
+        ticket: &GameTicket,
+    ) -> Result<()> {
         let mut startup = Startup::new(self.attempt as u64 + 1);
         startup
             .decoder
@@ -511,7 +533,18 @@ impl Actor {
         w.u32(ticket.crc);
         g.send(4, &w.0, &mut self.order).await?;
         while !startup.ready() {
-            let p = self.receive(g, deadline).await?;
+            if *self.cancel.borrow() {
+                return Err(NetError::Cancelled);
+            }
+            let p = tokio::select! {
+                _=self.cancel.changed()=>return Err(NetError::Cancelled),
+                result=tokio::time::timeout_at(deadline.into(),g.receive(&mut self.order))=>result.map_err(|_|NetError::Timeout)??,
+                result=login.gateway.receive(&mut login.order)=>{self.login_frame(login,result?).await?;continue;}
+            };
+            // The client registers no 2028 handler on the game link.
+            if p.opcode == 2028 {
+                continue;
+            }
             startup.push_through(p, g.complete_through(self.order))?;
         }
         g.send(5, &[], &mut self.order).await?;
@@ -605,12 +638,9 @@ impl Actor {
                     if action_until.is_some_and(|until|now>=until) {lost|=barrier.is_some()&&decoder.action_pending();decoder.expire_action();action_until=None;}
                     if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                 }
+                result=login.gateway.receive(&mut login.order)=>self.login_frame(login,result?).await?,
                 result=g.receive(&mut self.order)=>{
                     let raw=result?;let proof_at=raw.received;
-                    if raw.opcode==2028 {
-                        let millis=SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_|NetError::Io)?.as_millis() as u32;
-                        g.send(2028,&millis.to_le_bytes(),&mut self.order).await?;
-                    }
                     for packet in aux.push(raw)? {
                         if let Some(pending)=&mut dig && packet.mark>pending.mark {pending.cycle.observe(packet.opcode,&packet.payload)?;}
                         ordered.push(packet)?;
@@ -638,6 +668,19 @@ impl Actor {
             }
         }
     }
+}
+/// The login-server link, kept open and pumped until the game link closes, as the client does.
+/// Its own frame order keeps login frames out of the game link's marks.
+struct LoginLink {
+    gateway: Gateway,
+    order: u64,
+}
+fn ping_millis() -> Result<[u8; 4]> {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| NetError::Io)?
+        .as_millis() as u32;
+    Ok(millis.to_le_bytes())
 }
 struct PendingDig {
     cycle: crate::dig::Cycle,
@@ -1054,6 +1097,17 @@ mod tests {
         use crate::codec::{Frames, OpcodeMap};
         use futures_util::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::Message;
+        /// The next frame other than the gateway's probe and ack text.
+        async fn frame(
+            ws: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+        ) -> Message {
+            loop {
+                match ws.next().await.unwrap().unwrap() {
+                    Message::Text(text) if text == "p" || text.starts_with("a ") => {}
+                    message => return message,
+                }
+            }
+        }
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -1066,11 +1120,22 @@ mod tests {
                 let (cancel, cancel_rx) = watch::channel(false);
                 let server = tokio::spawn(async move {
                     let (socket, _) = listener.accept().await.unwrap();
-                    let mut ws = tokio_tungstenite::accept_async(socket).await.unwrap();
-                    let mut incoming = Frames::new(b"c2s");
+                    let mut login = tokio_tungstenite::accept_async(socket).await.unwrap();
+                    let mut game = None;
+                    let mut login_in = Frames::new(b"c2s");
+                    let mut game_in = Frames::new(b"c2s");
                     let outgoing = OpcodeMap::current(b"s2c");
                     let mut order = 0;
+                    let ping = |n: u32| outgoing.encode(2028, 0, &n.to_le_bytes()).unwrap();
                     for expected in [11501, 11505, 2000, 2012, 4] {
+                        if expected == 4 {
+                            let (socket, _) = listener.accept().await.unwrap();
+                            game = Some(tokio_tungstenite::accept_async(socket).await.unwrap());
+                        }
+                        let (ws, incoming) = match game.as_mut() {
+                            Some(game) => (game, &mut game_in),
+                            None => (&mut login, &mut login_in),
+                        };
                         let message = ws.next().await.unwrap().unwrap();
                         let Message::Binary(bytes) = message else {
                             panic!("expected binary")
@@ -1133,6 +1198,8 @@ mod tests {
                                 clock.u16(321);
                                 clock.u16(100);
                                 clock.u16(200);
+                                // A game-link 2028 during startup gets no reply.
+                                response.extend_from_slice(&ping(1));
                                 for (op, payload) in [
                                     (5, vec![]),
                                     (679, profile),
@@ -1148,25 +1215,42 @@ mod tests {
                         }
                         ws.send(Message::Binary(response.into())).await.unwrap();
                     }
-                    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
-                    let bytes = loop {
-                        let message = tokio::time::timeout_at(deadline, ws.next())
+                    let mut game = game.unwrap();
+                    let Message::Binary(bytes) =
+                        tokio::time::timeout(Duration::from_secs(1), frame(&mut game))
                             .await
                             .expect("native must announce world entry after startup")
-                            .unwrap()
-                            .unwrap();
-                        match message {
-                            Message::Binary(bytes) => break bytes,
-                            Message::Text(text) if text == "p" || text.starts_with("a ") => {}
-                            _ => panic!("expected world-entry frame"),
-                        }
+                    else {
+                        panic!("expected world-entry frame")
                     };
-                    let packets = incoming.push(&bytes, &mut order).unwrap();
+                    let packets = game_in.push(&bytes, &mut order).unwrap();
                     assert_eq!(packets.len(), 1);
                     assert_eq!(packets[0].opcode, 5);
                     assert!(packets[0].payload.is_empty());
+                    // After world entry, the login link is still open and alone answers 2028.
+                    game.send(Message::Binary(ping(2).to_vec().into()))
+                        .await
+                        .unwrap();
+                    login
+                        .send(Message::Binary(ping(3).to_vec().into()))
+                        .await
+                        .unwrap();
+                    let Message::Binary(bytes) = frame(&mut login).await else {
+                        panic!("the login link must stay open through the game session")
+                    };
+                    let packets = login_in.push(&bytes, &mut order).unwrap();
+                    assert_eq!(packets.len(), 1);
+                    assert_eq!(packets[0].opcode, 2028);
+                    assert_eq!(packets[0].payload.len(), 4);
+                    assert!(
+                        tokio::time::timeout(Duration::from_millis(300), frame(&mut game))
+                            .await
+                            .is_err(),
+                        "the game link never answers 2028"
+                    );
                     cancel.send_replace(true);
-                    assert!(matches!(ws.next().await, Some(Ok(Message::Close(_)))));
+                    assert!(matches!(frame(&mut game).await, Message::Close(_)));
+                    assert!(matches!(frame(&mut login).await, Message::Close(_)));
                 });
                 let (ops, rx) = channel::channel(32);
                 let (events, event_rx) = mpsc::sync_channel(256);
@@ -1204,11 +1288,14 @@ mod tests {
                 let mut gateway = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
                 let (_, _, ticket) = actor.first_login(&mut gateway).await.unwrap();
                 let ticket = actor.login_server(&mut gateway, &ticket).await.unwrap();
+                let mut login = LoginLink { gateway, order: 0 };
+                let mut game = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
                 assert_eq!(
-                    actor.game_server(&mut gateway, &ticket).await,
+                    actor.game_server(&mut game, &mut login, &ticket).await,
                     Err(NetError::Cancelled)
                 );
-                gateway.close().await;
+                game.close().await;
+                login.gateway.close().await;
                 drop(actor);
                 server.await.unwrap();
                 let events: Vec<_> = event_rx.try_iter().map(|event| event.event).collect();
