@@ -33,9 +33,11 @@ pub(crate) fn gun_shot(target: u16, crc: u16, bunch: u16, mode: u8) -> Writer {
     w.u8(mode);
     w
 }
-#[cfg(test)]
-fn gun_crc(speed: u32, range: u32, start: u32, key: u16, critical: bool) -> u16 {
-    ((((range << 3) ^ (speed << 7) ^ start) << 5) ^ key as u32 | critical as u32) as u16
+/// `Shoot`'s 16-bit check word (f24401): wrapping I32 shifts of the gun profile, the received
+/// 512 key and the strict critical bit.
+pub(crate) fn gun_crc(speed: i32, range: i32, start: i32, key: u16, critical: bool) -> u16 {
+    let base = (range.wrapping_shl(3) ^ speed.wrapping_shl(7) ^ start).wrapping_shl(5);
+    (base ^ i32::from(key) | i32::from(critical)) as u16
 }
 #[cfg(test)]
 mod tests {

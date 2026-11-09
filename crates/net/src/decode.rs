@@ -9,6 +9,8 @@ use std::{
 
 const MAX_ACTORS: usize = 4096;
 const MAX_ITEMS: usize = 8192;
+/// Bound on 518/521 held for the gun constructor's replay; more makes loaded ammo unknown.
+const MAX_START_SPECIALS: usize = 64;
 /// Build whose startup cutoff H is accepted as the complete carried inventory.
 ///
 /// H is the last raw game-link receipt among accepted S5, S679, S230 and S233, with
@@ -112,6 +114,10 @@ pub enum MissingPrerequisite {
     GunAmmo,
     GunSkills,
     GunEffectState,
+    /// The zone is unknown or its Type hides the gun (`MayShow`).
+    GunZone,
+    /// Camp entry disarmed the gun until camp exit.
+    GunCamp,
     PotionInventory,
     PotionInstanceOverrides,
     PotionInstanceOptions,
@@ -157,7 +163,25 @@ pub(crate) struct Decoder {
     status: resources::Status,
     current_hp: Option<(u32, std::time::Instant)>,
     current_mp: Option<(u32, std::time::Instant)>,
-    gun_key: Option<u16>,
+    gun: crate::gun::Gun,
+    load_speed: crate::gun::LoadSpeed,
+    /// The client's `GunFlowing` exists from EnterWorld; inputs before that are replayed once.
+    gun_live: bool,
+    /// `(LoadsWhileMoving, KeepsLoadOnHit)`: the 271 that construction reads, then live 523.
+    gun_skills: Option<(bool, bool)>,
+    /// The flags of the latest 271; `LearnedAtLogin` (f24376) reads StartSet 271 only, so
+    /// construction copies them once and a later list changes nothing.
+    start_skills: Option<(bool, bool)>,
+    /// 518 (true) and 521 (false) UIDs before construction, in arrival order.
+    start_special: Vec<(bool, u64)>,
+    /// A special-slot input named ammo that this decoder could not resolve.
+    ammo_unknown: bool,
+    /// The controller's own slot UIDs: zero at construction, then only live 82/85.
+    gun_slots: [u64; 23],
+    /// 82/85 arrived before construction; the client's replayed equipment omits them.
+    gun_diverged: bool,
+    /// Destination of an own walk that no own stop has ended.
+    walk: Option<e::Point>,
     learned: Option<BTreeSet<u16>>,
     zone: Option<u16>,
     dig_active: bool,
@@ -208,7 +232,16 @@ impl Decoder {
             status: Default::default(),
             current_hp: None,
             current_mp: None,
-            gun_key: None,
+            gun: Default::default(),
+            load_speed: Default::default(),
+            gun_live: false,
+            gun_skills: None,
+            start_skills: None,
+            start_special: Vec::new(),
+            ammo_unknown: false,
+            gun_slots: [0; 23],
+            gun_diverged: false,
+            walk: None,
             learned: None,
             zone: None,
             dig_active: false,
@@ -378,7 +411,9 @@ impl Decoder {
         let mode = self.mode.ok_or(NetError::Unsupported)?;
         crate::actions::movement(from, to, mode)
     }
-    pub(crate) fn expect_action(&mut self, action: e::Action, mark: u64) -> Result<()> {
+    /// `gun` marks a 477 shot. It has no attack-end packet, so its correlated outcome alone
+    /// completes it.
+    pub(crate) fn expect_action(&mut self, action: e::Action, mark: u64, gun: bool) -> Result<()> {
         if self.pending.is_some() {
             return Err(NetError::Busy);
         }
@@ -392,7 +427,7 @@ impl Decoder {
         self.pending = Some(PendingAction {
             action,
             mark,
-            ended: false,
+            ended: gun,
             outcome: false,
         });
         Ok(())
@@ -666,6 +701,7 @@ impl Decoder {
                 if self.actors.len() >= MAX_ACTORS && !self.actors.contains_key(&parsed.id) {
                     return Err(NetError::Capacity);
                 }
+                self.gun_appearance(p.opcode, &parsed);
                 // Every appearance begins a fresh incarnation, fencing delayed action evidence.
                 let key = e::EntityKey(self.next()?);
                 let species = self.species(parsed.species)?;
@@ -699,6 +735,13 @@ impl Decoder {
                     r.u8()?;
                 }
                 r.end()?;
+                // S15 also ends the effect whose key equals this prefix.
+                if p.opcode == 15 {
+                    self.load_speed.ended(id);
+                }
+                if Some(id) == self.own {
+                    self.load_speed.own_lost();
+                }
                 if let Some(old) = self.actors.remove(&id)
                     && old.kind == 3
                 {
@@ -726,6 +769,8 @@ impl Decoder {
                         self.mode = Some(mode);
                     }
                     self.point = Some(point);
+                    // 24/26 start a walk to this destination; 25/27 stop it.
+                    self.walk = matches!(p.opcode, 24 | 26).then_some(point);
                     if let Some(map) = self.map {
                         out.push(Fact::Position { map, point });
                     }
@@ -769,11 +814,17 @@ impl Decoder {
                 {
                     pending.ended = true;
                 }
+                if Some(actor) == self.own && self.gun_live && self.gun_worn() == Some(true) {
+                    self.gun.shot_answered();
+                }
             }
             512 => {
                 let key = r.u16()?;
                 r.end()?;
-                self.gun_key = Some(key);
+                // The listener exists only from construction; an earlier 512 is not replayed.
+                if self.gun_live {
+                    self.gun.on_key(key, self.gun_profile());
+                }
             }
             271 => {
                 let count = r.u16()? as usize;
@@ -784,12 +835,27 @@ impl Decoder {
                     r.u16()?;
                 }
                 r.end()?;
+                let skills = gun_skills(&learned);
+                // The client's StartSet can end after our construction; its last 271 wins.
+                if self.gun_live && self.gun_skills != Some(skills) {
+                    self.gun_skills = None;
+                }
+                self.start_skills = Some(skills);
                 self.learned = Some(learned);
             }
             523 => {
                 let skill = r.u16()?;
                 if let Some(learned) = &mut self.learned {
                     learned.insert(skill);
+                }
+                // OnLearned (f24407) also consults a skill-level lookup that is not modelled, so
+                // a flag it could newly set becomes unknown.
+                if self.gun_live
+                    && let Some((moving, hit)) = self.gun_skills
+                    && ((skill == crate::gun::MOVE_SKILL && !moving)
+                        || (skill == crate::gun::HIT_SKILL && !hit))
+                {
+                    self.gun_skills = None;
                 }
             }
             286 | 289 => {
@@ -814,6 +880,7 @@ impl Decoder {
                 if Some(id) == self.own {
                     self.current_hp = Some((0, p.received));
                     out.push(Fact::Hp(resources::gauge(0, self.maximum(9))));
+                    self.load_speed.own_lost();
                 }
                 if let Some(a) = self.actors.get_mut(&id) {
                     a.alive = false;
@@ -1042,6 +1109,7 @@ impl Decoder {
             }
             _ => {}
         }
+        self.gun_observe(p);
         let correlated = self.combat.observe(p, self.own)?;
         let completed = !correlated.is_empty();
         for result in correlated {
@@ -1109,46 +1177,364 @@ impl Decoder {
         self.track_carried(p, stray, old_weight_maximum, &mut out)?;
         Ok(out)
     }
-    fn gun_prerequisite(&self) -> Option<MissingPrerequisite> {
+    /// The first unproven input of a native gun shot, or None when the controller is armed
+    /// with every input known.
+    pub(crate) fn gun_prerequisite(&self) -> Option<MissingPrerequisite> {
         use MissingPrerequisite as M;
-        if !self.stats_seen {
+        if !self.stats_seen || self.own.is_none() {
             return Some(M::OwnBaseline);
         }
-        let Some(data) = &self.definitions else {
+        if self.definitions.is_none() {
             return Some(M::Definitions);
-        };
-        if !self.readiness.equipment_references_resolved {
+        }
+        if !self.readiness.equipment_references_resolved
+            || self.gun_worn().is_none()
+            || self.gun_diverged
+        {
             return Some(M::Equipment);
         }
-        let Some(gun) = self.items.get(&self.slots[1]) else {
-            return Some(M::GunProfile);
-        };
-        let Some(param) = data.gun_params.get(&gun.id) else {
-            return Some(M::GunProfile);
-        };
-        if param.kind < 0
-            || param.speed <= 0
-            || param.range <= 0
-            || param.start < 0
-            || param.min_range < 0
-            || param.max_range < param.min_range
-        {
+        if self.gun_profile().is_none() {
             return Some(M::GunProfile);
         }
-        if self.gun_key.is_none() {
+        if self.gun.key().is_none() {
             return Some(M::GunKey);
         }
-        let Some(ammo) = self.items.get(&self.slots[20]).filter(|i| i.count > 0) else {
+        let ammo = self
+            .items
+            .get(&self.gun.loaded())
+            .filter(|item| self.gun.effective(item.count) > 0)
+            .and_then(|item| self.info(item.id))
+            .is_some_and(|info| info.kind == 29);
+        if self.ammo_unknown || !ammo {
             return Some(M::GunAmmo);
-        };
-        let Some(info) = data.items.get(&ammo.id).filter(|i| i.kind == 29) else {
-            return Some(M::GunAmmo);
-        };
-        let _infinite_local_ammo = info.flags_ex & 64 != 0;
-        if self.learned.is_none() {
+        }
+        if self.gun_skills.is_none() {
             return Some(M::GunSkills);
         }
-        Some(M::GunEffectState)
+        if self.load_speed.value().is_none() {
+            return Some(M::GunEffectState);
+        }
+        if self.zone_allows() != Some(true) {
+            return Some(M::GunZone);
+        }
+        if self.gun.in_camp() {
+            return Some(M::GunCamp);
+        }
+        // Wearing disarms until a fresh 512 arrives.
+        if !self.gun.armed() {
+            return Some(M::GunKey);
+        }
+        None
+    }
+    fn info(&self, id: u32) -> Option<&crate::definitions::ItemInfo> {
+        self.definitions.as_ref()?.items.get(&id)
+    }
+    /// `Wear`'s test (f24375): ItemInfo Type 2 and SubType 54. None when unknown.
+    fn is_gun_id(&self, id: u32) -> Option<bool> {
+        let info = self.info(id)?;
+        Some(info.kind == 2 && info.subtype == 54)
+    }
+    /// `GunWorn`/`HoldsGun` (f24382/f24383): SubType 54 in a configured gun slot.
+    pub(crate) fn gun_worn(&self) -> Option<bool> {
+        let data = self.definitions.as_ref()?;
+        if !self.readiness.equipment_references_resolved {
+            return None;
+        }
+        for &slot in &data.gun_slots {
+            let uid = *self.slots.get(slot)?;
+            if uid != 0 && self.info(self.items.get(&uid)?.id)?.subtype == 54 {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+    /// The slot-1 item's `Item_GunParam2` row (`GunOn`, f24387), when usable.
+    fn gun_profile(&self) -> Option<crate::definitions::GunParams> {
+        let item = self.items.get(&self.slots[1])?;
+        let param = *self.definitions.as_ref()?.gun_params.get(&item.id)?;
+        (param.kind >= 0
+            && param.speed > 0
+            && param.range > 0
+            && param.start >= 0
+            && param.min_range >= 0
+            && param.max_range >= param.min_range)
+            .then_some(param)
+    }
+    /// `MayShow` (f24395): a known zone whose Type is not 0, 1 or 5.
+    fn zone_allows(&self) -> Option<bool> {
+        let (kind, _) = self.definitions.as_ref()?.zones.get(&self.zone?)?;
+        Some(!matches!(kind, 0 | 1 | 5))
+    }
+    /// The `GunFlowing` constructor at EnterWorld (f24374): slot 20 runs the `SpecialOn`
+    /// branch, other equipped items go through `Wear`, then every earlier 518/521 replays in
+    /// arrival order.
+    pub(crate) fn construct_gun(&mut self) {
+        if std::mem::replace(&mut self.gun_live, true) {
+            return;
+        }
+        self.gun_skills = self.start_skills;
+        for slot in 0..self.slots.len() {
+            let uid = self.slots[slot];
+            if uid == 0 {
+                continue;
+            }
+            let Some(id) = self.items.get(&uid).map(|item| item.id) else {
+                continue;
+            };
+            if slot == 20 {
+                self.special(true, uid);
+            } else {
+                self.wear(id, true);
+            }
+        }
+        for (on, uid) in std::mem::take(&mut self.start_special) {
+            self.special(on, uid);
+        }
+        self.readiness.missing_gun = self.gun_prerequisite();
+    }
+    /// `Wear(itemId, on)` (f24375). An unknown item type disarms without requesting a key.
+    fn wear(&mut self, id: u32, on: bool) {
+        match self.is_gun_id(id) {
+            Some(true) => self.gun.wear(on),
+            Some(false) => {}
+            None => self.gun.wear(false),
+        }
+    }
+    /// `Special(bytes, on)` (f24377): 518 runs `SpecialOn` (f24379), 521 unloads Type-29 ammo.
+    /// A UID missing from the inventory changes nothing.
+    fn special(&mut self, on: bool, uid: u64) {
+        let Some(item) = self.items.get(&uid) else {
+            return;
+        };
+        let Some(info) = self.info(item.id) else {
+            self.ammo_unknown = true;
+            return;
+        };
+        let kind = (info.kind, info.subtype);
+        if on {
+            self.gun.special_on(uid, kind);
+        } else if kind.0 == 29 {
+            self.gun.special_off();
+        }
+    }
+    /// Empty 511 requests the controller made since the last call.
+    pub(crate) fn take_key_requests(&mut self) -> u32 {
+        self.gun.take_requests()
+    }
+    pub(crate) fn gun_awaits_key(&self) -> bool {
+        self.gun_live && self.gun.awaiting_key()
+    }
+    fn gun_frame(&self) -> crate::gun::Frame {
+        let (keeps_moving, keeps_on_hit) = self.gun_skills.unwrap_or((false, false));
+        crate::gun::Frame {
+            worn: self.gun_worn() == Some(true),
+            moving: self.walk.is_some(),
+            zone_allows: self.zone_allows() == Some(true),
+            speed: self.load_speed.value(),
+            keeps_moving,
+            keeps_on_hit,
+        }
+    }
+    /// One UI frame of `elapsed_ms` real milliseconds.
+    pub(crate) fn gun_tick(&mut self, elapsed_ms: f64) {
+        if self.gun_live {
+            let frame = self.gun_frame();
+            self.gun.advance(elapsed_ms, frame);
+        }
+    }
+    /// Whether a gun ticket for `key` can wait for Ready: a valid target and an armed,
+    /// fully known controller that reaches Ready without another received input.
+    pub(crate) fn gun_waitable(&self, key: e::EntityKey) -> bool {
+        // WorldClick rejects the own fainted state before its gun branch, so no shot can
+        // leave while own HP is unknown or zero.
+        self.current_hp.is_some_and(|(hp, _)| hp > 0)
+            && self.raw_target(key).is_ok()
+            && self.gun_prerequisite().is_none()
+            && self.gun.waitable()
+    }
+    pub(crate) fn gun_ready(&self, key: e::EntityKey) -> bool {
+        self.gun_waitable(key) && self.gun.ready()
+    }
+    /// The 477 payload of `Shoot`; the controller then waits for own firing or a release.
+    pub(crate) fn gun_shot(&mut self, key: e::EntityKey) -> Result<crate::wire::Writer> {
+        if !self.gun_ready(key) {
+            return Err(NetError::Unsupported);
+        }
+        let target = self.raw_target(key)?;
+        let mode = self.mode.ok_or(NetError::Unsupported)?;
+        self.gun.shoot(target, mode).ok_or(NetError::Unsupported)
+    }
+    /// An own move request starts a walk before its echo arrives.
+    pub(crate) fn walking(&mut self, to: e::Point) {
+        self.walk = Some(to);
+    }
+    /// A native dig begins (`DrillBegin`, f24412) or ends (`DrillEnd`, f24413).
+    pub(crate) fn drilling(&mut self, active: bool) {
+        if !self.gun_live {
+            return;
+        }
+        if active {
+            self.gun.drill_begin();
+        } else {
+            let worn = self.gun_worn() == Some(true);
+            self.gun.drill_end(worn);
+        }
+    }
+    /// BasicAttack is supported with a worn gun only when the controller is armed and every
+    /// input is known; without one, the ordinary melee rules apply.
+    pub(crate) fn basic_attack_supported(&self) -> bool {
+        match self.gun_worn() {
+            Some(true) => self.gun_prerequisite().is_none(),
+            Some(false) => self.normal_weapon_mode().is_ok(),
+            None => false,
+        }
+    }
+    /// Own damage through the UI `Damaged` callback (f46664), which calls `Hit` (f24406).
+    /// `ApplyMessage` (f17568) applies DamageEvent 42 and CounterDamage 923 at once and
+    /// GuardDamage 668 500 ms later; each names the damaged actor in its first U16.
+    fn gun_damage(&mut self, guard: bool) {
+        let keeps = self.gun_skills.is_some_and(|(_, hit)| hit);
+        if guard {
+            self.gun.guard_hit(keeps);
+        } else {
+            self.gun.hit(keeps);
+        }
+    }
+    /// An appearance's effect list and, for the own player after construction, `MyAppear`.
+    fn gun_appearance(&mut self, opcode: u16, parsed: &Appearance) {
+        if self.own.is_none() || Some(parsed.id) != self.own {
+            self.load_speed.foreign_snapshot(parsed.fast.len());
+            return;
+        }
+        // Own 7 is not a proven effect baseline; it can only make LoadSpeed unknown.
+        if opcode == 7 {
+            self.load_speed.own_lost();
+            if !parsed.fast.is_empty() {
+                self.load_speed.unreadable();
+            }
+            return;
+        }
+        let Some(player) = &parsed.player else {
+            if !parsed.fast.is_empty() {
+                self.load_speed.unreadable();
+            }
+            return;
+        };
+        self.load_speed.own_snapshot(&parsed.fast);
+        // MyAppear (f24389) wears every nonzero Worn ID unless Attributes bit 1 is set.
+        if self.gun_live && player.attributes & 1 == 0 {
+            for &id in player.worn.iter().filter(|id| **id != 0) {
+                self.wear(id, true);
+            }
+        }
+    }
+    /// Inputs of the client's `GunFlowing` and of its `LoadSpeed` outside the main match.
+    fn gun_observe(&mut self, p: &Packet) {
+        let b = &p.payload;
+        let word = |at: usize| b.get(at..at + 2).map(|v| u16::from_le_bytes([v[0], v[1]]));
+        let own = self.own;
+        // A damage recipient that cannot be read may be the own avatar.
+        let to_own = word(0).is_none_or(|id| own.is_some() && Some(id) == own);
+        match p.opcode {
+            224 | 292 => match (word(2), word(6)) {
+                (Some(target), Some(esa)) if b.len() >= 14 => {
+                    let mine = own.is_some() && Some(target) == own;
+                    self.load_speed.skill_start(esa, mine, b[9] as i8);
+                    // ESA damage to the own avatar reaches Hit through effect timers that
+                    // are not modelled. The early reset applies only where it delays Ready.
+                    if mine && self.gun_live {
+                        let keeps = self.gun_skills.is_some_and(|(_, hit)| hit);
+                        self.gun.effect_hit(keeps);
+                    }
+                }
+                _ => self.load_speed.unreadable(),
+            },
+            307 => match word(2) {
+                Some(esa) => self.load_speed.detached_start(esa),
+                None => self.load_speed.unreadable(),
+            },
+            280 => match word(2) {
+                Some(instance) if b.len() == 4 => self.load_speed.ended(instance),
+                _ => self.load_speed.own_lost(),
+            },
+            // `Special` ignores a body shorter than eight bytes.
+            518 | 521 => {
+                let uid = b
+                    .get(..8)
+                    .map(|v| u64::from_le_bytes(v.try_into().unwrap_or([0; 8])));
+                match uid {
+                    None => {}
+                    Some(uid) if !self.gun_live => {
+                        if self.start_special.len() >= MAX_START_SPECIALS {
+                            self.ammo_unknown = true;
+                        } else {
+                            self.start_special.push((p.opcode == 518, uid));
+                        }
+                    }
+                    Some(uid) => self.special(p.opcode == 518, uid),
+                }
+            }
+            82 | 85 if !self.gun_live => self.gun_diverged = true,
+            _ => {}
+        }
+        if !self.gun_live {
+            return;
+        }
+        let uid = b
+            .get(..8)
+            .map(|v| u64::from_le_bytes(v.try_into().unwrap_or([0; 8])));
+        let slot = b.get(8).map(|s| usize::from(*s)).filter(|s| *s < 23);
+        let id = |uid: u64| self.items.get(&uid).map(|item| item.id);
+        match (p.opcode, uid, slot) {
+            // 82 (f24424): a resolved item replaces a different resolved one, then is worn,
+            // even when it is the same UID.
+            (82, Some(uid), Some(slot)) => {
+                if let Some(new) = id(uid) {
+                    let old = self.gun_slots[slot];
+                    let old = (old != 0 && old != uid).then(|| id(old)).flatten();
+                    self.gun_slots[slot] = uid;
+                    if let Some(old) = old {
+                        self.wear(old, false);
+                    }
+                    self.wear(new, true);
+                }
+            }
+            // 85 (f24425): clear the slot, then unwear the named item if it is resolved.
+            (85, Some(uid), Some(slot)) => {
+                self.gun_slots[slot] = 0;
+                if let Some(old) = id(uid) {
+                    self.wear(old, false);
+                }
+            }
+            _ => {}
+        }
+        match p.opcode {
+            310 | 525 if self.gun.armed() => self.gun.shot_answered(),
+            410 if b.first() == Some(&4) => self.gun.camp_mark(),
+            410 | 377 => self.gun.camp_enter(),
+            380 | 382 => {
+                let worn = self.gun_worn() == Some(true);
+                let profile = self.gun_profile();
+                self.gun.camp_leave(worn, profile);
+            }
+            // CombatModel.Begin (f17574) calls GunFired for an own Kind-2 Swing.
+            // ParseSwing (f13206) needs all seven U16 fields before Begin can run.
+            31 | 485 | 1438
+                if b.len() >= 14 && own.is_some() && word(0) == own && word(2) == Some(2) =>
+            {
+                let ammo = self.items.get(&self.gun.loaded()).map(|item| {
+                    let info = self.info(item.id);
+                    crate::gun::Ammo {
+                        count: item.count,
+                        keeps_count: info.is_some_and(|info| info.flags_ex & 64 != 0),
+                    }
+                });
+                self.gun.fired(ammo);
+            }
+            42 | 923 if to_own => self.gun_damage(false),
+            668 if to_own => self.gun_damage(true),
+            _ => {}
+        }
     }
     fn potion_prerequisite(&self) -> Option<MissingPrerequisite> {
         use MissingPrerequisite as M;
@@ -1215,6 +1601,8 @@ impl Decoder {
             e::StackKey(self.next()?)
         };
         let kind = self.item_kind(item.kind, item.id)?;
+        // A received count replaces the gun's local consumption projection.
+        self.gun.authoritative(item.uid);
         out.push(Fact::Inventory(e::Inventory::Put(e::Stack {
             key,
             kind,
@@ -1241,6 +1629,7 @@ impl Decoder {
         match op {
             2 | 4 | 6 | 8 => self.put(item, out)?,
             3 | 5 | 7 => {
+                self.gun.authoritative(item.uid);
                 if let Some(old) = self.items.remove(&item.uid) {
                     out.push(Fact::Inventory(e::Inventory::Remove(old.key)));
                 }
@@ -1256,6 +1645,7 @@ impl Decoder {
                         old.state = item.state;
                     } else {
                         old.count = item.count;
+                        self.gun.authoritative(item.uid);
                         out.push(Fact::Inventory(e::Inventory::Quantity(
                             old.key,
                             item.count as u32,
@@ -1267,6 +1657,13 @@ impl Decoder {
         }
         Ok(stray)
     }
+}
+/// `(LoadsWhileMoving, KeepsLoadOnHit)` from a 271 list.
+fn gun_skills(learned: &BTreeSet<u16>) -> (bool, bool) {
+    (
+        learned.contains(&crate::gun::MOVE_SKILL),
+        learned.contains(&crate::gun::HIT_SKILL),
+    )
 }
 /// Why a cached stack is not yet a proven usable HP potion, or None when it is no candidate.
 fn potion_reason(
@@ -1339,6 +1736,15 @@ struct Appearance {
     point: e::Point,
     target: Option<u16>,
     effects: bool,
+    /// FastLoad `(instance, value)` entries of the EsBlock.
+    fast: Vec<(u16, f32)>,
+    player: Option<Player>,
+}
+/// The parts of a type-1 PlayerBody that the gun controller reads.
+struct Player {
+    attributes: u8,
+    /// `Worn` item IDs from the A mask, in table order.
+    worn: Vec<u32>,
 }
 fn appearance(b: &[u8]) -> Result<Appearance> {
     let mut r = Reader::new(b);
@@ -1353,11 +1759,12 @@ fn appearance(b: &[u8]) -> Result<Appearance> {
     r.take(4)?;
     let label = r.cstr()?;
     r.take(7)?;
-    let effects = effects(&mut r)?;
+    let (effects, fast) = effects(&mut r)?;
     r.u32()?;
     let mut target = None;
+    let mut body = None;
     match kind {
-        1 => player(&mut r)?,
+        1 => body = Some(player(&mut r)?),
         2 => {
             r.take(6)?;
         }
@@ -1389,11 +1796,15 @@ fn appearance(b: &[u8]) -> Result<Appearance> {
         point,
         target,
         effects,
+        fast,
+        player: body,
     })
 }
-fn effects(r: &mut Reader<'_>) -> Result<bool> {
+/// Whether the EsBlock lists any effect, and its FastLoad `(instance, value)` entries.
+fn effects(r: &mut Reader<'_>) -> Result<(bool, Vec<(u16, f32)>)> {
+    let mut fast = Vec::new();
     if r.u8()? == 0 {
-        return Ok(false);
+        return Ok((false, fast));
     }
     let mut seen = false;
     for _ in 0..8 {
@@ -1401,7 +1812,13 @@ fn effects(r: &mut Reader<'_>) -> Result<bool> {
         for _ in 0..n {
             seen = true;
             let key = r.u16()?;
-            r.take(7)?;
+            // U16 instance, U8 V14, U16 skill, U16 V04.
+            let instance = r.u16()?;
+            r.take(5)?;
+            if key == crate::gun::FAST_LOAD {
+                fast.push((instance, f32::from_bits(r.u32()?)));
+                continue;
+            }
             if key == 1425 {
                 let n = r.u16()? as usize;
                 r.take(n * 4)?;
@@ -1414,8 +1831,8 @@ fn effects(r: &mut Reader<'_>) -> Result<bool> {
                 continue;
             }
             let descriptors: &[u8] = match key {
-                1118 | 1476 | 1487 | 1524 | 1525 | 1526 | 1527 | 1529 | 1531 | 1534 | 1537
-                | 1540 | 1541 | 1542 | 1543 | 1545 | 1547 => &[2],
+                1118 | 1487 | 1524 | 1525 | 1526 | 1527 | 1529 | 1531 | 1534 | 1537 | 1540
+                | 1541 | 1542 | 1543 | 1545 | 1547 => &[2],
                 1153 => &[0, 3],
                 1186 => &[4, 2],
                 1192 | 1267 | 1369 | 1371 | 1373 | 1375 | 1377 => &[1, 4],
@@ -1450,10 +1867,11 @@ fn effects(r: &mut Reader<'_>) -> Result<bool> {
             }
         }
     }
-    Ok(seen)
+    Ok((seen, fast))
 }
-fn player(r: &mut Reader<'_>) -> Result<()> {
-    r.take(5)?;
+fn player(r: &mut Reader<'_>) -> Result<Player> {
+    let attributes = r.u8()?;
+    r.u32()?;
     // ReadPlayerBody has no branch for mask bit 128.
     let mask = r.u8()?;
     for bit in [1, 2, 4, 8, 16] {
@@ -1464,18 +1882,25 @@ fn player(r: &mut Reader<'_>) -> Result<()> {
             r.cstr()?;
         }
     }
-    for bits in [
+    let mut worn = Vec::new();
+    for (index, bits) in [
         &[
             1u32, 2, 4, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 262144,
             524288,
         ][..],
         &[1u32, 2, 4, 4096, 8192, 524288][..],
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         // The client reads one value per table bit that is set; other bits carry no value.
         let m = r.u32()?;
         for bit in bits {
             if m & bit != 0 {
-                r.u32()?;
+                let id = r.u32()?;
+                if index == 0 {
+                    worn.push(id);
+                }
             }
         }
     }
@@ -1500,7 +1925,7 @@ fn player(r: &mut Reader<'_>) -> Result<()> {
         r.cstr()?;
     }
     r.u8()?;
-    Ok(())
+    Ok(Player { attributes, worn })
 }
 
 #[cfg(test)]
@@ -1637,7 +2062,7 @@ mod tests {
         d.apply(&packet(230, clock)).unwrap();
         d.apply(&packet(233, vec![0; 251])).unwrap();
         let to = e::Point { x: 100, y: 200 };
-        d.expect_action(e::Action::MoveTo(to), 10).unwrap();
+        d.expect_action(e::Action::MoveTo(to), 10, false).unwrap();
         let mut payload = Vec::new();
         for n in [321u16, 0, 0, 100, 200] {
             payload.extend_from_slice(&n.to_le_bytes());
@@ -1676,7 +2101,8 @@ mod tests {
         monster[22] = b'M';
         d.apply(&packet(7, monster)).unwrap();
         let key = d.actors[&9].key;
-        d.expect_action(e::Action::BasicAttack(key), 20).unwrap();
+        d.expect_action(e::Action::BasicAttack(key), 20, false)
+            .unwrap();
         let payload = [321u16, 0, 9, 1, 2, 3, 4]
             .into_iter()
             .flat_map(u16::to_le_bytes)
@@ -1714,7 +2140,7 @@ mod tests {
         // One group-0 entry of a type outside the compiled table: nine-byte prefix, empty body.
         let unknown = [1, 1, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let mut r = Reader::new(&unknown);
-        assert!(effects(&mut r).unwrap());
+        assert!(effects(&mut r).unwrap().0);
         assert!(r.end().is_ok());
         let mut extra = unknown.to_vec();
         extra.push(0);

@@ -1,6 +1,11 @@
 use opentrickster_engine::{self as e, Action, ActionTicket, At, SessionKey};
 use std::num::{NonZeroU16, NonZeroU32};
 pub(crate) fn ticket(action: Action) -> (SessionKey, ActionTicket) {
+    let (session, ticket, _) = engine_ticket(action);
+    (session, ticket)
+}
+/// An engine-minted ticket and the barrier key of the drain that preceded it.
+pub(crate) fn engine_ticket(action: Action) -> (SessionKey, ActionTicket, Option<e::BarrierKey>) {
     let mut engine = e::Engine::new(e::Mode::Assisted);
     let effects = engine.handle(e::Input::User {
         at: At(0),
@@ -86,13 +91,14 @@ pub(crate) fn ticket(action: Action) -> (SessionKey, ActionTicket) {
             },
         },
     });
-    if let Some(key) = effects.io.iter().find_map(|effect| match effect {
+    let barrier = effects.io.iter().find_map(|effect| match effect {
         e::Effect::Session {
             op: e::SessionOp::Quiesce(k),
             ..
         } => Some(*k),
         _ => None,
-    }) {
+    });
+    if let Some(key) = barrier {
         engine.handle(e::Input::Observed {
             at: At(3),
             observation: e::Observation {
@@ -119,7 +125,7 @@ pub(crate) fn ticket(action: Action) -> (SessionKey, ActionTicket) {
         .expect("engine action");
     ticket.action = action;
     ticket.not_after = At(1000);
-    (session, ticket)
+    (session, ticket, barrier)
 }
 
 /// Synthetic item definitions, never public catalog rows.
