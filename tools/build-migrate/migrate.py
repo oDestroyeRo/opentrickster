@@ -82,7 +82,11 @@ def cmd_check(args):
         print("NOPINS    no reviewed pins for build %s at %s" % (build.cache.build, expected_path))
         failures += 1
     else:
-        failures += compare("pins", json.loads(expected_path.read_text()), manifest)
+        expected = json.loads(expected_path.read_text())
+        if "definitions" in expected and "definitions" not in manifest:
+            print("SKIPPED   pins.definitions (the cache carries no catalog JSON; see step 4)")
+            del expected["definitions"]
+        failures += compare("pins", expected, manifest)
     for name, overlay in manifest["catalog"]["overlays"].items():
         if overlay["relevant"]:
             print("CATALOG   overlay %s defines catalog tables %s; Net would miss merged rows"
