@@ -232,14 +232,18 @@ impl Flow {
             let Some(at) = issued.at else {
                 return Ok(None);
             };
-            let proof = s
-                .filter(|s| s.captured > at)
-                .map(|s| sampler::press_sampled(s, &issued.event))
-                .transpose()?
-                .unwrap_or(false);
+            let later = s.filter(|s| s.captured > at);
+            // A pointer move has no press to prove; any later capture replans from where it landed.
+            let proof = match issued.event {
+                NormalInput::PointerMove { .. } => false,
+                _ => later
+                    .map(|s| sampler::press_sampled(s, &issued.event))
+                    .transpose()?
+                    .unwrap_or(false),
+            };
             match issued.event {
                 NormalInput::PointerMove { .. } => {
-                    if !s.is_some_and(|s| s.captured > at) {
+                    if later.is_none() {
                         return Ok(None);
                     }
                 }
@@ -433,6 +437,44 @@ mod tests {
             let expired = flow.next(Some(&s), At(400 + window), fences, session, None, false);
             assert!(matches!(expired, Err(NetError::Timeout)), "{action:?}");
         }
+    }
+    #[test]
+    fn a_pointer_move_resamples_before_the_press() {
+        let value = crate::test_support::sample_value();
+        let clock = std::cell::Cell::new(Instant::now() - std::time::Duration::from_millis(100));
+        let next_capture = || {
+            let at = clock.get() + std::time::Duration::from_millis(1);
+            clock.set(at);
+            at
+        };
+        let mut s = crate::sampler::parse_snapshot(&value, next_capture()).unwrap();
+        s.pointer.world = None;
+        let (session, ticket) =
+            crate::test_support::ticket(Action::MoveTo(e::Point { x: 540, y: 350 }));
+        let mut flow = Flow::new(ticket, &s);
+        let fences = crate::InputFences {
+            host_epoch: 7,
+            layout_epoch: 11,
+            not_after: At(1000),
+        };
+        let first = flow
+            .next(Some(&s), At(10), fences, session, None, false)
+            .unwrap()
+            .unwrap()
+            .steps[0];
+        assert!(matches!(first, NormalInput::PointerMove { .. }));
+        flow.issue(InputStepKey(1), first);
+        flow.dispatched(InputStepKey(1), next_capture()).unwrap();
+        s.pointer.world = Some([540.0, 350.0]);
+        s.pointer.picked = None;
+        s.pointer.ground_hover = false;
+        s.captured = next_capture();
+        let press = flow
+            .next(Some(&s), At(11), fences, session, None, false)
+            .unwrap()
+            .unwrap()
+            .steps;
+        assert_eq!(press, [NormalInput::LeftDown]);
     }
     #[test]
     fn dig_keeps_one_ticket_and_uses_observed_hold_release_and_first_coast() {
