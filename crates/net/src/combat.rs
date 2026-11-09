@@ -106,7 +106,6 @@ impl Correlator {
             if r.remaining() > 0 {
                 r.u8()?;
             }
-            r.end()?;
             if group.strike.is_some() {
                 group.ambiguous = true;
             } else {
@@ -203,5 +202,41 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+    #[test]
+    fn a_grouped_strike_needs_14_bytes_and_attributes_with_any_tail() {
+        for len in 0..14 {
+            let mut strike = swing(7, 99);
+            strike.truncate(len);
+            let result = Correlator::default().observe(&packet(31, 1, 11, strike), Some(7));
+            assert!(result.is_err(), "{len} bytes");
+        }
+        for len in [14, 15, 16, 17, 18, 19, crate::codec::MAX_PAYLOAD] {
+            let mut c = Correlator::default();
+            c.expect(Pending {
+                target: 99,
+                key: e::EntityKey(500),
+                floor: 10,
+            });
+            let mut strike = swing(7, 99);
+            strike.resize(len, 0);
+            c.observe(&packet(31, 1, 11, strike), Some(7)).unwrap();
+            let mut damage = 99u16.to_le_bytes().to_vec();
+            damage.extend_from_slice(&3u32.to_le_bytes());
+            damage.extend_from_slice(&[0; 20]);
+            c.observe(&packet(42, 1, 12, damage), Some(7)).unwrap();
+            let outcomes = c.observe(&packet(1951, 1, 13, vec![]), Some(7)).unwrap();
+            assert!(
+                matches!(
+                    outcomes.as_slice(),
+                    [Correlated {
+                        mark: 12,
+                        outcome: e::Outcome::OwnHit(e::EntityKey(500)),
+                        ..
+                    }]
+                ),
+                "{len} bytes"
+            );
+        }
     }
 }
