@@ -5,8 +5,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 const crypto = require("node:crypto");
 const script = fs.readFileSync(path.join(__dirname,"../src/sampler.js"),"utf8");
-const BUILD = "8502ebbf2fc9033d2fba50d02fd92002";
-const TYPE_KINDS={8914:14,8959:2,9020:8,9021:10,9064:12,9092:11,9200:28,5590:17,9043:17,9982:17,13048:17,13049:17};
+const BUILD = "ea1a68bd89958fae94179f1e0835ffb5";
+const TYPE_KINDS={8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,13051:17,13052:17};
 
 // Invented objects encode only the whitelisted fields, never a target runtime.
 class Heap {
@@ -56,7 +56,7 @@ class Heap {
     return p;
   }
   list(id,values=[],stride=4) {
-    const p=this.object(10003,24,[id]),a=this.array(id,stride,values.length);
+    const p=this.object(10006,24,[id]),a=this.array(id,stride,values.length);
     this.u32(p+8,a);this.u32(p+12,values.length);this.u32(p+16,1);
     values.forEach((v,i)=>{if(stride===4)this.u32(a+16+i*4,v);});
     return p;
@@ -64,18 +64,18 @@ class Heap {
   method(c,keyType,valueType) {
     const p=this.alloc(40),ctx=this.alloc(112);
     this.u32(p+16,c);this.u32(p+28,ctx);
-    const keyClass=Array.isArray(keyType)?this.cls(keyType[0],256,keyType[1]):this.cls(keyType,256,[],[9021,9092].includes(keyType)?8:4);
+    const keyClass=Array.isArray(keyType)?this.cls(keyType[0],256,keyType[1]):this.cls(keyType,256,[],[9024,9095].includes(keyType)?8:4);
     const valueClass=Array.isArray(valueType)?this.cls(valueType[0],256,valueType[1]):this.cls(valueType);
     const kw=this.u32(keyClass+132),vw=this.u32(valueClass+132);
     this.u32(ctx+36,0);this.u32(ctx+40,keyClass);this.u32(ctx+44,8);this.u32(ctx+48,valueClass);this.u32(ctx+52,8+kw);
     return {p,ctx,kw,vw};
   }
   dict(keyType,valueType,rows=[],cell=null,wrapper=false) {
-    const p=this.object(9988,40,[keyType,valueType]);
+    const p=this.object(9991,40,[keyType,valueType]);
     const c=this.u32(p),m=this.method(c,keyType,valueType),stride=(8+m.kw+m.vw+7)&~7;
-    const a=this.array([9982,[keyType,valueType]],stride,rows.length),table=this.alloc(12);
+    const a=this.array([9985,[keyType,valueType]],stride,rows.length),table=this.alloc(12);
     this.u32(p+12,a);this.u32(p+16,rows.length);this.u32(p+28,1);
-    const iface=this.cls(9997,256,[keyType,valueType]);
+    const iface=this.cls(10000,256,[keyType,valueType]);
     this.u16(c+182,1);this.u32(c+72,table);this.u32(table,iface);this.u32(table+4,0);this.u32(c+192+8+4,m.p);
     if(cell){
       if(wrapper){const w=this.alloc(40),ctx=this.alloc(112);this.u32(w+28,ctx);this.u32(ctx+52,m.p);this.u32(cell,w);}
@@ -89,12 +89,12 @@ class Heap {
     return {p,a,c,method:m.p,ctx:m.ctx,kw:m.kw,vw:m.vw,stride};
   }
   string(s) {
-    const p=this.object(8914,14+s.length*2);this.u32(p+8,s.length);
+    const p=this.object(8917,14+s.length*2);this.u32(p+8,s.length);
     [...s].forEach((ch,i)=>this.u16(p+12+i*2,ch.charCodeAt(0)));return p;
   }
   nullableMethods(value,has,vo,ho) {
-    const [size,id,width] = value===3333252 ? [12,13048,8] : value===3333276 ? [12,13049,8] : value===3332368 ? [8,9020,4] : [2,8959,1];
-    const owner=this.cls(9043,256,[id],size),v=this.cls(id,256,[],width);
+    const [size,id,width] = value===3334068 ? [12,13051,8] : value===3334092 ? [12,13052,8] : value===3333184 ? [8,9023,4] : [2,8962,1];
+    const owner=this.cls(9046,256,[id],size),v=this.cls(id,256,[],width);
     for(const [cell,off,field] of [[value,vo,8],[has,ho,12]]) {
       const p=this.alloc(40),ctx=this.alloc(56);this.u32(p+16,owner);this.u32(p+28,ctx);this.u32(ctx,v);this.u32(ctx+field,off);this.u32(cell,p);
     }
@@ -103,78 +103,78 @@ class Heap {
 
 function fixture(primePointer=true) {
   const h=new Heap(), p={};
-  h.nullableMethods(3333252,3333256,0,8);
-  h.nullableMethods(3332368,3332376,0,4);
-  h.nullableMethods(3331940,3331948,1,0);
-  h.nullableMethods(3333276,3333272,0,8);
-  p.flow=h.root(0x318aa4,2619,132,4);p.engine=h.root(0x31ad74,13662,44);
+  h.nullableMethods(3334068,3334072,0,8);
+  h.nullableMethods(3333184,3333192,0,4);
+  h.nullableMethods(3332756,3332764,1,0);
+  h.nullableMethods(3334092,3334088,0,8);
+  p.flow=h.root(0x318d9c,2621,132,4);p.engine=h.root(0x31b074,13665,44);
   h.u32(p.flow+16,p.engine);
-  p.screen=h.object(2667,656);h.u32(p.flow+84,p.screen);
-  p.stage=h.object(13683,392);h.u32(p.engine+20,p.stage);h.byte(p.stage+332,1);
+  p.screen=h.object(2669,656);h.u32(p.flow+84,p.screen);
+  p.stage=h.object(13686,392);h.u32(p.engine+20,p.stage);h.byte(p.stage+332,1);
   [8,10,1870,1310].forEach((n,i)=>h.f32(p.stage+56+4*i,n));h.f64(p.stage+144,1.25);
   h.f64(p.stage+136,1.0);h.f64(p.stage+152,1.0);[1920,1350,1536,1080].forEach((n,i)=>h.u32(p.stage+176+i*4,n));
-  p.input=h.object(13641,128);h.u32(p.engine+28,p.input);
-  p.own=h.object(5465,344);h.u32(p.screen+236,p.own);h.u32(p.own+40,41);h.u32(p.own+44,1);h.f64(p.own+56,350);h.f64(p.own+64,110);
-  [-10,-10,20,20].forEach((n,i)=>h.i32(p.own+176+4*i,n));h.u32(p.own+12,h.list(5590,[],16));
-  p.session=h.object(11817,140);h.u32(p.screen+144,p.session);h.byte(p.session+89,1);
-  p.zone=h.object(2620,40);h.u32(p.screen+148,p.zone);
-  p.zoneInfo=h.object(5619,60);h.u32(p.zone+8,p.zoneInfo);h.u32(p.zoneInfo+8,17);
-  p.map=h.object(13771,224);h.u32(p.zone+16,p.map);h.u32(p.map+76,2000);h.u32(p.map+80,1500);
-  h.u32(p.zone+24,h.list(5543));h.byte(p.screen+400,1);h.i32(p.screen+452,320);h.i32(p.screen+456,96);
-  p.services=h.object(2731,16);h.u32(p.screen+316,p.services);
-  p.combat=h.object(6101,276);p.drill=h.object(6256,232);p.assist=h.object(6215,60);p.gun=h.object(6629,176);p.attributes=h.object(5810,16);p.skills=h.object(8024,208);
+  p.input=h.object(13644,128);h.u32(p.engine+28,p.input);
+  p.own=h.object(5467,344);h.u32(p.screen+236,p.own);h.u32(p.own+40,41);h.u32(p.own+44,1);h.f64(p.own+56,350);h.f64(p.own+64,110);
+  [-10,-10,20,20].forEach((n,i)=>h.i32(p.own+176+4*i,n));h.u32(p.own+12,h.list(5592,[],16));
+  p.session=h.object(11820,140);h.u32(p.screen+144,p.session);h.byte(p.session+89,1);
+  p.zone=h.object(2622,40);h.u32(p.screen+148,p.zone);
+  p.zoneInfo=h.object(5622,60);h.u32(p.zone+8,p.zoneInfo);h.u32(p.zoneInfo+8,17);
+  p.map=h.object(13774,224);h.u32(p.zone+16,p.map);h.u32(p.map+76,2000);h.u32(p.map+80,1500);
+  h.u32(p.zone+24,h.list(5545));h.byte(p.screen+400,1);h.i32(p.screen+452,320);h.i32(p.screen+456,96);
+  p.services=h.object(2733,16);h.u32(p.screen+316,p.services);
+  p.combat=h.object(6104,276);p.drill=h.object(6259,232);p.assist=h.object(6218,60);p.gun=h.object(6632,176);p.attributes=h.object(5813,16);p.skills=h.object(8027,208);
   const services=[];
-  for(const [id,v] of [[6101,p.combat],[6256,p.drill],[6215,p.assist],[6629,p.gun],[5810,p.attributes],[8024,p.skills]]) {
-    const k=h.object(9155,24);h.u32(k+12,h.type(id));services.push([k,v]);
+  for(const [id,v] of [[6104,p.combat],[6259,p.drill],[6218,p.assist],[6632,p.gun],[5813,p.attributes],[8027,p.skills]]) {
+    const k=h.object(9158,24);h.u32(k+12,h.type(id));services.push([k,v]);
   }
-  p.serviceDict=h.dict(9086,9200,services,0x325c6c);h.u32(p.services+8,p.serviceDict.p);
-  p.fsm=h.object(5807,24);h.u32(p.drill+24,p.fsm);h.u32(p.combat+112,p.fsm);h.u32(p.assist+8,p.drill);
+  p.serviceDict=h.dict(9089,9203,services,0x325f98);h.u32(p.services+8,p.serviceDict.p);
+  p.fsm=h.object(5810,24);h.u32(p.drill+24,p.fsm);h.u32(p.combat+112,p.fsm);h.u32(p.assist+8,p.drill);
   for(const q of [p.combat,p.drill,p.gun])h.u32(q+20,p.session);
-  p.hud=h.object(5355,160);h.u32(p.screen+324,p.hud);
-  p.hotkeys=h.object(6741,28);h.u32(p.hud+80,p.hotkeys);
-  function binding(code){const q=h.object(6892,20);h.u32(q+8,h.string(code));h.byte(q+16,1);return q;}
+  p.hud=h.object(5357,160);h.u32(p.screen+324,p.hud);
+  p.hotkeys=h.object(6744,28);h.u32(p.hud+80,p.hotkeys);
+  function binding(code){const q=h.object(6895,20);h.u32(q+8,h.string(code));h.byte(q+16,1);return q;}
   p.digBinding=binding("KeyF");p.runBinding=binding("KeyV");
-  p.bindingDict=h.dict(8914,[10003,[6892]],[[h.string("Dig"),h.list(6892,[p.digBinding])],[h.string("Run"),h.list(6892,[p.runBinding])]],3298216);
+  p.bindingDict=h.dict(8917,[10006,[6895]],[[h.string("Dig"),h.list(6895,[p.digBinding])],[h.string("Run"),h.list(6895,[p.runBinding])]],3299016);
   h.u32(p.hotkeys+20,p.bindingDict.p);
-  p.keyboard=h.root(3249944,10296,320);p.keys=h.array(10588,4,128);h.u32(p.keyboard+304,p.keys);
+  p.keyboard=h.root(3250708,10299,320);p.keys=h.array(10591,4,128);h.u32(p.keyboard+304,p.keys);
   p.buttons=[];
-  for(let i=0;i<128;i++){const q=h.object(10588,256);h.byte(q+241,1);h.u32(p.keys+16+i*4,q);p.buttons.push(q);}
-  for(const off of [272,276,280]){const q=h.object(10580,248);h.byte(q+241,1);h.u32(p.keyboard+off,q);}
+  for(let i=0;i<128;i++){const q=h.object(10591,256);h.byte(q+241,1);h.u32(p.keys+16+i*4,q);p.buttons.push(q);}
+  for(const off of [272,276,280]){const q=h.object(10583,248);h.byte(q+241,1);h.u32(p.keyboard+off,q);}
   p.actions=[];
   for(const off of [16,20]) {
-    const q=h.object(10211,236),map=h.object(10227,168),state=h.object(10245,120),states=h.alloc(68);
+    const q=h.object(10214,236),map=h.object(10230,168),state=h.object(10248,120),states=h.alloc(68);
     h.u32(p.input+off,q);h.u32(q+112,map);h.u32(map+48,state);h.u32(state+40,1);h.u32(state+60,states);h.byte(states,1);p.actions.push(states);
   }
-  p.run=h.object(7915,32);h.u32(p.screen+200,p.run);h.byte(p.run+24,1);
-  p.inv=h.object(12096,44);h.u32(p.gun+16,p.inv);h.u32(p.drill+16,p.inv);
-  p.slots=h.array(9092,8,23);h.u32(p.inv+16,p.slots);
-  p.tool=h.object(12070,40);h.u64(p.tool+8,501);h.u64(p.tool+16,8001);h.u32(p.tool+28,300);h.u64(p.slots+16+7*8,501);
-  p.inventory=h.dict(9092,12070,[[501,p.tool]],3334228,true);h.u32(p.inv+12,p.inventory.p);
-  p.toolInfo=h.object(6756,260);h.u64(p.toolInfo+8,8001);h.u32(p.toolInfo+24,6);
-  p.infos=h.dict(9021,6756,[[8001,p.toolInfo]]);h.u32(p.gun+28,p.infos.p);
-  p.drillData=h.object(6225,36);h.u32(p.drill+12,p.drillData);p.petDict=h.dict(9021,9200,[],3296664);h.u32(p.drillData+32,p.petDict.p);
-  p.drillParam=h.object(6222,64);h.u64(p.drillParam+8,8001);h.u32(p.drillParam+24,30);h.u32(p.drillParam+28,70);h.u32(p.drillParam+32,100);h.u32(p.drillParam+36,1);
-  h.u32(p.drillData+8,h.dict(9021,6222,[[8001,p.drillParam]]).p);
-  p.skins=h.statics(0x31b460,2483);h.u32(p.skins,1);h.byte(p.skins+4,1);
-  p.semi=h.statics(0x318020,3183);h.byte(p.semi,1);h.byte(p.semi+1,0);
-  p.monster=h.object(5465,344);h.u32(p.monster+40,73);h.u32(p.monster+44,3);h.f64(p.monster+56,500);h.f64(p.monster+64,300);
+  p.run=h.object(7918,32);h.u32(p.screen+200,p.run);h.byte(p.run+24,1);
+  p.inv=h.object(12099,44);h.u32(p.gun+16,p.inv);h.u32(p.drill+16,p.inv);
+  p.slots=h.array(9095,8,23);h.u32(p.inv+16,p.slots);
+  p.tool=h.object(12073,40);h.u64(p.tool+8,501);h.u64(p.tool+16,8001);h.u32(p.tool+28,300);h.u64(p.slots+16+7*8,501);
+  p.inventory=h.dict(9095,12073,[[501,p.tool]],3335044,true);h.u32(p.inv+12,p.inventory.p);
+  p.toolInfo=h.object(6759,260);h.u64(p.toolInfo+8,8001);h.u32(p.toolInfo+24,6);
+  p.infos=h.dict(9024,6759,[[8001,p.toolInfo]]);h.u32(p.gun+28,p.infos.p);
+  p.drillData=h.object(6228,36);h.u32(p.drill+12,p.drillData);p.petDict=h.dict(9024,9203,[],3297464);h.u32(p.drillData+32,p.petDict.p);
+  p.drillParam=h.object(6225,64);h.u64(p.drillParam+8,8001);h.u32(p.drillParam+24,30);h.u32(p.drillParam+28,70);h.u32(p.drillParam+32,100);h.u32(p.drillParam+36,1);
+  h.u32(p.drillData+8,h.dict(9024,6225,[[8001,p.drillParam]]).p);
+  p.skins=h.statics(0x31b760,2484);h.u32(p.skins,1);h.byte(p.skins+4,1);
+  p.semi=h.statics(0x318318,3185);h.byte(p.semi,1);h.byte(p.semi+1,0);
+  p.monster=h.object(5467,344);h.u32(p.monster+40,73);h.u32(p.monster+44,3);h.f64(p.monster+56,500);h.f64(p.monster+64,300);
   [-10,-10,20,20].forEach((n,i)=>h.i32(p.monster+176+i*4,n));
-  p.monsterView=h.object(13740,376);h.u32(p.monsterView+96,p.monster);
-  p.actorDict=h.dict(9020,13740,[[73,p.monsterView]],3333612,true);h.u32(p.screen+244,p.actorDict.p);
+  p.monsterView=h.object(13743,376);h.u32(p.monsterView+96,p.monster);
+  p.actorDict=h.dict(9023,13743,[[73,p.monsterView]],3334428,true);h.u32(p.screen+244,p.actorDict.p);
   h.f32(p.screen+440,180);h.f32(p.screen+444,204);h.byte(p.screen+448,1);h.u32(p.screen+272,73);h.byte(p.screen+276,1);
-  h.f32(p.screen+620,233);h.f32(p.screen+624,1065);h.f64(p.screen+632,100);
-  p.ground=h.object(2685,120);h.u32(p.screen+252,p.ground);
-  h.statics(3245684,2374);
-  p.covers=h.dict(9200,[8932,[8959]]);h.u32(h.statics(3248164,5356),p.covers.p);
-  p.eventSystem=h.object(14177,52);h.byte(p.eventSystem+40,1);h.u32(h.statics(3246052,14177),h.list(14177,[p.eventSystem]));
-  p.origins=h.root(3257428,2480,40);
-  p.attackTargets=h.dict(9020,9020);h.u32(p.combat+104,p.attackTargets.p);
-  p.waiting=h.dict(9020,6079);h.u32(p.combat+128,p.waiting.p);
-  p.striking=h.dict(9020,[10012,[8924]]);h.u32(p.combat+124,p.striking.p);
-  p.fading=h.object(11317,32,[9020,6080]);h.u32(p.combat+136,p.fading);
-  p.fadingIndex=h.dict(9020,9020);h.u32(p.fading+8,p.fadingIndex.p);
+  h.f32(p.screen+624,233);h.f32(p.screen+628,1065);h.f64(p.screen+632,100);
+  p.ground=h.object(2687,120);h.u32(p.screen+252,p.ground);
+  h.statics(3246444,2375);
+  p.covers=h.dict(9203,[8935,[8962]]);h.u32(h.statics(3248924,5358),p.covers.p);
+  p.eventSystem=h.object(14184,52);h.byte(p.eventSystem+40,1);h.u32(h.statics(3246812,14184),h.list(14184,[p.eventSystem]));
+  p.origins=h.root(3258196,2481,40);
+  p.attackTargets=h.dict(9023,9023);h.u32(p.combat+104,p.attackTargets.p);
+  p.waiting=h.dict(9023,6082);h.u32(p.combat+128,p.waiting.p);
+  p.striking=h.dict(9023,[10015,[8927]]);h.u32(p.combat+124,p.striking.p);
+  p.fading=h.object(11320,32,[9023,6083]);h.u32(p.combat+136,p.fading);
+  p.fadingIndex=h.dict(9023,9023);h.u32(p.fading+8,p.fadingIndex.p);
   const fadeMethod=h.alloc(40),fadeCtx=h.alloc(112);h.u32(fadeMethod+28,fadeCtx);
-  h.u32(fadeCtx+84,p.fadingIndex.method);h.u32(3333828,fadeMethod);
+  h.u32(fadeCtx+84,p.fadingIndex.method);h.u32(3334644,fadeMethod);
   const canvas={isConnected:true,width:1920,height:1350,getBoundingClientRect:()=>({left:27.5,top:41.25,width:960,height:540})};
   const module={HEAPU32:new Uint32Array(h.buffer),canvas};
   const messages=[];
@@ -189,7 +189,7 @@ if(process.argv.some(a=>["--snapshot","--stale-zoom","--fresh-zoom"].includes(a)
   const f=fixture();
   if(!process.argv.includes("--snapshot")) {
     f.h.f64(f.p.stage+144,2);f.sample();
-    if(process.argv.includes("--fresh-zoom")){f.h.f32(f.p.screen+620,368);f.h.f32(f.p.screen+624,912);f.h.f64(f.p.screen+632,100.25);}
+    if(process.argv.includes("--fresh-zoom")){f.h.f32(f.p.screen+624,368);f.h.f32(f.p.screen+628,912);f.h.f64(f.p.screen+632,100.25);}
   }
   const value=f.sample();assert.equal(value.snapshot.status,"ready");
   process.stdout.write(JSON.stringify(value));
@@ -203,15 +203,15 @@ if(process.argv.some(a=>["--snapshot","--stale-zoom","--fresh-zoom"].includes(a)
   assert.equal(sample.rawIngress,19);assert.equal(sample.snapshot.pointer.picked,73);assert.equal(sample.snapshot.input.mode,1);assert.equal(sample.snapshot.dig.manual,true);assert.equal(sample.snapshot.dig.toolUsable,true);
   assert.deepEqual(Array.from(sample.snapshot.geometry.camera),[320,96]);assert.equal(sample.snapshot.binding.dig,"KeyF");
   assert.equal(base.sample().snapshot.revision,1);base.h.i32(base.p.screen+452,321);assert.equal(base.sample().snapshot.revision,2);cases++;
-  check("tagged flow",f=>f.h.u32(0x318aa4,0x200086e7));
-  check("null engine",f=>f.h.u32(0x31ad74,0));
+  check("tagged flow",f=>f.h.u32(0x318d9c,0x200086e7));
+  check("null engine",f=>f.h.u32(0x31b074,0));
   check("misaligned object",f=>f.h.u32(f.p.flow+84,f.p.screen+1));
   check("truncated object",f=>f.h.u32(f.p.flow+84,f.h.buffer.byteLength-8));
-  check("type-confused screen",f=>f.h.u32(f.p.screen,f.h.cls(5465,656)));
+  check("type-confused screen",f=>f.h.u32(f.p.screen,f.h.cls(5467,656)));
   check("wrong class extent",f=>f.h.u32(f.h.u32(f.p.screen)+128,16));
   check("class cannot use an array type kind",f=>f.h.byte(f.h.u32(f.p.screen)+22,29));
-  check("dictionary entries require the correct element type",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+32,f.h.cls(8914)));
-  check("dictionary entries require matching generic arguments",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+32,f.h.cls(9982,256,[9020,6756],16)));
+  check("dictionary entries require the correct element type",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+32,f.h.cls(8917)));
+  check("dictionary entries require matching generic arguments",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+32,f.h.cls(9985,256,[9023,6759],16)));
   check("reference width must equal the WASM pointer width",f=>f.h.u32(f.h.u32(f.p.monsterView)+132,1));
   check("array descriptor must be an actual vector",f=>f.h.byte(f.h.u32(f.p.actorDict.a)+22,18));
   check("cold scene",f=>f.h.byte(f.p.screen+400,0));
@@ -219,15 +219,15 @@ if(process.argv.some(a=>["--snapshot","--stale-zoom","--fresh-zoom"].includes(a)
   check("pan",f=>f.h.i32(f.p.stage+280,1));
   check("host override with zero first component",f=>f.h.byte(f.p.stage+52,1));
   check("nonfinite zoom",f=>f.h.f64(f.p.stage+144,NaN));
-  check("unresolved method",f=>f.h.u32(0x325c6c,0xa0003fdb));
-  check("unresolved context",f=>f.h.u32(f.h.u32(0x325c6c)+28,0));
+  check("unresolved method",f=>f.h.u32(0x325f98,0xa0003fdb));
+  check("unresolved context",f=>f.h.u32(f.h.u32(0x325f98)+28,0));
   check("wrong specialization",f=>f.h.u32(f.p.actorDict.p,f.p.serviceDict.c));
   check("invalid entry stride",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+140,4));
   check("count beyond array",f=>f.h.i32(f.p.actorDict.p+16,2));
   check("negative count",f=>f.h.i32(f.p.actorDict.p+16,-1));
   check("oversized dictionary",f=>f.h.i32(f.p.actorDict.p+16,100000));
   check("deleted count mismatch",f=>f.h.i32(f.p.actorDict.a+16,-1));
-  check("service identity mismatch",f=>{const key=f.h.u32(f.p.serviceDict.a+24);f.h.u32(key+12,f.h.type(5465));});
+  check("service identity mismatch",f=>{const key=f.h.u32(f.p.serviceDict.a+24);f.h.u32(key+12,f.h.type(5467));});
   check("root mutation",f=>{f.canvas.getBoundingClientRect=()=>{f.h.u32(f.p.flow+84,f.p.own);return {left:27.5,top:41.25,width:960,height:540};};});
   check("dictionary version changed",f=>{f.canvas.getBoundingClientRect=()=>{f.h.u32(f.p.actorDict.p+28,2);return {left:27.5,top:41.25,width:960,height:540};};});
   check("memory growth while reading",f=>{let calls=0;Object.defineProperty(f.module,"HEAPU32",{get:()=>++calls===1?new Uint32Array(f.h.buffer):new Uint32Array(new ArrayBuffer(16*1024*1024))});});
@@ -238,47 +238,51 @@ if(process.argv.some(a=>["--snapshot","--stale-zoom","--fresh-zoom"].includes(a)
   check("unknown binding",f=>f.h.u32(f.p.digBinding+8,f.h.string("Key1")));
   check("modifier binding",f=>f.h.u32(f.p.digBinding+12,1));
   check("conflicting run/dig",f=>f.h.u32(f.p.runBinding+8,f.h.string("KeyF")));
-  check("missing nullable metadata",f=>f.h.u32(3331940,0));
+  check("missing nullable metadata",f=>f.h.u32(3332756,0));
   check("unknown skin startup",f=>f.h.byte(f.p.skins+4,0));
-  check("unknown heavy callback",f=>{f.h.byte(f.p.run+8,1);f.h.u32(f.p.run+20,f.h.object(9177,64));});
+  check("unknown heavy callback",f=>{f.h.byte(f.p.run+8,1);f.h.u32(f.p.run+20,f.h.object(9180,64));});
   const running=check("observed running, absent Heavy delegate",f=>f.h.byte(f.p.run+8,1),"ready");assert.equal(running.input.mode,2);
   for (const [carried,attrs,expected] of [[90,17,1],[89,17,2],[90,0,2],[2147483647,17,2]]) {
     const heavy=check("source heavy predicate",f=>{
-      const {h,p}=f,delegate=h.object(9177,64),state=h.object(2950,56),stats=h.object(7412,28),values=h.object(7409,96);
-      h.byte(p.run+8,1);h.u32(p.run+20,delegate);h.u32(delegate+8,49652);h.u32(delegate+16,state);h.u64(state+8,carried);
+      const {h,p}=f,delegate=h.object(9180,64),state=h.object(2952,56),stats=h.object(7415,28),values=h.object(7412,96);
+      h.byte(p.run+8,1);h.u32(p.run+20,delegate);h.u32(delegate+8,49699);h.u32(delegate+16,state);h.u64(state+8,carried);
       h.u32(state+24,p.hud);h.u32(state+28,p.screen);h.u32(state+40,p.run);h.u32(p.hud+76,stats);h.u32(stats+8,values);h.f64(values+56,100);h.u32(p.attributes+8,attrs);
     },"ready");assert.equal(heavy.input.mode,expected);
   }
+  const staleHeavy=check("previous build heavy callback slot",f=>{
+    const {h,p}=f,delegate=h.object(9180,64),state=h.object(2952,56);
+    h.byte(p.run+8,1);h.u32(p.run+20,delegate);h.u32(delegate+8,49652);h.u32(delegate+16,state);
+  });assert.equal(staleHeavy.reason,"mode");
   const cached=check("source cached modifier value",f=>{
-    const {h,p}=f,q=h.u32(p.keyboard+272),method=h.alloc(40),ctx=h.alloc(56),manager=h.object(10327,752);
-    h.byte(q+241,0);h.f32(q+168,0);h.f32(q+244,0.5);h.u32(method+28,ctx);h.u32(method+16,h.cls(10272,256,[9064]));h.u32(ctx+4,h.cls(9064));h.u32(ctx+16,164);h.u32(ctx+28,168);h.u32(3309104,method);
-    h.u32(h.statics(3249368,10203)+4,manager);h.byte(manager+736,1);
+    const {h,p}=f,q=h.u32(p.keyboard+272),method=h.alloc(40),ctx=h.alloc(56),manager=h.object(10330,752);
+    h.byte(q+241,0);h.f32(q+168,0);h.f32(q+244,0.5);h.u32(method+28,ctx);h.u32(method+16,h.cls(10275,256,[9067]));h.u32(ctx+4,h.cls(9067));h.u32(ctx+16,164);h.u32(ctx+28,168);h.u32(3309924,method);
+    h.u32(h.statics(3250132,10206)+4,manager);h.byte(manager+736,1);
   },"ready");assert.equal(cached.input.modifiers[0],false);
   const gun=check("actual equipped gun branch",f=>{
-    const {h,p}=f,item=h.object(12070,40),info=h.object(6756,260);h.u64(item+8,502);h.u64(item+16,9000);h.u32(item+28,1);h.u64(p.slots+16+1*8,502);
+    const {h,p}=f,item=h.object(12073,40),info=h.object(6759,260);h.u64(item+8,502);h.u64(item+16,9000);h.u32(item+28,1);h.u64(p.slots+16+1*8,502);
     h.u64(info+8,9000);h.u32(info+24,2);h.u32(info+28,54);
-    h.u32(p.inv+12,h.dict(9092,12070,[[501,p.tool],[502,item]],3334228,true).p);h.u32(p.gun+28,h.dict(9021,6756,[[8001,p.toolInfo],[9000,info]]).p);
+    h.u32(p.inv+12,h.dict(9095,12073,[[501,p.tool],[502,item]],3335044,true).p);h.u32(p.gun+28,h.dict(9024,6759,[[8001,p.toolInfo],[9000,info]]).p);
     h.byte(p.gun+44,1);h.byte(p.gun+45,1);h.u32(p.gun+48,3);
   },"ready");assert.equal(gun.combat.gunWorn,true);assert.equal(gun.combat.gunReady,true);
-  check("foreign nullable specialization",f=>f.h.u32(f.h.u32(3333252)+16,f.h.cls(9043,256,[9020],8)));
-  check("nullable field overlap",f=>{const ctx=f.h.u32(f.h.u32(3333256)+28);f.h.u32(ctx+12,1);});
+  check("foreign nullable specialization",f=>f.h.u32(f.h.u32(3334068)+16,f.h.cls(9046,256,[9023],8)));
+  check("nullable field overlap",f=>{const ctx=f.h.u32(f.h.u32(3334072)+28);f.h.u32(ctx+12,1);});
   check("unknown manual setting",f=>f.h.byte(f.p.semi,0));
   check("cold drill parameter",f=>{f.h.u32(f.p.fsm+8,5);f.h.byte(f.p.drill+84,1);});
   check("native page zoom",f=>{f.context.visualViewport={scale:2,offsetLeft:0,offsetTop:0};});
   check("non-canvas DOM editor",f=>{f.context.document.activeElement={tagName:"INPUT"};});
   check("canvas changed during capture",f=>{let n=0;f.canvas.getBoundingClientRect=()=>({left:27.5,top:41.25,width:++n===1?960:900,height:540});});
   const deleted=check("deleted dictionary row skipped",f=>{f.h.i32(f.p.actorDict.a+16,-1);f.h.u32(f.p.actorDict.p+24,1);f.h.byte(f.p.screen+276,0);},"ready");assert.equal(deleted.actors.length,1);
-  const occupied=check("non-own combat work is distinct",f=>{const {h,p}=f;h.u32(p.combat+104,h.dict(9020,9020,[[99,73]]).p);},"ready");assert.equal(occupied.combat.ownAttack,false);
-  const fade=check("actual fading target",f=>{const {h,p}=f,d=h.dict(9020,9020,[[73,0]]);h.u32(p.fading+8,d.p);const ctx=h.u32(h.u32(3333828)+28);h.u32(ctx+84,d.method);},"ready");assert.equal(fade.actors[1].fading,true);
+  const occupied=check("non-own combat work is distinct",f=>{const {h,p}=f;h.u32(p.combat+104,h.dict(9023,9023,[[99,73]]).p);},"ready");assert.equal(occupied.combat.ownAttack,false);
+  const fade=check("actual fading target",f=>{const {h,p}=f,d=h.dict(9023,9023,[[73,0]]);h.u32(p.fading+8,d.p);const ctx=h.u32(h.u32(3334644)+28);h.u32(ctx+84,d.method);},"ready");assert.equal(fade.actors[1].fading,true);
   check("selected skill consumes world input",f=>f.h.u32(f.p.skills+52,f.p.monster));
   check("pending held cast",f=>f.h.u32(f.p.skills+188,f.p.monster));
   const noDig=check("source map dig refusal",f=>f.h.u32(f.p.zoneInfo+24,5),"ready");assert.equal(noDig.dig.mapAllowed,false);
   for (const option of [0,1]) {
     const pet=check("source automatic pet and zone gate",f=>{
-      const {h,p}=f,item=h.object(12070,40),info=h.object(6756,260);h.u64(item+8,503);h.u64(item+16,7000);h.u32(item+28,1);h.u64(p.slots+16+8*8,503);
+      const {h,p}=f,item=h.object(12073,40),info=h.object(6759,260);h.u64(item+8,503);h.u64(item+16,7000);h.u32(item+28,1);h.u64(p.slots+16+8*8,503);
       h.u64(info+8,7000);h.u32(info+24,19);h.u32(p.zoneInfo+40,option);
-      h.u32(p.inv+12,h.dict(9092,12070,[[501,p.tool],[503,item]],3334228,true).p);h.u32(p.gun+28,h.dict(9021,6756,[[8001,p.toolInfo],[7000,info]]).p);
-      h.u32(p.drillData+32,h.dict(9021,9200,[[7000,p.own]],3296664).p);
+      h.u32(p.inv+12,h.dict(9095,12073,[[501,p.tool],[503,item]],3335044,true).p);h.u32(p.gun+28,h.dict(9024,6759,[[8001,p.toolInfo],[7000,info]]).p);
+      h.u32(p.drillData+32,h.dict(9024,9203,[[7000,p.own]],3297464).p);
     },"ready");assert.equal(pet.dig.automaticPet,option===0);assert.equal(pet.dig.manual,option===1);
   }
   check("wrong visual hover",f=>f.h.u32(f.p.screen+272,41),"ready");
@@ -288,16 +292,18 @@ if(process.argv.some(a=>["--snapshot","--stale-zoom","--fresh-zoom"].includes(a)
   const assist=check("helper state 2 is busy",f=>f.h.u32(f.p.assist+48,2),"ready");assert.equal(assist.dig.assist,2);
   const held=check("gauge source held",f=>{f.h.u32(f.p.fsm+8,5);f.h.byte(f.p.drill+84,1);f.h.u32(f.p.drill+100,3);f.h.byte(f.p.drill+152,1);f.h.u32(f.p.drill+96,f.p.drillParam);f.h.u32(f.p.drill+92,f.p.tool);f.h.f32(f.p.drill+104,80);},"ready");assert.equal(held.dig.held,true);assert.equal(held.dig.area,70);
   for (const [name,id,depth,area] of [["foreign parameter row",9999,30,70],["nonprogressing active row",8001,0,70],["different active area",8001,30,10]]) {
-    check(name,f=>{const {h,p}=f;h.u32(p.fsm+8,5);h.byte(p.drill+84,1);h.u32(p.drill+100,6);h.u32(p.drill+92,p.tool);const q=h.object(6222,64);new Uint8Array(h.buffer,q,64).set(new Uint8Array(h.buffer,p.drillParam,64));h.u64(q+8,id);h.i32(q+24,depth);h.i32(q+28,area);h.u32(p.drill+96,q);});
+    check(name,f=>{const {h,p}=f;h.u32(p.fsm+8,5);h.byte(p.drill+84,1);h.u32(p.drill+100,6);h.u32(p.drill+92,p.tool);const q=h.object(6225,64);new Uint8Array(h.buffer,q,64).set(new Uint8Array(h.buffer,p.drillParam,64));h.u64(q+8,id);h.i32(q+24,depth);h.i32(q+28,area);h.u32(p.drill+96,q);});
   }
-  check("equal validated parameter copy",f=>{const {h,p}=f;h.u32(p.fsm+8,5);h.byte(p.drill+84,1);h.u32(p.drill+100,6);h.u32(p.drill+92,p.tool);const q=h.object(6222,64);new Uint8Array(h.buffer,q,64).set(new Uint8Array(h.buffer,p.drillParam,64));h.u32(p.drill+96,q);},"ready");
+  check("equal validated parameter copy",f=>{const {h,p}=f;h.u32(p.fsm+8,5);h.byte(p.drill+84,1);h.u32(p.drill+100,6);h.u32(p.drill+92,p.tool);const q=h.object(6225,64);new Uint8Array(h.buffer,q,64).set(new Uint8Array(h.buffer,p.drillParam,64));h.u32(p.drill+96,q);},"ready");
   check("UI cache time must be finite",f=>f.h.f64(f.p.screen+632,NaN));
   check("UI cache time must be initialized",f=>f.h.f64(f.p.screen+632,-10000));
-  const staleUi=check("UI cache must match mapped pointer",f=>{f.h.f32(f.p.screen+620,999);f.h.f32(f.p.screen+624,999);},"ready");assert.equal(staleUi.pointer.world,null);assert.equal(staleUi.pointer.picked,null);
+  const staleUi=check("UI cache must match mapped pointer",f=>{f.h.f32(f.p.screen+624,999);f.h.f32(f.p.screen+628,999);},"ready");assert.equal(staleUi.pointer.world,null);assert.equal(staleUi.pointer.picked,null);
+  const drivers=check("background-run drivers precede the UI probe",f=>f.h.u32(f.p.screen+620,f.p.own),"ready");assert.equal(drivers.pointer.picked,73);
+  const oldProbe=check("previous build probe offset is stale",f=>{f.h.f32(f.p.screen+620,233);f.h.f32(f.p.screen+624,1065);f.h.f32(f.p.screen+628,999);},"ready");assert.equal(oldProbe.pointer.world,null);
   const coldPointer=fixture(false);assert.equal(coldPointer.sample().snapshot.pointer.world,null);cases++;
   const zoomed=fixture();assert.equal(zoomed.sample().snapshot.pointer.picked,73);zoomed.h.f64(zoomed.p.stage+144,2);
   assert.equal(zoomed.sample().snapshot.pointer.world,null);assert.equal(zoomed.sample().snapshot.pointer.world,null);
-  zoomed.h.f32(zoomed.p.screen+620,368);zoomed.h.f32(zoomed.p.screen+624,912);zoomed.h.f64(zoomed.p.screen+632,100.25);
+  zoomed.h.f32(zoomed.p.screen+624,368);zoomed.h.f32(zoomed.p.screen+628,912);zoomed.h.f64(zoomed.p.screen+632,100.25);
   assert.equal(zoomed.sample().snapshot.pointer.picked,73);cases++;
   const resized=fixture();resized.canvas.getBoundingClientRect=()=>({left:27.5,top:41.25,width:1200,height:540});
   assert.equal(resized.sample().snapshot.pointer.world,null);assert.equal(resized.sample().snapshot.pointer.world,null);
