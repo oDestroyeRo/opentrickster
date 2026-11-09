@@ -72,7 +72,7 @@ Run these from the repository root. They use no account. `APP` stands for
 | A4 | `node crates/net/tests/sampler.cjs` | Every sampler heap case passes | Case count | Passed: the same runs. [PR #39] recorded 87 cases |
 | A5 | `python3 scripts/package_macos.py --output dist/<new-name>.app` | Exit 0. The app has a verified ad-hoc signature and a `build.json` | `build.json` values | Passed: [PR #40]. CI run [42582226234] uploaded `OpenTrickster-macOS-arm64.zip` |
 | A6 | `APP --verify-embedding --verification-dir <new-dir>` | Exit 0. `report.json` has `"passed": true`, `"verification": "offline-fixture"` and `"account_used": false` | `report.json` fields | Passed: packaged app, [PR #40] |
-| A7 | `APP --verify-input --verification-dir <new-dir>` | Exit 0. `report.json` has `"passed": true` | `report.json` fields | Passed on the desktop branch, [PR #39]. Not run on the packaged app |
+| A7 | `APP --verify-input --verification-dir <new-dir>` | Exit 0. `report.json` has `"passed": true` | `report.json` fields | Passed on the desktop branch, [PR #39]. On the packaged app at `13444e0` only `native_pointer_hover` failed, an environment issue described below |
 | A8 | `APP --verify-application --verification-dir <new-dir>`, then again with `--quit-via native` and with `--quit-via command` | Exit 0. `"verification": "official-title-only"`, `"embedded_resource_close_fence_passed": true` and `"account_used": false` | `report.json` fields per route | Blocked by [#37]: [PR #40] recorded exit 1 because the app refuses the new build |
 | A9 | Run A8 while the official game is on a build other than the pinned one | Nonzero exit. The app does not load the changed game | Exit status and `failures` | Passed: [PR #40] recorded exit 1 while the official build is `ea1a68bd` |
 
@@ -85,9 +85,13 @@ contacts the game. To prove a real socket close at quit, also run
 `verify_quit.py` as described in the
 [desktop verification notes](../crates/desktop/verification/README.md).
 
-After this branch is rebased onto the desktop branch that removes Keychain
-storage (`aa06928`), rerun A1 to A7 at the new head. CI run [42609769864] for
-desktop head `e34ab28` was still in progress on 2026-11-09.
+On 2026-11-09 at packaging head `13444e0` (based on `main` `d3d3c22`, which
+includes the Keychain removal), A1 to A6 passed locally: 25 desktop, 75 engine
+and 47 Net tests, 87 sampler cases, a clean release package and an offline
+embedding fixture. A7 failed only `native_pointer_hover`, and failed the same
+way at the earlier passing commit `79623f7`, so the cause is the test
+environment (no pointer-move events reached an inactive or locked session), not
+the code. Rerun A7 with the app frontmost on an unlocked, idle desktop.
 
 ## Live checks
 
