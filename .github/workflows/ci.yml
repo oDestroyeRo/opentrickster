@@ -55,5 +55,13 @@ jobs:
         run: cargo test -p opentrickster-desktop --locked
       - name: Lint desktop
         run: cargo clippy -p opentrickster-desktop --all-targets --locked -- -D warnings
-      - name: Build application binary
-        run: cargo build -p opentrickster-desktop --locked
+      - name: Build and sign local app
+        run: python3 scripts/package_macos.py --target aarch64-apple-darwin
+      - name: Archive app preserving executable permissions
+        run: ditto -c -k --sequesterRsrc --keepParent dist/OpenTrickster.app dist/OpenTrickster-macOS-arm64.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: dist/OpenTrickster-macOS-arm64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
