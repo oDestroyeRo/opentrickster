@@ -5046,6 +5046,12 @@
      "build": "8502ebbf2fc9033d2fba50d02fd92002",
      "fingerprint": "f281ba01eceac02be93119ced6737d4182a7f8b91e02f4d7ccf23e302871b219",
      "tokens": 7699
+    },
+    {
+     "build": "ea1a68bd89958fae94179f1e0835ffb5",
+     "fingerprint": "f7cdee8fde9e92f6f19c5b9fc3281a36c3397f025171833511a1307c1a876728",
+     "tokens": 7780,
+     "review": "Adds background-run handler registration and stores drivers; the sampler transcribes no part of this coroutine. See docs/research/build-ea1a68bd-sampler-migration.md."
     }
    ]
   },
@@ -5112,6 +5118,12 @@
      "build": "8502ebbf2fc9033d2fba50d02fd92002",
      "fingerprint": "8d0d6f0759482bd82cb68bb27f00782f9517006b61528e25a2394a7ff807f523",
      "tokens": 105
+    },
+    {
+     "build": "ea1a68bd89958fae94179f1e0835ffb5",
+     "fingerprint": "f3c3dab53d9115159ec3b9a13dd14044e4ce01f10acd080da8b896fb5a7db44b",
+     "tokens": 105,
+     "review": "Only a compiler-generated number changed; the transcribed click path is equal. See docs/research/build-ea1a68bd-sampler-migration.md."
     }
    ]
   },
@@ -5151,6 +5163,12 @@
      "build": "8502ebbf2fc9033d2fba50d02fd92002",
      "fingerprint": "46fc9c3f33975bc9776c9d3a4f5c065d8b23023a94ca0221f75815881d2f9b7f",
      "tokens": 259
+    },
+    {
+     "build": "ea1a68bd89958fae94179f1e0835ffb5",
+     "fingerprint": "db2d9e83118cecd882cfad249eab1de4d92e1522024b13a649440b7de5fd7abc",
+     "tokens": 259,
+     "review": "Only the probedAt offset moved (+620 to +624, new drivers field in old padding) plus two alignment hints; sampler.js reads +624. See docs/research/build-ea1a68bd-sampler-migration.md."
     }
    ]
   },
