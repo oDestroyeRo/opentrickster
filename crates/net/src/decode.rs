@@ -39,6 +39,11 @@ fn gauge(current: u32) -> e::Gauge {
         maximum: None,
     }
 }
+/// `Combat.U16At` (f10802) at offset 0: a byte past the end reads as zero, so it never fails.
+fn padded_u16(b: &[u8]) -> u16 {
+    let byte = |i: usize| b.get(i).copied().map_or(0, u16::from);
+    byte(0) | byte(1) << 8
+}
 struct Actor {
     key: e::EntityKey,
     kind: u16,
@@ -791,8 +796,8 @@ impl Decoder {
                 }
             }
             36 | 37 => {
+                // Combat.I32At (f10803) needs four bytes and never checks the end.
                 let value = (r.u32()? as i32).max(0) as u32;
-                r.end()?;
                 if p.opcode == 36 {
                     self.current_hp = Some((value, p.received));
                 } else {
@@ -804,9 +809,17 @@ impl Decoder {
                     Fact::Mp(resources::gauge(value, self.maximum(3)))
                 });
             }
+            31 | 485 | 1438 => {
+                // Combat.ParseSwing (f10796) reads the attacker and kind, then one position for
+                // kind 3, or a target and two positions. Its later reads check what remains, and
+                // it never checks the end. The correlator reads grouped strikes.
+                r.u16()?;
+                let kind = r.u16()?;
+                r.take(if kind == 3 { 4 } else { 10 })?;
+            }
             32 => {
-                let actor = r.u16()?;
-                r.end()?;
+                // Combat.ParseMessage (f10804) reads the actor with the padded U16At.
+                let actor = padded_u16(b);
                 if Some(actor) == self.own
                     && let Some(pending) = &mut self.pending
                     && p.mark > pending.mark
@@ -872,11 +885,9 @@ impl Decoder {
                 }
             }
             43 => {
-                let id = r.u16()?;
-                if r.remaining() > 0 {
-                    r.u8()?;
-                }
-                r.end()?;
+                // Combat.ParseMessage (f10804) reads the target with the padded U16At and byte 2
+                // only when present, so every length parses.
+                let id = padded_u16(b);
                 if Some(id) == self.own {
                     self.current_hp = Some((0, p.received));
                     out.push(Fact::Hp(resources::gauge(0, self.maximum(9))));
@@ -2278,5 +2289,86 @@ mod tests {
                 .iter()
                 .all(|f| !matches!(f, Fact::Outcome(e::Outcome::OwnKill(_))))
         );
+    }
+    #[test]
+    fn hp_and_mp_need_four_bytes_and_accept_any_tail() {
+        let mut d = Decoder::new();
+        for aux in [0, 1] {
+            for opcode in [36, 37] {
+                let value = |len| Packet {
+                    aux,
+                    ..packet(opcode, vec![0; len])
+                };
+                for len in 0..4 {
+                    assert!(
+                        d.apply(&value(len)).is_err(),
+                        "{opcode}: {len} bytes, aux {aux}"
+                    );
+                }
+                for len in [4, 5, 6, 7, 8, crate::codec::MAX_PAYLOAD] {
+                    assert!(
+                        d.apply(&value(len)).is_ok(),
+                        "{opcode}: {len} bytes, aux {aux}"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn attack_end_and_faint_accept_every_length() {
+        let mut d = Decoder::new();
+        for aux in [0, 1] {
+            for opcode in [32, 43] {
+                // The correlator still reads a grouped faint's target as a full U16.
+                let shortest = if opcode == 43 && aux != 0 { 2 } else { 0 };
+                for len in (shortest..=4).chain([crate::codec::MAX_PAYLOAD]) {
+                    let frame = Packet {
+                        aux,
+                        ..packet(opcode, vec![0; len])
+                    };
+                    assert!(d.apply(&frame).is_ok(), "{opcode}: {len} bytes, aux {aux}");
+                }
+            }
+        }
+        let mut clock = vec![0; 10];
+        clock[4..6].copy_from_slice(&7u16.to_le_bytes());
+        d.apply(&packet(230, clock)).unwrap();
+        d.apply(&packet(36, 50u32.to_le_bytes().to_vec())).unwrap();
+        // The missing high byte reads as zero, so this one-byte faint names the own actor 7.
+        let facts = d.apply(&packet(43, vec![7])).unwrap();
+        assert!(
+            facts
+                .iter()
+                .any(|f| matches!(f, Fact::Hp(g) if g.current == 0))
+        );
+        assert!(matches!(d.current_hp, Some((0, _))));
+    }
+    #[test]
+    fn strikes_need_the_client_minimum_and_accept_any_tail() {
+        let mut d = Decoder::new();
+        for aux in [0, 1] {
+            for opcode in [31, 485, 1438] {
+                for (kind, minimum) in [(3u16, 8), (2, 14)] {
+                    let strike = |len| {
+                        let mut b = vec![0; len];
+                        if let Some(field) = b.get_mut(2..4) {
+                            field.copy_from_slice(&kind.to_le_bytes());
+                        }
+                        Packet {
+                            aux,
+                            ..packet(opcode, b)
+                        }
+                    };
+                    let label =
+                        |len: usize| format!("{opcode} kind {kind}: {len} bytes, aux {aux}");
+                    for len in 0..minimum {
+                        assert!(d.apply(&strike(len)).is_err(), "{}", label(len));
+                    }
+                    for len in (minimum..minimum + 6).chain([crate::codec::MAX_PAYLOAD]) {
+                        assert!(d.apply(&strike(len)).is_ok(), "{}", label(len));
+                    }
+                }
+            }
+        }
     }
 }

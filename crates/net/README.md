@@ -136,8 +136,12 @@ traffic: a type-3 appearance and a removal on 15 may each carry one unread
 trailing byte, a kind-2/3 ground item may carry its four unread state bytes,
 and a damage event on 42 may carry any tail after its first 26 bytes, because
 the client's `Combat.ParseDamage` has no end check
-([damage-event tail](../../docs/research/damage-event-tail.md)). Like the
-client's `EsBlock.Read`, an effect type outside the compiled
+([damage-event tail](../../docs/research/damage-event-tail.md)). Combat frames
+also follow the client's other `Combat` readers, which never check the end
+([combat frame tails](../../docs/research/combat-frame-tails.md)): 36 and 37
+need four bytes, 32 and 43 parse at any length because `U16At` reads a missing
+byte as zero, and a strike on 31, 485 or 1438 needs 8 bytes for kind 3 and 14
+bytes otherwise. Like the client's `EsBlock.Read`, an effect type outside the compiled
 47-entry table has an empty body; it still marks the actor as affected, so that
 actor is never targeted. Like `ReadPlayerBody`, player mask bit 128 and
 equipment-mask bits outside the slot tables carry no fields. One live

@@ -762,8 +762,16 @@ fn a_fainted_character_never_shoots() {
 fn only_a_complete_own_swing_fires_the_gun() {
     let mut run = Run::reloaded(startup());
     run.shoot();
-    run.apply(31, words(&[OWN, 2]));
-    assert!(!run.waitable(), "ParseSwing rejects a truncated swing");
+    run.mark += 1;
+    let truncated = run.d.apply(&Packet {
+        opcode: 31,
+        aux: 0,
+        mark: run.mark,
+        received: Instant::now(),
+        payload: Zeroizing::new(words(&[OWN, 2])),
+    });
+    assert!(truncated.is_err(), "ParseSwing throws on a truncated swing");
+    assert!(!run.waitable(), "a rejected swing never fires the gun");
     run.apply(31, strike(OWN, 2, MONSTER));
     assert!(run.waitable(), "own firing starts the reload");
 }
