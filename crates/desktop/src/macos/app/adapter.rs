@@ -208,8 +208,12 @@ impl Desktop {
             self.credential_revision.invalidate();
             self.credentials.take();
         }
-        if error == NetError::InvalidCredentials && self.saved_password == SavedPassword::Written {
-            self.saved_password = SavedPassword::Rejected;
+        if error == NetError::InvalidCredentials {
+            self.saved_password = match self.saved_password {
+                SavedPassword::Written => SavedPassword::Rejected,
+                SavedPassword::Writing(write) => SavedPassword::RejectedWhileWriting(write),
+                other => other,
+            };
         }
         let halt = if error == NetError::BuildChanged {
             engine::Halt::BuildChanged

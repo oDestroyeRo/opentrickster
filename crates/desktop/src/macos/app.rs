@@ -123,8 +123,12 @@ enum CloseStage {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SavedPassword {
     None,
+    /// This sign-in's Keychain write, identified by its sequence number, is still running.
+    Writing(u64),
     /// This sign-in wrote the Keychain entry.
     Written,
+    /// The server rejected the credentials while their Keychain write was still running.
+    RejectedWhileWriting(u64),
     /// The server rejected the credentials this sign-in wrote.
     Rejected,
 }
@@ -170,6 +174,7 @@ pub struct Desktop {
     pub remember_password: bool,
     pub keychain_status: &'static str,
     saved_password: SavedPassword,
+    keychain_writes: u64,
     pub client_failure: Option<&'static str>,
     cache: Option<std::path::PathBuf>,
     menu_fingerprint: Cell<Option<MenuState>>,
@@ -229,6 +234,7 @@ impl Desktop {
             remember_password: false,
             keychain_status: "The password is used for this session only.",
             saved_password: SavedPassword::None,
+            keychain_writes: 0,
             client_failure: None,
             menu_fingerprint: Cell::new(None),
             cache,
@@ -450,10 +456,25 @@ impl Desktop {
         };
         if self.remember_password {
             let task = cx.write_credentials(KEYCHAIN, &id, password.as_bytes());
-            self.saved_password = SavedPassword::Written;
+            self.keychain_writes += 1;
+            let write = self.keychain_writes;
+            self.saved_password = SavedPassword::Writing(write);
             cx.spawn(async move |app, cx| {
                 let saved = task.await.is_ok();
                 let _ = app.update(cx, |app, cx| {
+                    // Delete only an entry this write stored, and only after it finished.
+                    app.saved_password = match app.saved_password {
+                        SavedPassword::Writing(w) if w == write && saved => SavedPassword::Written,
+                        SavedPassword::RejectedWhileWriting(w) if w == write && saved => {
+                            SavedPassword::Rejected
+                        }
+                        SavedPassword::Writing(w) | SavedPassword::RejectedWhileWriting(w)
+                            if w == write =>
+                        {
+                            SavedPassword::None
+                        }
+                        other => other,
+                    };
                     app.keychain_status = if saved {
                         "Password stored in macOS Keychain."
                     } else {
