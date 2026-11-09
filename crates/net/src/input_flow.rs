@@ -376,9 +376,14 @@ mod tests {
     use super::*;
     #[test]
     fn dig_keeps_one_ticket_and_uses_observed_hold_release_and_first_coast() {
-        let mut s =
-            crate::sampler::parse_snapshot(&crate::test_support::sample_value(), Instant::now())
-                .unwrap();
+        let value = crate::test_support::sample_value();
+        let clock = std::cell::Cell::new(Instant::now() - std::time::Duration::from_millis(100));
+        let next_capture = || {
+            let at = clock.get() + std::time::Duration::from_millis(1);
+            clock.set(at);
+            at
+        };
+        let mut s = crate::sampler::parse_snapshot(&value, next_capture()).unwrap();
         let point = e::Point { x: 540, y: 350 };
         let (session, ticket) = crate::test_support::ticket(Action::DigAt(point));
         let action = ticket.id;
@@ -393,7 +398,7 @@ mod tests {
             step += 1;
             let key = InputStepKey(step);
             flow.issue(key, event);
-            flow.dispatched(key, Instant::now()).unwrap();
+            flow.dispatched(key, next_capture()).unwrap();
         };
         let key = flow
             .next(Some(&s), At(10), fences, session, None, false)
@@ -408,7 +413,13 @@ mod tests {
                 .is_none()
         );
         s.input.dig_held = true;
-        s.captured = Instant::now();
+        s.captured = clock.get();
+        assert!(
+            flow.next(Some(&s), At(12), fences, session, None, false)
+                .unwrap()
+                .is_none()
+        );
+        s.captured = next_capture();
         let up = flow
             .next(Some(&s), At(12), fences, session, None, false)
             .unwrap()
@@ -421,7 +432,7 @@ mod tests {
         s.pointer.world = Some([540.0, 350.0]);
         s.pointer.picked = None;
         s.pointer.ground_hover = false;
-        s.captured = Instant::now();
+        s.captured = next_capture();
         let down = flow
             .next(Some(&s), At(13), fences, session, None, false)
             .unwrap()
@@ -446,7 +457,7 @@ mod tests {
         s.dig.stage = 2;
         s.dig.area = Some(70);
         s.dig.held = false;
-        s.captured = Instant::now();
+        s.captured = next_capture();
         assert!(
             flow.next(Some(&s), At(15), fences, session, None, false)
                 .unwrap()
@@ -462,7 +473,7 @@ mod tests {
         s.input.left = true;
         s.dig.held = true;
         s.dig.stage = 3;
-        s.captured = Instant::now();
+        s.captured = next_capture();
         assert!(
             flow.next(Some(&s), At(17), fences, session, None, false)
                 .unwrap()
@@ -470,7 +481,7 @@ mod tests {
         );
         s.dig.stage = 5;
         s.dig.gauge = 120.0;
-        s.captured = Instant::now();
+        s.captured = next_capture();
         let up = flow
             .next(Some(&s), At(18), fences, session, None, false)
             .unwrap()
@@ -480,14 +491,14 @@ mod tests {
         dispatch(&mut flow, up);
         s.input.left = false;
         s.dig.held = false;
-        s.captured = Instant::now();
+        s.captured = next_capture();
         assert!(
             flow.next(Some(&s), At(19), fences, session, None, false)
                 .unwrap()
                 .is_none()
         );
         s.dig.stage = 6;
-        s.captured = Instant::now();
+        s.captured = next_capture();
         assert_eq!(
             flow.next(Some(&s), At(20), fences, session, None, false)
                 .unwrap()
