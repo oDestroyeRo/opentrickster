@@ -224,6 +224,15 @@ impl Probe {
             self.fail("host-event");
         }
     }
+    /// Records whether the parent and child stay while a requested quit still holds resources.
+    pub fn sample_quit(&mut self, app: &Desktop) {
+        if let Some(quit) = &mut self.quit_probe
+            && app.resources_active()
+        {
+            quit.pending_parent_preserved |=
+                app.is_quitting() && quit.parent.isVisible() && quit.child.borrow().is_some();
+        }
+    }
     pub fn tick(&mut self, app: &mut Desktop, window: &mut Window, cx: &mut Context<Desktop>) {
         if let Some(input) = &mut self.input {
             if let Some(host) = self.host.as_ref()
@@ -254,11 +263,8 @@ impl Probe {
         if self.finished {
             return;
         }
+        self.sample_quit(app);
         if let Some(quit) = &mut self.quit_probe {
-            if app.resources_active() {
-                quit.pending_parent_preserved |=
-                    app.is_quitting() && quit.parent.isVisible() && quit.child.borrow().is_some();
-            }
             if quit.started.elapsed().as_secs() > 15 {
                 self.checks.push((
                     "unconfirmed_close_preserves_parent_and_child",
@@ -576,7 +582,7 @@ impl Probe {
                                 dispatched: dispatched.clone(),
                                 pending_parent_preserved: false,
                             });
-                            cx.spawn(async move |_, cx| {
+                            cx.spawn(async move |this, cx| {
                                 cx.background_executor()
                                     .timer(std::time::Duration::from_millis(10))
                                     .await;
@@ -585,8 +591,14 @@ impl Probe {
                                         macos_native::terminate_application();
                                         dispatched.set(Some(true));
                                     }
-                                    QuitRoute::Command => dispatched
-                                        .set(Some(macos_native::menu_key(&parent, "q", 12, false))),
+                                    QuitRoute::Command => {
+                                        dispatched.set(Some(macos_native::menu_key(
+                                            &parent, "q", 12, false,
+                                        )));
+                                        // The Quit action runs between ticks, and a page with no
+                                        // sockets can finish closing before the next one.
+                                        let _ = this.update(cx, |app, _| app.sample_quit_probe());
+                                    }
                                 }
                             })
                             .detach();
