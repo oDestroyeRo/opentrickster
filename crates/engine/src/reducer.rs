@@ -6,10 +6,6 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-const RECEIPT_MS: u64 = 2_000;
-const ACTION_MS: u64 = 5_000;
-const DIG_MS: u64 = 30_000;
-const DRAIN_MS: u64 = 2_000;
 const EARLY_LIMIT: usize = 32;
 const LOG_LIMIT: usize = 200;
 const EVIDENCE_RANGES: usize = 4_096;

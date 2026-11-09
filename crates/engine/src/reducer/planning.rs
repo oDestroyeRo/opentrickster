@@ -170,20 +170,19 @@ impl Engine {
                 Err(Blocker::NeedsCapability(Capability::Movement))
             }
         };
-        if let Some(drop) = self
-            .book
-            .drops
-            .values()
-            .filter(|drop| {
-                drop.quantity > 0
-                    && setup.boundary.contains(map, drop.position)
-                    && self.book.drop_fresh(drop.key, self.now)
-            })
-            .min_by_key(|drop| (distance(own, drop.position), drop.key))
+        // Without an adapter pickup capability, drops are left on the ground; they never block a run.
+        if support.pickup
+            && let Some(drop) = self
+                .book
+                .drops
+                .values()
+                .filter(|drop| {
+                    drop.quantity > 0
+                        && setup.boundary.contains(map, drop.position)
+                        && self.book.drop_fresh(drop.key, self.now)
+                })
+                .min_by_key(|drop| (distance(own, drop.position), drop.key))
         {
-            if !support.pickup {
-                return Err(Blocker::NeedsCapability(Capability::Pickup));
-            }
             return move_or(drop.position, Action::Pickup(drop.key));
         }
         match &setup.activity {

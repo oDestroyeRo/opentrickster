@@ -1,10 +1,6 @@
 use crate::{
-    NetError, Result, VerifiedProfile,
-    codec::{Frames, MAX_PACKETS},
-    decode::Decoder,
-    profile::ORIGIN,
-    session::Startup,
-    wire::Reader,
+    NetError, Result, VerifiedProfile, codec::Frames, decode::Decoder, profile::ORIGIN,
+    session::Startup, wire::Reader,
 };
 use opentrickster_engine::{self as e, Event, Observation};
 use std::collections::{BTreeMap, VecDeque};
@@ -64,7 +60,8 @@ pub struct GameObserver {
     aux: crate::codec::AuxGroups,
     events: VecDeque<crate::TimedEvent>,
     armed: Option<Armed>,
-    seen: Vec<e::ActionKey>,
+    /// Engine action keys strictly increase; anything at or below this one is a replay.
+    last_action: Option<e::ActionKey>,
     fault: Option<NetError>,
     closed: bool,
     closed_reported: bool,
@@ -95,7 +92,7 @@ impl GameObserver {
             aux: crate::codec::AuxGroups::default(),
             events: VecDeque::new(),
             armed: None,
-            seen: Vec::new(),
+            last_action: None,
             fault: None,
             closed: false,
             closed_reported: false,
@@ -163,7 +160,7 @@ impl GameObserver {
                 return Err(NetError::DuplicateAction);
             }
         } else {
-            if self.seen.contains(&ticket.id) {
+            if self.last_action.is_some_and(|last| ticket.id <= last) {
                 return Err(NetError::DuplicateAction);
             }
             let sample = self
@@ -362,12 +359,8 @@ impl GameObserver {
             self.arm_action(ticket)?;
             self.input_flow.as_mut().ok_or(NetError::WrongPhase)?.armed = true;
         }
-        let flow = self.input_flow.as_ref().ok_or(NetError::WrongPhase)?;
-        let ticket_deadline = if flow.draining() {
-            u64::MAX
-        } else {
-            flow.ticket.not_after.0
-        };
+        let flow = self.input_flow.as_mut().ok_or(NetError::WrongPhase)?;
+        let ticket_deadline = flow.deadline(now);
         let ordinary = matches!(event, crate::NormalInput::KeyDown(_))
             || matches!(event, crate::NormalInput::LeftDown) && !flow.gauge_hold()
             || matches!(event, crate::NormalInput::RightDown);
@@ -810,11 +803,8 @@ impl GameObserver {
         if self.armed.is_some() {
             return Err(NetError::Busy);
         }
-        if self.seen.contains(&ticket.id) {
+        if self.last_action.is_some_and(|last| ticket.id <= last) {
             return Err(NetError::DuplicateAction);
-        }
-        if self.seen.len() >= MAX_PACKETS {
-            return self.fail(NetError::Capacity);
         }
         let decoder = self.decoder.as_ref().ok_or(NetError::WrongPhase)?;
         if decoder.action_pending() {
@@ -832,7 +822,7 @@ impl GameObserver {
             }
             _ => return Err(NetError::Unsupported),
         }
-        self.seen.push(ticket.id);
+        self.last_action = Some(ticket.id);
         self.armed = Some(Armed {
             ticket,
             selected: None,

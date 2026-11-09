@@ -71,7 +71,7 @@ impl NativeSession {
                                 descriptors: actor_descriptors,
                                 order: 0,
                                 attempt: 0,
-                                seen: Vec::new(),
+                                last_action: None,
                             }
                             .run(),
                         )
@@ -223,7 +223,8 @@ struct Actor {
     descriptors: Descriptors,
     order: u64,
     attempt: u8,
-    seen: Vec<e::ActionKey>,
+    /// Engine action keys strictly increase; anything at or below this one is a replay.
+    last_action: Option<e::ActionKey>,
 }
 impl Actor {
     fn publish_descriptors(&self, decoder: &mut Decoder) -> Result<()> {
@@ -533,7 +534,8 @@ impl Actor {
         let mut aux = startup.aux;
         let mut ordered = startup.ordered;
         let mut dig: Option<PendingDig> = None;
-        let mut barrier = None;
+        let mut barrier: Option<(e::BarrierKey, Instant)> = None;
+        let mut action_until: Option<Deadline> = None;
         let mut ticks = tokio::time::interval(Duration::from_millis(16));
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -546,8 +548,8 @@ impl Actor {
                     let queued=op.ok_or(NetError::Closed)?;
                     match queued.op {
                         SessionOp::Act(ticket)=>{
-                            if self.seen.contains(&ticket.id) {return Err(NetError::DuplicateAction);}
-                            if self.seen.len()>=MAX_PACKETS {return Err(NetError::Capacity);}self.seen.push(ticket.id);
+                            if self.last_action.is_some_and(|last|ticket.id<=last) {return Err(NetError::DuplicateAction);}
+                            self.last_action=Some(ticket.id);
                             let now=queued.at.map(|at|at.0.saturating_add(queued.queued.elapsed().as_millis() as u64));
                             if now.is_none_or(|now|now>=ticket.not_after.0) {
                                 self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;
@@ -559,12 +561,12 @@ impl Actor {
                                 e::Action::DigAt(point)=>decoder.dig_inputs().and_then(|inputs| {
                                     let cycle=crate::dig::Cycle::new(inputs,point)?;let (x,y)=crate::actions::coordinate(point)?;
                                     let mut w=Writer::new();w.u16(x);w.u16(y);w.u8(inputs.mode);
-                                    dig=Some(PendingDig{cycle,mark:0,not_after:ticket.not_after,clock:queued.at.ok_or(NetError::WrongPhase)?,queued:queued.queued,last_tick:Instant::now()});Ok(vec![(44,w)])
+                                    dig=Some(PendingDig{cycle,mark:0,until:Deadline::after(queued.at.ok_or(NetError::WrongPhase)?,queued.queued,e::DIG_MS),last_tick:Instant::now()});Ok(vec![(44,w)])
                                 }),
                                 _=>Err(NetError::Unsupported),
                             };
                             let plan=match plan {Ok(plan)=>plan,Err(_)=>{self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}};
-                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?)?;}
+                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?)?;action_until=Some(Deadline::after(queued.at.ok_or(NetError::WrongPhase)?,queued.queued,e::ACTION_MS));}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Submitted})?;
                             let mut last_mark=0;
                             for (opcode,payload) in plan {
@@ -578,7 +580,8 @@ impl Actor {
                         }
                         SessionOp::Close=>return Err(NetError::Cancelled),
                         SessionOp::Quiesce(key)=>{
-                            barrier=Some(key);
+                            // Settle inside the engine's drain window; the action's own outcome may still arrive first.
+                            barrier=Some((key,Instant::now()+QUIESCE_GRACE));
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
                             if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                         },
@@ -586,11 +589,19 @@ impl Actor {
                     }
                 }
                 _=ticks.tick()=>{
+                    let now=Instant::now();
                     if let Some(pending)=&mut dig {
-                        let now=Instant::now();let dt=now.duration_since(pending.last_tick).as_millis().min(u64::MAX as u128) as u64;pending.last_tick=now;
-                        let expired=pending.clock.0.saturating_add(pending.queued.elapsed().as_millis() as u64)>=pending.not_after.0;
-                        let message=if expired {pending.cycle.cancel()}else{pending.cycle.tick(dt)?};
+                        let dt=now.duration_since(pending.last_tick).as_millis().min(u64::MAX as u128) as u64;pending.last_tick=now;
+                        let message=if pending.until.passed() {pending.cycle.cancel()}else{pending.cycle.tick(dt)?};
                         if let Some((opcode,payload))=message {g.send(opcode,&payload.0,&mut self.order).await?;}
+                    }
+                    if action_until.as_ref().is_some_and(Deadline::passed) {decoder.expire_action();action_until=None;}
+                    if let Some((key,grace))=barrier {
+                        if now>=grace {
+                            // No cancellation-ack schema exists: after requesting 48, stop the local simulation.
+                            dig=None;decoder.expire_action();action_until=None;
+                        }
+                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                     }
                 }
                 result=g.receive(&mut self.order)=>{
@@ -615,7 +626,7 @@ impl Actor {
                         for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
                         for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
                         if dig_ended {dig=None;}
-                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
+                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some((key,_))=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
                         self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts:vec![e::Fact::InventorySettled(e::IngressMark(mark))]},proof_at)?;
@@ -628,10 +639,31 @@ impl Actor {
 struct PendingDig {
     cycle: crate::dig::Cycle,
     mark: u64,
-    not_after: e::At,
+    until: Deadline,
+    last_tick: Instant,
+}
+/// Under the engine's `DRAIN_MS`, so `Quiescent` can follow an expired action in time.
+const QUIESCE_GRACE: Duration = Duration::from_millis(1_000);
+/// An engine-clock deadline measured from when the op was queued (no later than its send).
+struct Deadline {
     clock: e::At,
     queued: Instant,
-    last_tick: Instant,
+    until: u64,
+}
+impl Deadline {
+    fn after(clock: e::At, queued: Instant, window: u64) -> Self {
+        Self {
+            clock,
+            queued,
+            until: clock.0.saturating_add(window),
+        }
+    }
+    fn passed(&self) -> bool {
+        self.clock
+            .0
+            .saturating_add(self.queued.elapsed().as_millis().min(u64::MAX as u128) as u64)
+            >= self.until
+    }
 }
 pub(crate) fn support(decoder: &Decoder, quiesce: bool) -> Result<e::Support> {
     Ok(e::Support {
@@ -698,7 +730,8 @@ fn characters(b: &[u8], epoch: u64) -> Result<Vec<Character>> {
     r.cstr()?;
     r.take(2)?;
     r.u8()?;
-    if security > 3 || fails > 0 {
+    // Only state 0 has a recovered client path; 1-3 need unsupported lock handling.
+    if security != 0 || fails > 0 {
         return Err(NetError::SecurityRequired);
     }
     if r.remaining() == 0 {
@@ -860,6 +893,34 @@ impl Startup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn only_second_password_state_zero_proceeds() {
+        let list = |state: u32, fails: u32| {
+            let mut record = vec![0; 156];
+            record[..8].copy_from_slice(&42u64.to_le_bytes());
+            record[8] = 5;
+            record[9..18].copy_from_slice(b"Synthetic");
+            let mut w = Writer::new();
+            w.u8(1);
+            w.raw(&record);
+            w.u32(state);
+            w.u32(fails);
+            w.cstr("").unwrap();
+            w.raw(&[0, 0, 1]);
+            w.0
+        };
+        assert_eq!(characters(&list(0, 0), 1).map(|c| c.len()), Ok(1));
+        for state in [1, 2, 3, 4] {
+            assert_eq!(
+                characters(&list(state, 0), 1).map(|c| c.len()),
+                Err(NetError::SecurityRequired)
+            );
+        }
+        assert_eq!(
+            characters(&list(0, 1), 1).map(|c| c.len()),
+            Err(NetError::SecurityRequired)
+        );
+    }
     fn cleanup_fixture(worker: JoinHandle<()>, done: mpsc::Receiver<()>) -> NativeSession {
         let mut engine = e::Engine::new(e::Mode::Clientless);
         let opened = engine.handle(e::Input::User {
@@ -1060,7 +1121,7 @@ mod tests {
                                 let mut w = Writer::new();
                                 w.u8(1);
                                 w.raw(&record);
-                                w.u32(3);
+                                w.u32(0);
                                 w.u32(0);
                                 w.cstr("").unwrap();
                                 w.raw(&[0, 0, 1, 1, 0]);
@@ -1148,7 +1209,7 @@ mod tests {
                     descriptors: Arc::new(Mutex::new(std::collections::BTreeMap::new())),
                     order: 0,
                     attempt: 0,
-                    seen: vec![],
+                    last_action: None,
                 };
                 let mut gateway = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
                 let (_, _, ticket) = actor.first_login(&mut gateway).await.unwrap();

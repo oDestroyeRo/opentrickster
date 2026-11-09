@@ -519,7 +519,7 @@ pub(crate) fn plan(
     ticket: &ActionTicket,
     target_raw: Option<u16>,
 ) -> Result<Candidate> {
-    if !fresh(s) || now >= ticket.not_after || now >= fences.not_after {
+    if !fresh(s) || now >= fences.not_after {
         return Err(NetError::Timeout);
     }
     if s.host_epoch != fences.host_epoch || s.layout_epoch != fences.layout_epoch {

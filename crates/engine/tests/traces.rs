@@ -1303,7 +1303,7 @@ fn server_resource_rejection_pauses_instead_of_repeating_the_action() {
 }
 
 #[test]
-fn required_movement_and_pickup_capabilities_use_the_same_preflight_as_start() {
+fn required_movement_capability_uses_the_same_preflight_as_start() {
     let mut capabilities = support();
     capabilities.move_to = false;
     let mut h = Harness::with(false, capabilities, baseline(), None);
@@ -1316,22 +1316,34 @@ fn required_movement_and_pickup_capabilities_use_the_same_preflight_as_start() {
     );
     assert!(!state.snapshot.allowed.contains(&Control::Start));
     assert!(acts(&h.command(Command::Start)).is_empty());
+}
+
+#[test]
+fn unsupported_pickup_leaves_drops_and_keeps_attacking() {
     let mut capabilities = support();
     capabilities.pickup = false;
-    let mut h = Harness::with(true, capabilities, baseline(), None);
-    let state = h.facts(vec![Fact::Drop(Drop {
-        key: DropKey(1),
-        kind: ItemKind(1),
-        position: center(),
-        quantity: 1,
-    })]);
+    let mut h = Harness::with(false, capabilities, baseline(), None);
+    let state = h.facts(vec![
+        Fact::Drop(Drop {
+            key: DropKey(1),
+            kind: ItemKind(1),
+            position: center(),
+            quantity: 1,
+        }),
+        entity(1, Point { x: 101, y: 100 }, Some(false)),
+    ]);
     assert!(
-        state
+        !state
             .snapshot
             .blockers
             .contains(&Blocker::NeedsCapability(Capability::Pickup))
     );
-    assert!(!state.snapshot.allowed.contains(&Control::Start));
+    let started = h.command(Command::Start);
+    let ticket = acts(&started)[0];
+    assert!(matches!(
+        ticket.action,
+        Action::BasicAttack(EntityKey(1)) | Action::MoveTo(Point { x: 101, y: 100 })
+    ));
 }
 
 #[test]
