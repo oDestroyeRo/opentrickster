@@ -430,7 +430,7 @@ The run controls are a primary button and a stop button. While the run is runnin
 | Pause | Pause | ⌘P | The session accepts `Pause` |
 | Stop | Stop, or End run while reconnecting or disconnected | ⌘. | The session accepts `Stop`, or accepts `EndRun` while a run is held |
 
-The enabled state comes from the session transition table, the same table that applies the event. A button never looks active while the session would ignore it. Each button shows its shortcut after the label in `caption` type. A disabled primary button uses `surface.raised` with `text.muted`, so it does not read as active. The stop button's icon uses `status.critical`.
+The enabled state comes from the session transition table, the same table that applies the event. A button never looks active while the session would ignore it. Each button shows its shortcut after the label in `caption` type. A disabled primary button uses `surface.raised` with `text.muted`, so it does not read as active. On hover, an enabled primary button takes `accent.hover` and keeps `text.on-accent`; other enabled buttons take `surface.hover`. The stop button's icon uses `status.critical`.
 
 ### Blocked reason and refused actions
 

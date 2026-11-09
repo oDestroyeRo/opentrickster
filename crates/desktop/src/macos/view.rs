@@ -67,8 +67,12 @@ fn button(
             theme.muted
         })
         .when(enabled, |s| {
-            s.cursor_pointer()
-                .hover(|s| s.bg(theme.selected).text_color(theme.text))
+            let hover = if primary {
+                theme.accent_hover
+            } else {
+                theme.hover
+            };
+            s.cursor_pointer().hover(move |s| s.bg(hover))
         })
         .child(text.into())
 }
