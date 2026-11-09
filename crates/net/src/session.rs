@@ -548,6 +548,30 @@ impl Actor {
             startup.push_through(p, g.complete_through(self.order))?;
         }
         g.send(5, &[], &mut self.order).await?;
+        // EnterWorld constructs the client's gun controller; its held 511 requests follow C5.
+        startup.decoder.construct_gun();
+        self.request_keys(g, &mut startup.decoder).await?;
+        let mut gun_clock = Instant::now();
+        // Support is fixed at Baseline, so a worn gun's first 512 is awaited, boundedly.
+        let key_deadline = gun_clock + Duration::from_millis(e::ACTION_MS);
+        while startup.decoder.gun_awaits_key() {
+            if *self.cancel.borrow() {
+                return Err(NetError::Cancelled);
+            }
+            let p = tokio::select! {
+                _=self.cancel.changed()=>return Err(NetError::Cancelled),
+                result=tokio::time::timeout_at(key_deadline.into(),g.receive(&mut self.order))=>match result {Ok(result)=>result?,Err(_)=>break},
+                result=login.gateway.receive(&mut login.order)=>{self.login_frame(login,result?).await?;continue;}
+            };
+            if p.opcode == 2028 {
+                continue;
+            }
+            startup.push_through(p, g.complete_through(self.order))?;
+            if startup.decoder.physical_uncertain() {
+                return Err(NetError::Uncertain);
+            }
+            self.request_keys(g, &mut startup.decoder).await?;
+        }
         let mut decoder = startup.decoder;
         self.publish_descriptors(&mut decoder)?;
         *self.readiness.lock().map_err(|_| NetError::Io)? = decoder.readiness;
@@ -569,6 +593,8 @@ impl Actor {
         let mut dig: Option<PendingDig> = None;
         let mut barrier: Option<e::BarrierKey> = None;
         let mut action_until: Option<Instant> = None;
+        // A gun BasicAttack waiting for Ready; it is never sent outside its ticket window.
+        let mut held: Option<Held> = None;
         // An action that expired during a drain leaves idle unproven for the rest of this session.
         let mut lost = false;
         let mut ticks = tokio::time::interval(Duration::from_millis(16));
@@ -589,7 +615,15 @@ impl Actor {
                             if now.is_none_or(|now|now>=ticket.not_after.0) {
                                 self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;
                             }
-                            if dig.is_some() || decoder.action_pending() || barrier.is_some() {self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}
+                            if dig.is_some() || decoder.action_pending() || barrier.is_some() || held.is_some() {self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}
+                            // A worn or unknown gun never falls back to melee. The shot waits for Ready on
+                            // the session tick, ending early enough for its Sent receipt to beat not_after.
+                            if let e::Action::BasicAttack(target)=ticket.action && decoder.gun_worn()!=Some(false) {
+                                let window=now.map_or(0,|now|ticket.not_after.0.saturating_sub(now)).saturating_sub(HOLD_MARGIN_MS);
+                                if window==0 || !decoder.gun_waitable(target) {self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}
+                                held=Some(Held{ticket,target,until:Instant::now()+Duration::from_millis(window)});
+                                continue;
+                            }
                             let plan:Result<Vec<(u16,Writer)>>=match ticket.action {
                                 e::Action::MoveTo(point)=>decoder.move_payload(point).map(|payload|vec![(24,payload)]),
                                 e::Action::BasicAttack(target)=>decoder.attack_payloads(target).map(|(selected,attack)|vec![(288,selected),(29,attack)]),
@@ -601,7 +635,7 @@ impl Actor {
                                 _=>Err(NetError::Unsupported),
                             };
                             let plan=match plan {Ok(plan)=>plan,Err(_)=>{self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}};
-                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?)?;}
+                            if dig.is_none(){decoder.expect_action(ticket.action,self.order.checked_add(plan.len() as u64).ok_or(NetError::Capacity)?,false)?;}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Submitted})?;
                             let mut last_mark=0;
                             for (opcode,payload) in plan {
@@ -612,11 +646,14 @@ impl Actor {
                             }
                             // The engine's completion window starts at its Sent receipt, so ours ends no later.
                             let sent=Instant::now();
-                            match &mut dig {Some(pending)=>{pending.mark=last_mark;pending.until=sent+Duration::from_millis(e::DIG_MS);action_until=None;}None=>action_until=Some(sent+Duration::from_millis(e::ACTION_MS))}
+                            match &mut dig {Some(pending)=>{pending.mark=last_mark;pending.until=sent+Duration::from_millis(e::DIG_MS);action_until=None;decoder.drilling(true);}None=>action_until=Some(sent+Duration::from_millis(e::ACTION_MS))}
+                            if let e::Action::MoveTo(point)=ticket.action {decoder.walking(point);}
                             self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::Sent(e::IngressMark(last_mark))})?;
                         }
                         SessionOp::Close=>return Err(NetError::Cancelled),
                         SessionOp::Quiesce(key)=>{
+                            // A held shot was never sent, and none is sent after the barrier.
+                            if let Some(waiting)=held.take() {self.emit(Event::Receipt{action:waiting.ticket.id,delivery:e::Delivery::NotSent})?;}
                             // Report idle only once nothing is outstanding; otherwise the engine's drain deadline closes the session.
                             barrier=Some(key);
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
@@ -633,7 +670,18 @@ impl Actor {
                         let message=if expired {pending.cycle.cancel()}else{pending.cycle.tick(dt)?};
                         if let Some((opcode,payload))=message {g.send(opcode,&payload.0,&mut self.order).await?;}
                         // No cancellation-ack schema exists: after requesting 48, stop the local simulation.
-                        if expired {lost|=barrier.is_some();dig=None;}
+                        if expired {lost|=barrier.is_some();dig=None;decoder.drilling(false);}
+                    }
+                    // The gun advances by real elapsed time, one state branch per tick.
+                    decoder.gun_tick(now.duration_since(gun_clock).as_secs_f64()*1000.0);gun_clock=now;
+                    if let Some(waiting)=held.take() {
+                        if now<waiting.until && decoder.gun_ready(waiting.target) {
+                            let mark=self.shoot(g,&mut decoder,&waiting).await?;
+                            action_until=Some(Instant::now()+Duration::from_millis(e::ACTION_MS));
+                            self.emit(Event::Receipt{action:waiting.ticket.id,delivery:e::Delivery::Sent(e::IngressMark(mark))})?;
+                        } else if now>=waiting.until || !decoder.gun_waitable(waiting.target) {
+                            self.emit(Event::Receipt{action:waiting.ticket.id,delivery:e::Delivery::NotSent})?;
+                        } else {held=Some(waiting);}
                     }
                     if action_until.is_some_and(|until|now>=until) {lost|=barrier.is_some()&&decoder.action_pending();decoder.expire_action();action_until=None;}
                     if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
@@ -656,7 +704,7 @@ impl Actor {
                         let mut correlated=std::collections::BTreeMap::<u64,(Instant,Vec<e::Fact>)>::new();
                         for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
                         for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
-                        if dig_ended {dig=None;}
+                        if dig_ended {dig=None;decoder.drilling(false);}
                         if !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
@@ -664,10 +712,51 @@ impl Actor {
                         facts.extend(decoder.settle_carried(mark));
                         self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts},proof_at)?;
                     }
+                    self.request_keys(g,&mut decoder).await?;
+                    if held.as_ref().is_some_and(|waiting|!decoder.gun_waitable(waiting.target)) && let Some(waiting)=held.take() {
+                        self.emit(Event::Receipt{action:waiting.ticket.id,delivery:e::Delivery::NotSent})?;
+                    }
                 }
             }
         }
     }
+}
+impl Actor {
+    /// One empty 511 per key request the gun controller made, as `Wear` sends them.
+    async fn request_keys(&mut self, g: &mut Gateway, decoder: &mut Decoder) -> Result<()> {
+        for _ in 0..decoder.take_key_requests() {
+            g.send(511, &[], &mut self.order).await?;
+        }
+        Ok(())
+    }
+    /// Sends the held ticket's 477 once the controller is Ready, attributing only through
+    /// the existing own strike-bundle correlation after its mark.
+    async fn shoot(&mut self, g: &mut Gateway, decoder: &mut Decoder, held: &Held) -> Result<u64> {
+        let payload = decoder.gun_shot(held.target)?;
+        let mark = self.order.checked_add(1).ok_or(NetError::Capacity)?;
+        decoder.expect_action(held.ticket.action, mark, true)?;
+        self.emit(Event::Receipt {
+            action: held.ticket.id,
+            delivery: e::Delivery::Submitted,
+        })?;
+        match g.send(477, &payload.0, &mut self.order).await {
+            Ok(mark) => Ok(mark),
+            Err(error) => {
+                self.emit(Event::Receipt {
+                    action: held.ticket.id,
+                    delivery: e::Delivery::Unknown,
+                })?;
+                Err(error)
+            }
+        }
+    }
+}
+/// Stop holding a gun ticket this long before `not_after`, so its Sent receipt arrives in time.
+const HOLD_MARGIN_MS: u64 = 250;
+struct Held {
+    ticket: e::ActionTicket,
+    target: e::EntityKey,
+    until: Instant,
 }
 /// The login-server link, kept open and pumped until the game link closes, as the client does.
 /// Its own frame order keeps login frames out of the game link's marks.
@@ -692,7 +781,7 @@ pub(crate) fn support(decoder: &Decoder, quiesce: bool) -> Result<e::Support> {
     Ok(e::Support {
         build: text(crate::BUILD.into())?,
         move_to: decoder.move_payload(e::Point { x: 0, y: 0 }).is_ok(),
-        basic_attack: decoder.normal_weapon_mode().is_ok(),
+        basic_attack: decoder.basic_attack_supported(),
         dig_cycle: decoder
             .dig_inputs()
             .and_then(|inputs| crate::dig::Cycle::new(inputs, e::Point { x: 0, y: 0 }))
@@ -1308,6 +1397,219 @@ mod tests {
                         .count(),
                     1
                 );
+            }
+        });
+    }
+
+    /// Scenario 0 holds a ticket until Ready, shoots once and attributes the own bundle;
+    /// 1 holds a walking gun until its window ends; 2 holds one until Quiesce.
+    #[test]
+    fn loopback_gun_ticket_waits_for_ready_and_shoots_once() {
+        use crate::codec::{Frames, OpcodeMap};
+        use crate::gun_tests as fixture;
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        type Ws = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
+        async fn frame(ws: &mut Ws) -> Message {
+            loop {
+                match ws.next().await.unwrap().unwrap() {
+                    Message::Text(text) if text == "p" || text.starts_with("a ") => {}
+                    message => return message,
+                }
+            }
+        }
+        async fn read(ws: &mut Ws, frames: &mut Frames, order: &mut u64) -> Packet {
+            let Message::Binary(bytes) = tokio::time::timeout(Duration::from_secs(3), frame(ws))
+                .await
+                .expect("client frame")
+            else {
+                panic!("expected binary")
+            };
+            let mut packets = frames.push(&bytes, order).unwrap();
+            assert_eq!(packets.len(), 1);
+            packets.remove(0)
+        }
+        async fn next(events: &mpsc::Receiver<crate::TimedEvent>) -> Event {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                match events.try_recv() {
+                    Ok(timed) => return timed.event,
+                    Err(_) if Instant::now() < deadline => {
+                        tokio::time::sleep(Duration::from_millis(2)).await
+                    }
+                    Err(error) => panic!("no session event: {error:?}"),
+                }
+            }
+        }
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            for scenario in 0..3 {
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let address = listener.local_addr().unwrap();
+                let server = tokio::spawn(async move {
+                    let (socket, _) = listener.accept().await.unwrap();
+                    let mut login = tokio_tungstenite::accept_async(socket).await.unwrap();
+                    let (socket, _) = listener.accept().await.unwrap();
+                    let mut game = tokio_tungstenite::accept_async(socket).await.unwrap();
+                    let mut incoming = Frames::new(b"c2s");
+                    let outgoing = OpcodeMap::current(b"s2c");
+                    let mut order = 0;
+                    let send = |packets: Vec<(u16, u16, Vec<u8>)>| {
+                        let mut bytes = Vec::new();
+                        for (opcode, aux, payload) in packets {
+                            bytes.extend_from_slice(&outgoing.encode(opcode, aux, &payload).unwrap());
+                        }
+                        Message::Binary(bytes.into())
+                    };
+                    assert_eq!(read(&mut game, &mut incoming, &mut order).await.opcode, 4);
+                    let mut startup = vec![(5, 0, vec![])];
+                    startup.extend(
+                        fixture::startup()
+                            .into_iter()
+                            .map(|(opcode, payload)| (opcode, 0, payload)),
+                    );
+                    if scenario > 0 {
+                        // A walk without learned 3010 holds the reload at zero.
+                        startup.push((24, 0, fixture::walk(fixture::OWN, (110, 210))));
+                    }
+                    game.send(send(startup)).await.unwrap();
+                    let entry = read(&mut game, &mut incoming, &mut order).await;
+                    assert_eq!((entry.opcode, entry.payload.len()), (5, 0));
+                    // EnterWorld wears the gun; its empty 511 follows C5 and requests the key.
+                    let request = read(&mut game, &mut incoming, &mut order).await;
+                    assert_eq!((request.opcode, request.payload.len()), (511, 0));
+                    game.send(send(vec![(512, 0, fixture::KEY.to_le_bytes().to_vec())]))
+                        .await
+                        .unwrap();
+                    if scenario == 0 {
+                        let shot = read(&mut game, &mut incoming, &mut order).await;
+                        assert_eq!(shot.opcode, 477);
+                        let p = fixture::PROFILE;
+                        let expected = [false, true].map(|critical| {
+                            let crc = crate::actions::gun_crc(
+                                p.speed,
+                                p.range,
+                                p.start,
+                                fixture::KEY,
+                                critical,
+                            );
+                            crate::actions::gun_shot(fixture::MONSTER, crc, 1, 1).0.to_vec()
+                        });
+                        assert!(expected.iter().any(|bytes| bytes[..] == shot.payload[..]));
+                        game.send(send(vec![
+                            (31, 7, fixture::strike(fixture::OWN, 2, fixture::MONSTER)),
+                            (42, 7, fixture::damage(fixture::MONSTER)),
+                            (1951, 7, vec![]),
+                        ]))
+                        .await
+                        .unwrap();
+                    }
+                    // Nothing else is sent: a held shot never leaves, and none is resent.
+                    assert!(matches!(frame(&mut game).await, Message::Close(_)));
+                    assert!(matches!(frame(&mut login).await, Message::Close(_)));
+                });
+                let (ops, rx) = channel::channel(32);
+                let (events, event_rx) = mpsc::sync_channel(256);
+                let (_cancel, cancel_rx) = watch::channel(false);
+                let mut actor = Actor {
+                    profile: VerifiedProfile {
+                        first_host: "127.0.0.1".into(),
+                        first_port: 1234,
+                        marker: Zeroizing::new("synthetic".into()),
+                        client_version: Zeroizing::new(vec![1, 2, 3, 4]),
+                        definitions: Some(fixture::definitions()),
+                    },
+                    credentials: NetCredentials::new("ExampleId".into(), "ExampleOnlyA1".into())
+                        .unwrap(),
+                    ops: rx,
+                    cancel: cancel_rx,
+                    events,
+                    fault: Arc::new(Mutex::new(None)),
+                    readiness: Arc::new(Mutex::new(crate::Readiness::default())),
+                    descriptors: Arc::new(Mutex::new(std::collections::BTreeMap::new())),
+                    order: 0,
+                    attempt: 0,
+                    last_action: None,
+                };
+                let mut login = LoginLink {
+                    gateway: Gateway::open_url(&format!("ws://{address}")).await.unwrap(),
+                    order: 0,
+                };
+                let mut game = Gateway::open_url(&format!("ws://{address}")).await.unwrap();
+                let ticket = GameTicket {
+                    uid: 42,
+                    info: 7,
+                    crc: 99,
+                    host: "127.0.0.1".into(),
+                    port: 1234,
+                };
+                let driver = async {
+                    let Event::Baseline { support, facts, .. } = next(&event_rx).await else {
+                        panic!("baseline first")
+                    };
+                    assert!(support.basic_attack, "an armed, fully known gun supports BasicAttack");
+                    let key = facts
+                        .iter()
+                        .find_map(|fact| match fact {
+                            e::Fact::Entity(entity) => Some(entity.key),
+                            _ => None,
+                        })
+                        .unwrap();
+                    let (_, mut action, barrier) =
+                        crate::test_support::engine_ticket(e::Action::BasicAttack(key));
+                    action.not_after = e::At(if scenario == 1 { 500 } else { 3000 });
+                    let id = action.id;
+                    let queued = Instant::now();
+                    for op in [Some(SessionOp::Act(action)), (scenario == 2).then(|| SessionOp::Quiesce(barrier.unwrap()))].into_iter().flatten() {
+                        ops.try_send(QueuedOp { op, at: Some(e::At(0)), queued }).unwrap();
+                    }
+                    let mut receipts = Vec::new();
+                    let mut hit = false;
+                    while if scenario == 0 { !hit } else { receipts.is_empty() } {
+                        match next(&event_rx).await {
+                            Event::Receipt { action, delivery } => {
+                                assert_eq!(action, id);
+                                receipts.push((delivery, queued.elapsed()));
+                            }
+                            Event::Facts { facts, .. } => {
+                                hit |= facts.iter().any(|fact| {
+                                    matches!(fact, e::Fact::Outcome(e::Outcome::OwnHit(k)) if *k == key)
+                                })
+                            }
+                            _ => {}
+                        }
+                    }
+                    match scenario {
+                        0 => assert!(matches!(
+                            receipts.as_slice(),
+                            [(e::Delivery::Submitted, _), (e::Delivery::Sent(_), _)]
+                        )),
+                        // The window minus the hold margin passed without Ready.
+                        1 => assert!(matches!(
+                            receipts.as_slice(),
+                            [(e::Delivery::NotSent, waited)] if *waited >= Duration::from_millis(200)
+                        )),
+                        _ => assert!(matches!(
+                            receipts.as_slice(),
+                            [(e::Delivery::NotSent, waited)] if *waited < Duration::from_millis(1500)
+                        )),
+                    }
+                    ops.try_send(QueuedOp {
+                        op: SessionOp::Close,
+                        at: None,
+                        queued: Instant::now(),
+                    })
+                    .unwrap();
+                };
+                let (result, ()) =
+                    tokio::join!(actor.game_server(&mut game, &mut login, &ticket), driver);
+                assert_eq!(result, Err(NetError::Cancelled), "scenario {scenario}");
+                game.close().await;
+                login.gateway.close().await;
+                server.await.unwrap();
             }
         });
     }

@@ -724,7 +724,10 @@ impl GameObserver {
         if let Some(startup) = &mut self.startup {
             startup.advance(through)?;
             if startup.ready() {
-                let startup = self.startup.take().ok_or(NetError::WrongPhase)?;
+                let mut startup = self.startup.take().ok_or(NetError::WrongPhase)?;
+                // The observed client constructs its gun controller and sends its own 511s.
+                startup.decoder.construct_gun();
+                startup.decoder.take_key_requests();
                 let mut support = crate::session::support(&startup.decoder, false)?;
                 if self.page.is_some() {
                     support.move_to = true;
@@ -940,7 +943,7 @@ impl GameObserver {
                 self.decoder
                     .as_mut()
                     .ok_or(NetError::WrongPhase)?
-                    .expect_action(armed.ticket.action, p.mark)?;
+                    .expect_action(armed.ticket.action, p.mark, p.opcode == 477)?;
             }
             if let Some(flow) = &mut self.input_flow {
                 flow.observe_send(p.opcode, p.mark);

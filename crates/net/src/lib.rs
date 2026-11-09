@@ -53,6 +53,9 @@ mod combat;
 mod decode;
 mod definitions;
 mod dig;
+mod gun;
+#[cfg(test)]
+mod gun_tests;
 mod input;
 mod input_flow;
 mod observer;

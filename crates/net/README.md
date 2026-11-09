@@ -189,10 +189,45 @@ that policy. Own hit/kill association requires one complete unambiguous own
 Strike bundle with the matching recipient, action floor and incarnation.
 Unattributed HP falls, captions and faint alone cannot award outcomes.
 
+When a gun is worn in a configured gun slot, or that is unknown, `BasicAttack`
+never falls back to 288+29. `src/gun.rs` transcribes the client's `GunFlowing`.
+Its states 0-5 advance by real elapsed time on the 16 ms session tick, one state
+branch per tick, with the client's binary32/binary64 arithmetic and
+fractional-millisecond residue. The decoder supplies the slot-1 `Item_GunParam2`
+row, the received 512 key, slot-20 Type-29 ammo and Bunch, StartSet 271/518/521,
+live 82/85/523 and own 8/9, effective `LoadSpeed`, own walking, digging, camp
+and own damage. Frames applied before startup readiness (through H) are its
+StartSet. The controller is built right after C5, so its empty 511 key request
+follows C5 like the client's held send. Baseline waits up to `ACTION_MS` for that
+512, because support is fixed at Baseline.
+
+A gun ticket waits for Ready until 250 ms before `not_after`, then sends one 477
+with the actual target, key, Bunch, moveMode and computed critical bit. It gets
+`NotSent` instead when Ready needs new input, at `Quiesce`, or when that window
+ends. A shot is never sent early or resent. Own Kind-2 firing starts the reload
+and projects the client's local ammo use until an authoritative count replaces
+it. 32, 310 and 525 only release the wait. Outcomes come only from the own
+Strike-bundle attribution above. With a worn gun, `Support.basic_attack`
+requires every prerequisite and a received key; `readiness.missing_gun` names
+the first unknown one.
+
+Where source leaves an input unproven, the controller leans toward a later
+Ready: no StartSet 271, or a 523 that could set a flag, makes learned skills
+unknown; own ESA damage and own `GuardDamage` restart the reload at once;
+walking starts at an own move request. Two client delays are not modelled, so
+Ready can come earlier than the client's: the client defers an own strike, and
+so its reload, while an earlier own strike is still queued, and ESA damage after
+an effect's start is not seen. The assisted observer builds the same controller
+at its startup cutoff only to report `missing_gun` and to correlate the client's
+own 477. The page bridge forwards no camp, ESA, counter or guard damage frames,
+so that report can miss those inputs; assisted support does not depend on it.
+The [gun controller report](../../docs/research/native-gun-controller.md) lists
+the source joins.
+
 | Remaining part of #21/#23 | Current boundary |
 | --- | --- |
 | Sampler review | Root applied the geometry, type, and active-parameter corrections. Independent specification review and live correspondence remain open. |
-| Native gun controller | Serializer and source-backed profile/key/skill/ammo prerequisites exist. Tick/CRC/effect-lifetime controller integration remains unfinished. A gun never falls back to melee. |
+| Native gun controller | Controller, session integration and synthetic tests exist for ea1a68bd. Server acceptance of 477, the key's lifetime, live attribution and the live order of 271 and own 8/9 relative to H remain unproven. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
 | Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. The maxima remain unknown without S282: Net models every packet-fed `CharacterStatus.Total` term, but `GameParts` is not provable from packets. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |
@@ -245,6 +280,21 @@ is not introduced. `Attack` sends 288 at `0x31f28f`, then 29 at `0x31f341`.
 interception. `HoldsGun` traverses configured equipment slots and resolves an
 item metadata subtype, comparing it with 54 at `0x77a8a2` through `0x77a8a7`.
 Earlier builds' wire opcodes are never used.
+
+The gun controller transcribes these current bodies. The
+[gun controller report](../../docs/research/native-gun-controller.md) lists
+every join it relies on, with hashes.
+
+| Method | Metadata row | Function | Original body | SHA-256 |
+| --- | ---: | ---: | --- | --- |
+| `GunFlowing..ctor` | 40856 | 24374 | `0x7789c5`, 4624 bytes | `cc34d3ae369b8d1cafe7974181cb313fd17f5aa66c77629d874b2cc4d6a3b2a1` |
+| `GunFlowing.Wear` | 40862 | 24375 | `0x779bd7`, 560 bytes | `560710695b41106aac8d57f13c30afa776307835e2efe2afd49f27ba2ae98619` |
+| `GunFlowing.MyAppear` | 40864 | 24389 | `0x77ac93`, 580 bytes | `ca6af3f661bb5f61de91260703d2dd1af4d95ce087092c9f694b1c6664690fe6` |
+| `GunFlowing.Update` | 40871 | 24392 | `0x77af48`, 356 bytes | `99d1aa7fdff89218c21205542061a5134690f99acc1b8cab64c475b3cd798609` |
+| `GunFlowing.Tick` | 40872 | 24393 | `0x77b0ae`, 456 bytes | `0a671708b745d81a423af3d4f87bbe3d6dec8067dfc327a9c959bbbd9febf434` |
+| `GunFlowing.Fired` | 40878 | 24402 | `0x77b908`, 165 bytes | `42ebc5e9ea5ad6414ca92cda0e2b380b9ccbca187c0fffde9cdcb3e497355689` |
+| `GunFlowing.TakeBunch` | 40879 | 24403 | `0x77b9af`, 449 bytes | `b12b649c6cd4fbaef198abd741f690d0cc50573abe70b22f0333cd37d9f0732a` |
+| `GunFlowingUi` frame callback | 25107 | 46669 | `0xf4b990`, 1298 bytes | `de7b671375c807a6c04f4a1c2e04b1a6d0e17b2750e0cde7a5ee425cd1cab9ee` |
 
 Account-free checks are reproducible with `cargo test -p opentrickster-net` and
 `cargo clippy -p opentrickster-net --all-targets -- -D warnings`. The ignored
