@@ -106,15 +106,15 @@ example "Enter a positive radius and valid percentage and drill limits." or
 
 - Under **Drill**, **Pause below this durability** sets the drill limit, which
   must be above 0. Equip a drill with enough depth before you start.
-- Digging also pauses at the HP percent in the **Recovery** field, which only
-  the Combat form shows. To check it, switch **Activity** to **Combat**, read
-  or change the value, then switch back to **Digging** before you apply.
+- Under **Recovery**, **Use HP potion below percent** applies to digging as
+  well. The app cannot use HP potions, so the run pauses at this HP percent.
+  Digging does not need HP potions in the bag to start.
 
 ### Item goal
 
 Goal choices come from the bag data the app receives. Item names are not
 known yet, so a choice reads "Label unknown · choice N · M in bag". Enter the
-count in **Stop after this many confirmed items gained**. When confirmed gains
+count in **Pause after this many confirmed items gained**. When confirmed gains
 reach the count, the run pauses with "Goal reached".
 
 ## Start and control a run
@@ -198,8 +198,13 @@ A halt ends the run and closes the game or session. The status shows the halt.
    live state before resuming." Check the character, then resume. The app
    never resends the action that was in progress.
 
+If a reconnect attempt fails, the status returns to **Disconnected** with the
+run still held, and the banner offers **Reconnect** again. In clientless mode,
+the board also shows the sign-in form. If the game rejected your sign-in, enter
+your **Game ID** and **Password**, then click **Sign in** to reconnect the run.
+
 The app allows up to five reconnect attempts in a row. If **Reconnect** is not
-offered, end the run with **End run** or **Stop** (⌘.), then sign in again.
+offered, end the run with **End run** (⌘.), then sign in again.
 
 ## Switch modes
 

@@ -57,7 +57,7 @@ The window has a 52 px unified toolbar, a 3 px pulse strip under the toolbar, an
 **Hide panel** or ⌘\\ hides the side panel and the strip. **Show panel**, ⌘\\, or any of ⌘1 to ⌘3 shows them again.
 
 - The toolbar holds the traffic lights, the status pill, the HP, MP, and weight mini meters once a character is in the world, the labeled run controls, the keyboard badge in client-assisted mode, and the panel toggle. The app name and the mode switch leave the toolbar. To switch modes, show the panel.
-- The game fills the window between the toolbar and a 34 px ticker. The ticker shows the latest confirmed result, the blocked reason, the current alert, or a refused-action message.
+- The game fills the window between the toolbar and a 34 px ticker. The ticker shows the side panel's one-line explanation, as [Ticker](#ticker) describes.
 - In clientless mode, the board adds the vitals and the run totals.
 
 ### Sizes
@@ -75,7 +75,7 @@ The prototype measured these sizes in headless Chrome. Each window size includes
 
 ## Session states
 
-One reducer drives every screen. In the prototype, `reduceSession` in `index.html` applies events through the transition table `T` and touches no rendering code. In the `error` phase, `canSession` also reads each halt's recovery actions from the `HALTS` table, so the #8 contract work would lift those actions with the reducer. The diagram shows the main transitions. The table `T` has the rest.
+One reducer drives every screen. In the app, `Engine` in `crates/engine` applies every command and observation, derives the phase and the allowed controls, and touches no rendering code. The prototype's `reduceSession` in `index.html` modeled the same split. The diagram shows the app's main transitions.
 
 ```mermaid
 stateDiagram-v2
@@ -89,7 +89,8 @@ stateDiagram-v2
   login --> ready: character enters the world
   offline --> connecting: Sign in
   connecting --> ready: character chosen
-  connecting --> offline: rejected or cancelled
+  connecting --> offline: Cancel
+  connecting --> error: sign-in fails
   ready --> starting: Start
   starting --> running
   running --> pausing: Pause, or a pause reason
@@ -99,59 +100,68 @@ stateDiagram-v2
   pausing --> stopping: Stop
   paused --> stopping: Stop
   stopping --> ready
-  running --> reconnecting: connection lost
-  reconnecting --> paused: session resumes during a run
-  reconnecting --> disconnected: 5 attempts fail
+  running --> disconnected: connection lost, or the session closes
   disconnected --> reconnecting: Reconnect
-  running --> error: halt
+  reconnecting --> paused: session resumes during a run
+  reconnecting --> disconnected: the attempt fails
+  running --> closing: halt
+  closing --> error
   error --> loading: Reload game
-  error --> connecting: Reconnect
-  error --> ready: Dismiss
+  error --> connecting: Sign in
+  error --> absent: Dismiss
+  error --> offline: Dismiss
 ```
 
 | Phase | Status pill | What the user can do |
 | --- | --- | --- |
 | `client-absent` | Game not loaded | Load the game from the game pane. |
-| `client-loading` | Loading game, with a percentage | Wait. |
+| `client-loading` | Loading game | Wait. |
 | `awaiting-login` | Log in to the game | Log in inside the game. The app never sees the password. |
-| `offline` | Not connected | Sign in on the connect panel. A rejected sign-in shows its alert inside the form. |
-| `connecting` | Connecting, with the current step | Choose a world and a character, or cancel. |
+| `offline` | Not connected | Sign in on the connect panel. A failed sign-in shows its cause inside the panel. |
+| `connecting` | Connecting | Choose a world and a character, or cancel. |
 | `ready` | Ready | Start (⌘R) once the preflight checks pass. |
 | `starting` | Starting | Stop (⌘.). |
-| `running` | Running, with the activity | Pause (⌘P) or Stop (⌘.). |
-| `pausing` | Pausing, Finishing this action | Stop (⌘.). The current action finishes first. |
-| `paused` | Paused, with the reason | Resume (⌘R) once nothing blocks it, or Stop (⌘.). |
-| `stopping` | Stopping, Finishing this action | Wait. The current action finishes first. |
-| `reconnecting` | Reconnecting, attempt N of 5 | End the run (⌘.). |
-| `disconnected` | Disconnected | Reconnect, or end the run (⌘.). |
+| `running` | Running | Pause (⌘P) or Stop (⌘.). |
+| `pausing` | Pausing | Stop (⌘.). The current action finishes first. |
+| `paused` | Paused | Resume (⌘R) once nothing blocks it, or Stop (⌘.). |
+| `stopping` | Stopping | Wait. The current action finishes first. |
+| `reconnecting` | Reconnecting | End the run (⌘.). |
+| `disconnected` | Disconnected | Reconnect, or end the run (⌘.). In clientless mode, **Sign in** on the connect panel also reconnects a held run. |
+| `closing` | Closing session | Wait. The app closes the game or session before anything else opens. |
 | `error` | The halt's short name | The halt's recovery action. |
+
+The status pill shows only the phase label. The pause reason, the reconnect state, and the halt's cause appear in the [alert banner](#alert-banner).
+
+Reconnect is manual. The app never reconnects on its own, so it never opens a session the user did not ask for. The `disconnected` phase covers a lost connection and a run held after its session closed, for example after a failed reconnect attempt or a session that closed during a run. Each **Reconnect** is one attempt. After five failed attempts in a row, only **End run** remains. A successful reconnect resets the count.
 
 Every pause has a reason, and the alert names what unlocks Resume.
 
 ![A run paused because the HP potions ran out. The status pill says Paused, Out of HP potions. Resume is disabled, and the alert under the run controls says that Resume unlocks when the bag has HP potions again. The dashed button exists only in the prototype.](docs/design/client-paused.png)
 
-| Reason | Status detail | What lets the run resume |
+| Reason | Banner text | What lets the run resume |
 | --- | --- | --- |
 | `user` | By you | Resume. |
-| `hp-potions` | Out of HP potions | Restock in the game. Resume stays locked while the bag has no HP potions. When the session cannot use HP potions, as in client-assisted mode, the run pauses at the HP potion threshold instead, and the alert says to recover HP in the game. |
-| `weight` | Bag weight limit | Free space in the game. |
-| `drill` | Drill durability | Repair or replace the drill in the game. |
-| `depth` | Drill too shallow | Equip a deeper drill or choose another area. |
-| `goal` | Goal reached | Turn in the quest in the game, then resume or stop. |
-| `fainted` | Character fainted | Revive in the game. |
-| `no-drops` | No drops | Check the loot list and the map. |
-| `uncertain` | State uncertain | Resume when the state is live again. |
-| `reconnected` | Check after reconnect | Check the character, then resume. |
+| `manual-input` | Manual gameplay input. Check the character before resuming. | Keys, clicks, scrolling, or pointer movement over the game during a client-assisted run cause this pause. Shortcuts with ⌘ or ⌃ do not. Resume once the app confirms that the character is idle. |
+| `hp-potions` | HP potions ran out or could not be used. Check HP and potions in the game before resuming. | Restock in the game. While the bag has no HP potions, the text reads "Restock HP potions in the game before resuming." When the session cannot use HP potions, as in client-assisted mode, the run pauses at the HP potion threshold instead, and the text reads "HP reached the potion threshold, and this session cannot use HP potions. Recover HP in the game before resuming." |
+| `weight` | Free bag space in the game before resuming. | Free space in the game. |
+| `drill` | Repair or replace the drill in the game. | Repair or replace the drill in the game. |
+| `depth` | Equip a deeper drill or choose another area. | Equip a deeper drill or choose another area. |
+| `goal` | Goal reached. Check the character before resuming. | Change or remove the goal in Setup, or stop. Resume stays locked while confirmed gains meet the goal. |
+| `fainted` | Revive the character in the game. | Revive in the game. |
+| `no-drops` | Check the loot list and map. | Reserved. No rule pauses for this reason yet. |
+| `uncertain` | Resume requires fresh state and verified idle gameplay. | Resume when the state is live again and the character is idle. |
+| `reconnected` | Check the character and live state before resuming. | Check the character, then resume. |
 
-A halt stops the run. Some halts also stop the app from reading game state, and the status line then says "No live state".
+A halt ends the run and closes the game or session, so the app stops reading game state and the status line says "No live state". Closing on every halt is the conservative MVP choice. No automation continues on a session that the app no longer trusts.
 
-| Halt | Status pill | Recovery | Game state still read |
-| --- | --- | --- | --- |
-| `build-changed` | Game updated | Reload game, or Reconnect in clientless mode | No |
-| `client-failed` | Game client stopped | Reload game, shown in the game pane | No |
-| `session-replaced` | Signed in elsewhere | Log in again, or Reconnect in clientless mode | No |
-| `actions-rejected` | Actions rejected | Dismiss | Yes |
-| `map-forbidden` | Map blocks automation | Dismiss | Yes |
+| Halt | Status pill | Recovery |
+| --- | --- | --- |
+| `build-changed` | Game updated | Dismiss. In client-assisted mode, **Reload game** in the game pane also dismisses the halt and loads the game again. |
+| `client-failed` | Game client stopped | **Reload game** in the game pane, with no banner. In clientless mode, Dismiss. |
+| `session-replaced` | Signed in elsewhere | Dismiss, then sign in again. Reserved. No adapter reports this halt yet. |
+| `actions-rejected` | Actions rejected | Dismiss |
+| `map-forbidden` | Map blocks automation | Dismiss. Reserved. No adapter reports this halt yet. |
+| `connect-failed` | Sign-in failed | In clientless mode, **Sign in** again on the connect panel, which shows the cause. No banner appears. In client-assisted mode, Dismiss or **Reload game**. |
 
 ## Policies
 
@@ -167,12 +177,14 @@ These rules shape several screens.
 
 ## Alerts
 
-The Alerts section of the setup form has four checkboxes. All four are on by default.
+The Alerts section of the setup form has four toggles. All four are on by default.
 
-- Notify me when a run pauses for a reason
-- Notify me when the connection drops
-- Notify me when a goal is reached
-- Show a badge on the Dock icon
+- Pause with a reason
+- Connection lost
+- Goal reached
+- Dock badge
+
+An enabled alert sends a macOS notification: "Run paused" with the banner text, "Connection lost" with "Check the session before resuming.", or "Goal reached" with "Check the character in the game." With **Dock badge** on, an enabled alert also badges the Dock icon. A caption under the toggles reports the notification permission. Notifications work only from the packaged app. Otherwise alerts stay in the panel.
 
 ## Keyboard and menus
 
@@ -393,20 +405,20 @@ Every toolbar control has a visible label. A mini meter is 92 px wide. It shows 
 
 The mode switch is a two-segment control with **Client-assisted** and **Clientless**, each with an icon. The selected segment uses `surface.selected` and `text.primary` with a 1 px `line.control` outline.
 
-While a run exists, a click does not switch. The refused-action message says "Mode switch is off during a run. Stop the run first." While a run is held during a disconnect, the message ends with "End the run first." With no run, a click opens the system sheet. In the `client-absent` and `offline` phases, a click switches at once, because no game or session is open.
+While a run exists, a click does not switch. The refused-action message says "Mode switch is off during a run. Stop the run first." The message is the same while a run is held during a disconnect, when the stop button reads **End run**. With no run, a click opens the system sheet. In the `client-absent` and `offline` phases, a click switches at once, because no game or session is open.
 
 Closing a session waits for its game connections to close before another session can open. If that takes more than 5 seconds, the refused-action message reads "Waiting for the game connections to close. No new session can open until they do." During quit it reads "Waiting for the game connections to close. The app stays open until cleanup is confirmed."
 
 ### Status pill
 
-The status pill shows an icon, a phase label, and an optional detail in `text.secondary`, such as "Paused, Out of HP potions". Its background is the tone's subtle color, and the icon takes the tone color. [Session states](#session-states) lists the label for each phase.
+The status pill shows an icon and the phase label, such as "Paused". It has no detail; the alert banner carries the reason. The icon is ▶ while running, Ⅱ while pausing or paused, ! while disconnected or after a halt, and ○ otherwise. Its background is the tone's subtle color, and the icon takes the tone color. [Session states](#session-states) lists the label for each phase.
 
 | Size | Height | Type | Where |
 | --- | --- | --- | --- |
 | Large | 34 px | `title`, semibold label | Top of the side panel |
 | Default | 28 px | `body`, semibold label | The toolbar while the panel is hidden |
 
-In the toolbar, the detail ends in an ellipsis when space runs out. The pill has the status role and announces each change politely. In GPUI, map it to an AccessKit status announcement. The exact AccessKit mapping is unverified.
+In the toolbar, the label clips when space runs out. The pill has the status role and announces each change politely. In GPUI, map it to an AccessKit status announcement. The exact AccessKit mapping is unverified.
 
 ### Run controls
 
@@ -441,35 +453,41 @@ The pulse strip is a 3 px line (`size.pulse`) under the toolbar that shows the s
 
 ### Alert banner
 
-An alert banner has an icon, a title, a body, an optional unlock line, and optional actions. Its background is the tone's subtle color with a 3 px left strip in the tone color. Its radius is `radius.panel`. The body uses `small` type in `text.secondary`.
+An alert banner has a title, a body, an optional unlock line, and at most one action. Its background is the tone's subtle color with a 3 px left strip in the tone color. Its radius is `radius.panel`. The body uses `small` type in `text.secondary`.
 
-The banner sits in the side panel under the run controls. While the panel is hidden, the ticker shows the same content. Pause reasons, reconnecting, disconnected, and halts create banners there. A failed sign-in shows its banner inside the sign-in form instead, next to the fields it concerns. A `client-failed` halt in client-assisted mode has no banner, because the game pane shows the failure and its **Reload game** button.
+| Phase | Title | Body | Action |
+| --- | --- | --- | --- |
+| `paused` | Run paused | The banner text from the [pause table](#session-states) | None |
+| `reconnecting` | Connection lost | "Reconnecting. A recovered run stays paused until you check the character." | None |
+| `disconnected` | Disconnected | "Reconnect when the connection is available. Check the character before resuming." | **Reconnect**, while attempts remain |
+| `error` | The halt's status pill text | The halt's cause, such as "The game rejected repeated actions. Check the character and Setup." | **Dismiss** |
 
-A banner never repeats a run control. When a pause has a blocking check, the unlock line has a lock icon and says what unlocks Resume, for example "Resume unlocks when the bag has HP potions again." For a halt, the first action is the primary button.
+The banner sits in the side panel under the run controls. A failed clientless sign-in has no banner. Its cause appears inside the connect panel instead. A `client-failed` halt in client-assisted mode has no banner, because the game pane shows the failure and its **Reload game** button.
+
+A banner never repeats a run control. When a pause has a blocking check, the unlock line reads "Resume locked ·" and what unlocks Resume, for example "Resume locked · Restock HP potions in the game before resuming." The action is a primary button.
 
 The banner has the alert role. In GPUI, map it to an AccessKit alert. That mapping is unverified.
 
 ### Ticker
 
-The ticker is a 34 px bar at the bottom of the window while the panel is hidden.
+The ticker is a 34 px bar at the bottom of the window while the panel is hidden. It shows one line, the same explanation that sits under the run controls when no banner shows.
 
-- With no alert, it shows the latest confirmed result and its time on the left and the status line on the right. During an error, it shows the status label instead of the latest result.
-- When Start or Resume is unavailable and no alert explains why, it shows the blocked reason.
-- With an alert, it shows the alert icon, title, and body, truncated with an ellipsis, and then the alert's actions. It repeats no run control, because the toolbar keeps the labeled run controls.
-- A refused action's message replaces the whole ticker for 2.2 seconds.
+- An app message, such as a refused mode switch, replaces the line for 2.2 seconds.
+- While paused, it shows the pause's banner text.
+- Otherwise a refused action shows for 2.2 seconds. Then the line shows the phase's guidance or the first blocked reason, or "Only results confirmed by the game count toward this run." when nothing blocks.
+- It has no actions and no status line. To use a banner's **Reconnect** or **Dismiss**, show the panel.
 
 ### Status line
 
-The status line shows the game build and the age of the game state. It appears exactly once. It sits in the side panel's footer, or on the right side of the ticker while the panel is hidden. In the ticker, it hides while the ticker shows an alert.
+The status line is one freshness caption in `small` type and `text.secondary`. It sits in the side panel's footer. The same caption sits under the last-minute lanes. The ticker does not show it.
 
-The build label reads "Build f5e972fa" in `text.muted`, with the build in IBM Plex Mono. During a `build-changed` halt, it reads "Build 7c21e0b4 not supported" in `text.primary` with an octagon icon in `status.critical`.
+| Caption | When |
+| --- | --- |
+| Received game state | State arrived less than 15 seconds ago, and the session is not disconnected, reconnecting, closing, or halted |
+| Last known · no live game state | The app holds state that is 15 seconds old or older, or the session is closing |
+| No live state | No state has arrived since the session opened, or the connection dropped or the session closed |
 
-| Freshness chip | Icon | Tone | When |
-| --- | --- | --- | --- |
-| No character yet | Person | Neutral | No character is in the world yet |
-| Live, 0.2 s old | Dot | Good | State updates arrive |
-| State N s old | Clock | Warning | State updates are late |
-| No live state | Unplugged cable | Serious | Reconnecting, disconnected, or after a halt that stops state reads |
+The footer shows no build label. The Run tab's checklist shows "Supported game build" once the session reports a supported build. The status pill reads "Game updated" during a `build-changed` halt.
 
 ### Meter
 
@@ -540,7 +558,7 @@ The lanes show the last 60 seconds in two rows.
 - The Sent row has a 9 px hollow circle, outlined in `text.muted`, for each action sent.
 - The Confirmed row has a 9 px filled circle in `accent.default` for each confirmed result and an 11 px cross in `status.critical` for each rejected action.
 
-The axis reads "1 min ago", "45 s", "30 s", "15 s", and "Now". Hovering a mark shows its time and text in a tooltip above the Confirmed row. The lanes appear in the strip under the game and on the clientless board. Under the game, the tooltip stays outside the game rectangle. On the board, the caption reads "Each mark is one action or one result". While the game state is not live, the lanes keep the last known marks, and the caption reads "Last known, no live game state".
+The axis reads "1 min ago", "45 s", "30 s", "15 s", and "Now". Hovering a mark shows its time and text in a tooltip above the Confirmed row. The lanes appear in the strip under the game and on the clientless board. Under the game, the tooltip stays outside the game rectangle. The caption under the lanes is the [status line](#status-line). While the game state is not live, the lanes keep the last known marks.
 
 ### Log
 
@@ -576,16 +594,18 @@ The setup form fills the side panel in one column. It starts with the activity c
 
 | Activity | Section | Fields |
 | --- | --- | --- |
-| Combat | Where | Map, movement boundary |
-| Combat | Targets | Only these or all except these, a target list, skip monsters another player is fighting |
-| Combat | Attacks and recovery | Skill order, HP potion threshold, MP potion threshold |
-| Combat | Loot and limits | Pick-up rule, goal, bag weight limit, kills without a drop |
-| Digging | Where | Map, spot selection, search radius |
-| Digging | Drill | The equipped drill, durability limit, what to do when attacked |
-| Digging | Limits | Goal, bag weight limit |
-| Both | Alerts | Pause with a reason, lost connection, goal reached, Dock badge |
+| Both | Where | The map name, **Use current location** with the center it sets, and **Movement radius · game-coordinate counts** |
+| Combat | Targets | **Only these** or **All except**, and the received monsters to choose from. Monsters engaged by another player are always skipped. |
+| Digging | Drill | **Pause below this durability** |
+| Both | Recovery | **Use HP potion below percent** |
+| Both | Limits | **Pause at bag weight percent**, and **Item goal**: **No item goal** or a received bag item, with **Pause after this many confirmed items gained** |
+| Both | Alerts | The four [alert](#alerts) toggles |
 
-The Attacks and recovery section says "The run pauses when HP potions run out. This is always on." In client-assisted mode, it also says "HP potion use is unavailable in client-assisted mode. The run pauses at this HP percent instead." While a run is starting or running, a lock bar says "Pause the run to change setup. Changes apply when you resume.", and the fields are disabled.
+Setup changes take effect when the user clicks **Apply setup**. The form has no skill order, MP potion threshold, pick-up rule, kills-without-a-drop limit, spot selection, or choice for an attack during a dig. Combat uses basic attacks. Digging cycles through five fixed points: the center and the four points one radius away on each axis.
+
+One HP threshold serves both activities, because the engine applies it to both. At or below it, the run uses an HP potion when the session can, and pauses otherwise. In combat, the Recovery section also says "The run pauses when HP potions run out. This is always on." Digging does not need HP potions to start, so it leaves that line out. In client-assisted mode, the section also says "HP potion use is unavailable in client-assisted mode. The run pauses at this HP percent instead."
+
+While a run is running, pausing, or stopping, the form says "Pause the run to change setup. Changes apply when you resume.", and the fields are disabled.
 
 ### Keyboard badge
 
@@ -621,9 +641,10 @@ In clientless mode, the board takes the place of the game pane and the strip.
 
 ### Connect panel
 
-The connect panel replaces the board before a character is in the world.
+The connect panel replaces the board before a character is in the world, and whenever the phase is `offline` or `error`.
 
-- When offline, it shows "Connect without the game client", a short explanation, **Game ID** and **Password** fields, the note "The password is used for this session only.", and **Sign in**. When the service rejects the ID or password, a "Sign-in failed" alert appears above the fields. The app never stores the password; it asks for it again after disconnect, mode change or quit.
+- When no session is open, it shows "Connect without the game client", a short explanation, **Game ID** and **Password** fields, the note "The password is used for this session only.", and **Sign in**. When sign-in fails, the status pill reads "Sign-in failed", and the panel shows the cause under the fields for 2.2 seconds, for example "Sign-in failed. Check the Game ID and password." The app keeps the sign-in in memory for the current session only and reuses it to reconnect. It clears the sign-in after a rejected sign-in, **Cancel**, a mode change, or quit.
+- While a run is held after a failed reconnect attempt, **Sign in** reconnects that run instead of opening a new one. If the app no longer has the sign-in, **Reconnect** says "Enter the Game ID and password, then click Sign in to reconnect."
 - While connecting, it shows four steps: Signing in, Choose a world, Choose a character, and Entering the world. The world list appears at the second step and the character list at the third. The first and fourth steps show a spinner. **Cancel** returns to the offline form.
 
 ### System sheet
