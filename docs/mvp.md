@@ -21,6 +21,14 @@ mode runs without Unity and displays received game state in the native dashboard
   resource use require an implemented, evidence-backed adapter capability.
   Without a pickup capability, drops stay on the ground and never block a run,
   but a combat goal cannot start because only pickups count toward it.
+- A move counts as done only when the server has accepted it and the walk has
+  ended. The server can choose a destination other than the requested point,
+  and the run continues from there. No game frame reports the end of a walk.
+  Client-assisted mode waits for a sample that shows the client's walk is over.
+  Clientless mode estimates the client's walk time from the server's reply, and
+  that estimate is not yet measured. A refused or diverted move, or a walk
+  longer than the 5-second confirmation window, pauses the run for uncertain
+  state. The next action waits until the walk ends.
 - Defaults are 15 seconds for state freshness, 2 seconds for a send receipt,
   5 seconds for ordinary action confirmation, 30 seconds for a dig cycle and
   2 seconds for establishing quiescence. Confirmation and dig windows start at
