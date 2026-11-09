@@ -555,9 +555,41 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   // EditBox.Focused (static +24) takes keys ahead of the HUD.
   check("focused EditBox owns the keys", ({h, p}) => h.set(p.edit, "Focused", h.object(EDIT)), "unavailable", "routing");
   check("EditBox static ahead of Focused is not focus", ({h, p}) => h.raw(p.edit, "ptr", h.string("selected")), "ready");
-  // Hud.installing (+132) sends the next key to WaitForKey.
-  check("installing HUD routes the next key elsewhere", ({h, p}) => h.set(p.hud, "installing", true), "unavailable", "routing");
+  // Hud.installing (+132) diverts only a key or menu whose action is not registered yet (WaitForKey f48518).
+  // That press waits in waitMenu +136 or waitAction +140, then in due +148 until Hud.Update f48500 replays it.
+  check("installing HUD alone keeps registered keys", ({h, p}) => h.raw(p.hud + 132, "byte", 1), "ready");
+  check("deferred key waits for its action", ({h, p}) => h.set(p.hud, "waitAction", h.string("Synthetic")), "unavailable", "routing");
+  check("deferred menu key waits for its button", ({h, p}) => h.set(p.hud, "waitMenu", h.string("Synthetic")), "unavailable", "routing");
+  check("deferred key queued for replay", ({h, p}) => h.set(p.hud, "due", h.object("System.Action")), "unavailable", "routing");
   check("Hud.Waiting callback is not routing state", ({h, p}) => h.raw(p.hud + 128, "ptr", h.object("System.Action")), "ready");
+  // PlayFeatures.Deferred installs DrillUi after world entry. Its MoveNext f44759 provides DrillFeature, awaits
+  // ItemsModel, then provides DigAssist and registers the Dig hotkey and drill click with no await between them.
+  const withServices = ({h, p}, keep) => {
+    const rows = [p.combat, p.drill, p.assist, p.gun, p.attributes, p.skills].map((service, i) => [p.serviceKeys[i], service]);
+    h.set(h.get(p.screen, "services"), "items", h.dict("System.Type", "System.Object", rows.filter(([, service]) => keep(service))));
+  };
+  const noDrill = f => withServices(f, s => s !== f.p.drill && s !== f.p.assist);
+  const absent = check("deferred drill install has not run", noDrill, "ready");
+  assert.equal(absent.dig, null);
+  assert.equal(absent.motion.fsm, 0);
+  const shared = check("absent drill still reports the shared avatar state", f => { noDrill(f); f.h.set(f.p.fsm, "State", 5); }, "ready");
+  assert.equal(shared.motion.fsm, 5);
+  assert.equal(shared.dig, null);
+  check("drill provided before its helper", f => withServices(f, s => s !== f.p.assist), "unavailable", "cold");
+  check("helper without its drill", f => withServices(f, s => s !== f.p.drill), "unavailable", "changing");
+  check("drill and combat disagree on the avatar state", ({h, p}) => h.set(p.drill, "fsm", h.object("Spinel.Game.Play.AvatarFsm")), "unavailable", "changing");
+  for (const core of ["combat", "gun", "attributes", "skills"]) check(`core ${core} service not provided yet`, f => withServices(f, s => s !== f.p[core]), "unavailable", "cold");
+  const late = fixture();
+  noDrill(late);
+  assert.equal(late.sample().snapshot.dig, null);
+  withServices(late, s => s !== late.p.assist);
+  assert.equal(late.sample().snapshot.reason, "cold");
+  withServices(late, () => true);
+  const arrived = late.sample().snapshot;
+  assert.equal(arrived.status, "ready");
+  assert.equal(arrived.dig.manual, true);
+  assert.equal(arrived.dig.toolUsable, true);
+  cases++;
 
   check("tagged flow", ({h}) => h.raw(CELL("TypeInfo Spinel.UI.Pc.Screens.GameFlow"), "ptr", 0x200086e7));
   check("null engine", ({h}) => h.raw(CELL("TypeInfo Spinel.Engine.Unity.SpinelEngine"), "ptr", 0));

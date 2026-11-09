@@ -258,9 +258,12 @@ impl Flow {
                     }
                 }
                 NormalInput::RightDown => {
-                    if !self.cancel_sent
-                        && !(proof && s.is_some_and(|s| s.dig.fsm != 5 && s.dig.flags & 4 == 0))
-                    {
+                    let cancelled = s.is_some_and(|s| {
+                        s.dig
+                            .as_ref()
+                            .is_none_or(|d| d.fsm != 5 && d.flags & 4 == 0)
+                    });
+                    if !self.cancel_sent && !(proof && cancelled) {
                         return Ok(None);
                     }
                     return Ok(Some(Self::one(NormalInput::RightUp)));
@@ -298,7 +301,7 @@ impl Flow {
                 sampler::plan(s, now, fences, session, &self.ticket, target).map(Some)
             }
             Phase::KeyRelease => {
-                if s.dig.flags & 4 == 0 {
+                if s.dig.as_ref().is_none_or(|d| d.flags & 4 == 0) {
                     return Ok(None);
                 }
                 self.phase = Phase::Prepare;
@@ -321,7 +324,7 @@ impl Flow {
             }
             Phase::Charging | Phase::Tracking => self.gauge(s),
             Phase::FirstCoast => {
-                if s.dig.stage == 5 {
+                if s.dig.as_ref().is_some_and(|d| d.stage == 5) {
                     return Ok(None);
                 }
                 self.phase = Phase::Tracking;
@@ -344,7 +347,9 @@ impl Flow {
                     return Ok(None);
                 }
                 if !matches!(self.ticket.action, Action::DigAt(_))
-                    || s.dig.fsm != 5 && s.dig.flags & 4 == 0
+                    || s.dig
+                        .as_ref()
+                        .is_none_or(|d| d.fsm != 5 && d.flags & 4 == 0)
                 {
                     return Ok(None);
                 }
@@ -376,7 +381,7 @@ impl Flow {
                 DigPhase::Tracking
             },
         )?;
-        if charging && s.dig.stage == 5 {
+        if charging && s.dig.as_ref().is_some_and(|d| d.stage == 5) {
             self.phase = Phase::FirstCoast;
         }
         match desired {
@@ -393,6 +398,11 @@ impl Flow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn dig(s: &mut Snapshot) -> &mut crate::sampler::DigState {
+        s.dig
+            .as_mut()
+            .expect("the invented heap provides the drill feature")
+    }
     #[test]
     fn continuation_after_the_actual_send_uses_the_completion_window() {
         let value = crate::test_support::sample_value();
@@ -478,7 +488,7 @@ mod tests {
         assert!(matches!(up, NormalInput::KeyUp(_)));
         dispatch(&mut flow, up);
         s.input.dig_held = false;
-        s.dig.flags = 4;
+        dig(&mut s).flags = 4;
         s.pointer.world = Some([540.0, 350.0]);
         s.pointer.picked = None;
         s.pointer.ground_hover = false;
@@ -502,11 +512,11 @@ mod tests {
         dispatch(&mut flow, up);
         s.input.left = false;
         s.motion.screen_held = false;
-        s.dig.fsm = 5;
-        s.dig.in_state = true;
-        s.dig.stage = 2;
-        s.dig.area = Some(70);
-        s.dig.held = false;
+        dig(&mut s).fsm = 5;
+        dig(&mut s).in_state = true;
+        dig(&mut s).stage = 2;
+        dig(&mut s).area = Some(70);
+        dig(&mut s).held = false;
         s.captured = next_capture();
         assert!(
             flow.next(Some(&s), At(15), fences, session, None, false)
@@ -521,16 +531,16 @@ mod tests {
         assert_eq!(down, NormalInput::LeftDown);
         dispatch(&mut flow, down);
         s.input.left = true;
-        s.dig.held = true;
-        s.dig.stage = 3;
+        dig(&mut s).held = true;
+        dig(&mut s).stage = 3;
         s.captured = next_capture();
         assert!(
             flow.next(Some(&s), At(17), fences, session, None, false)
                 .unwrap()
                 .is_none()
         );
-        s.dig.stage = 5;
-        s.dig.gauge = 120.0;
+        dig(&mut s).stage = 5;
+        dig(&mut s).gauge = 120.0;
         s.captured = next_capture();
         let up = flow
             .next(Some(&s), At(18), fences, session, None, false)
@@ -540,14 +550,14 @@ mod tests {
         assert_eq!(up, NormalInput::LeftUp);
         dispatch(&mut flow, up);
         s.input.left = false;
-        s.dig.held = false;
+        dig(&mut s).held = false;
         s.captured = next_capture();
         assert!(
             flow.next(Some(&s), At(19), fences, session, None, false)
                 .unwrap()
                 .is_none()
         );
-        s.dig.stage = 6;
+        dig(&mut s).stage = 6;
         s.captured = next_capture();
         assert_eq!(
             flow.next(Some(&s), At(20), fences, session, None, false)

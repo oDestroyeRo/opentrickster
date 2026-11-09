@@ -299,12 +299,18 @@
       if (!sameType(type(pointer(key + 8)),type(pointer(p) + 16))) unavailable("generic");
       wanted.set(id,p);
     }
-    if ([...wanted.values()].some(p => !p)) unavailable("cold");
+    if ([6104,6632,5813,8027].some(id => !wanted.get(id))) unavailable("cold");
+    // The deferred DrillUi.Install provides DrillFeature, awaits ItemsModel, then provides DigAssist and registers Dig in one step.
+    const drillAt = wanted.get(6259), assistAt = wanted.get(6218);
+    if (drillAt && !assistAt) unavailable("cold");
+    if (assistAt && !drillAt) unavailable("changing");
     const skills = object(wanted.get(8027),8027);
     if (u32(skills+52) || u32(skills+56) || u32(skills+188) || bool(skills+124) || bool(skills+125)) unavailable("routing");
-    const combat = object(wanted.get(6104),6104), drill = object(wanted.get(6259),6259), assist = object(wanted.get(6218),6218), gun = object(wanted.get(6632),6632);
-    const fsm = object(pointer(drill + 24),5810), fsmState = integer(i32(fsm + 8),0,64);
-    if (pointer(combat + 112) !== fsm || pointer(assist + 8) !== drill || pointer(combat + 20) !== session || pointer(drill + 20) !== session || pointer(gun + 20) !== session) unavailable("changing");
+    const combat = object(wanted.get(6104),6104), gun = object(wanted.get(6632),6632);
+    const drill = drillAt ? object(drillAt,6259) : null, assist = assistAt ? object(assistAt,6218) : null;
+    const fsm = object(pointer(combat + 112),5810), fsmState = integer(i32(fsm + 8),0,64);
+    if (pointer(combat + 20) !== session || pointer(gun + 20) !== session) unavailable("changing");
+    if (drill && (pointer(drill + 24) !== fsm || pointer(assist + 8) !== drill || pointer(drill + 20) !== session)) unavailable("changing");
     const hud = object(pointer(screen + 324),5357), binding = bindings(pointer(hud + 80));
     const keyboard = object(pointer(statics(3250708,10299)),10299), keys = array(pointer(keyboard + 304),4,256,10591);
     function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4)); }
@@ -331,7 +337,7 @@
     }
     if (!bool(run + 24)) unavailable("mode");
     const inv = object(pointer(gun + 16),12099);
-    if (pointer(drill + 16) !== inv) unavailable("changing");
+    if (drill && pointer(drill + 16) !== inv) unavailable("changing");
     const slots = array(pointer(inv + 16),8,64,9095);
     if (slots.count < 23) unavailable("cold");
     const needed = new Map();
@@ -358,14 +364,14 @@
     if ([...itemIds].some(id => !infos.has(id))) unavailable("cold");
     const itemAt = slot => needed.get(u64(slots.data + slot * 8)) || null;
     const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id).subtype === 54; });
-    const pet = itemAt(8), data = object(pointer(drill + 12),6228);
+    const pet = itemAt(8), data = drill && object(pointer(drill + 12),6228);
     const wornTool = itemAt(7);
     let usableTool = false, equippedParam = null;
     const drillParameters = p => {
       object(p,6225);
       return {id:u64(p+8),grade:i32(p+16),nature:i32(p+20),depth:i32(p+24),area:i32(p+28),speed:i32(p+32),mass:i32(p+36),life:i32(p+40)};
     };
-    if (wornTool && infos.get(wornTool.id).type === 6 && wornTool.count > 0) {
+    if (drill && wornTool && infos.get(wornTool.id).type === 6 && wornTool.count > 0) {
       const rows = dictionary(pointer(data+8),9024,6225,512);
       const matching = rows.filter(row => u64(row.key) === wornTool.id);
       if (matching.length !== 1) unavailable("cold");
@@ -375,7 +381,7 @@
       usableTool = equippedParam.depth>0 && equippedParam.area>0 && equippedParam.area<=200 && equippedParam.speed>0 && equippedParam.mass>0;
     }
     let automaticPet = false;
-    if (pet) automaticPet = dictionary(pointer(data + 32),9024,null,512,methodCell(3297464)).some(row => u64(row.key) === pet.id) && (u32(zoneInfo+40)&1)===0;
+    if (drill && pet) automaticPet = dictionary(pointer(data + 32),9024,null,512,methodCell(3297464)).some(row => u64(row.key) === pet.id) && (u32(zoneInfo+40)&1)===0;
     const skins = statics(0x31b760,2484);
     if (!bool(skins+4)) unavailable("cold");
     const skin = integer(i32(skins),0,1);
@@ -421,9 +427,10 @@
       if (integer(i32(row.key),1,65535) !== item.raw) unavailable("generic");
       if (pointerWorld && intersects(item,pointerWorld)) groundHover = true;
     }
-    // EditBox.Focused takes keys before the HUD; installing sends the next key to WaitForKey.
+    // EditBox.Focused takes keys before the HUD. While features install, a key or menu without a registered action
+    // waits in waitMenu/waitAction, then in due until Hud.Update replays it at a time the caller does not choose.
     const edit = statics(3246444,2375);
-    if (u32(edit + 24) !== 0 || i32(hud + 68) !== 0 || bool(hud + 132)) unavailable("routing");
+    if (u32(edit + 24) !== 0 || i32(hud + 68) !== 0 || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
     const covers = pointer(statics(3248924,5358));
     if (dictionary(covers,9203,8935,256).length) unavailable("routing");
     const eventSystems = list(pointer(statics(3246812,14184)),14184,4,8);
@@ -440,13 +447,16 @@
       fading.add(k);
     }
     for (const a of actors) a.fading = fading.has(a.raw);
-    const param = u32(drill + 96), tool = u32(drill + 92);
-    if (fsmState === 5 && (!param || !tool)) unavailable("cold");
-    const automatic = u32(drill+196);
-    if (tool && (!wornTool || object(tool,12073) !== wornTool.p)) unavailable("changing");
-    const activeParam = param ? drillParameters(param) : null;
-    if (fsmState === 5 && (!usableTool || !equippedParam || Object.keys(equippedParam).some(key => activeParam[key] !== equippedParam[key]))) unavailable("changing");
-    const dig = {fsm:fsmState,flags:u32(drill+60),stage:integer(i32(drill+100),0,7),held:bool(drill+152),inState:bool(drill+84),gauge:f32(drill+104),area:activeParam?.area ?? null,assist:integer(i32(assist+48),0,4),autoMode:bool(drill+192),autoFlag:bool(drill+200),automatic:automatic ? integer(i32(object(automatic,5782)+24),0,16)!==0 : false,crazy:bool(drill+154),manual,automaticPet,mapAllowed:![1,5,6].includes(i32(zoneInfo+24)) && i32(zoneInfo+44)!==14,toolUsable:usableTool};
+    let dig = null;
+    if (drill) {
+      const param = u32(drill + 96), tool = u32(drill + 92);
+      if (fsmState === 5 && (!param || !tool)) unavailable("cold");
+      const automatic = u32(drill+196);
+      if (tool && (!wornTool || object(tool,12073) !== wornTool.p)) unavailable("changing");
+      const activeParam = param ? drillParameters(param) : null;
+      if (fsmState === 5 && (!usableTool || !equippedParam || Object.keys(equippedParam).some(key => activeParam[key] !== equippedParam[key]))) unavailable("changing");
+      dig = {fsm:fsmState,flags:u32(drill+60),stage:integer(i32(drill+100),0,7),held:bool(drill+152),inState:bool(drill+84),gauge:f32(drill+104),area:activeParam?.area ?? null,assist:integer(i32(assist+48),0,4),autoMode:bool(drill+192),autoFlag:bool(drill+200),automatic:automatic ? integer(i32(object(automatic,5782)+24),0,16)!==0 : false,crazy:bool(drill+154),manual,automaticPet,mapAllowed:![1,5,6].includes(i32(zoneInfo+24)) && i32(zoneInfo+44)!==14,toolUsable:usableTool};
+    }
     const zoneId = integer(i32(zoneInfo+8),1,65535);
     const equipment = [1,4,7,8,9,22].map(slot => u64(slots.data+slot*8).toString());
     const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,skin,semiAuto,equipment])];
