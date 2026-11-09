@@ -87,6 +87,7 @@ enum Adapter {
     },
     Closing {
         session: SessionKey,
+        started: std::time::Instant,
     },
     ClosingEmbedded {
         session: SessionKey,
@@ -102,7 +103,7 @@ impl Adapter {
             Self::Preparing { session, .. }
             | Self::Embedded { session, .. }
             | Self::Native { session, .. }
-            | Self::Closing { session }
+            | Self::Closing { session, .. }
             | Self::ClosingEmbedded { session, .. } => *session,
         }
     }
@@ -115,7 +116,20 @@ enum CloseStage {
         started: std::time::Instant,
     },
     Neutralizing,
+    /// The WebContent process is gone, so no socket or neutralization notice can arrive.
+    Abandoned,
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SavedPassword {
+    None,
+    /// This sign-in wrote the Keychain entry.
+    Written,
+    /// The server rejected the credentials this sign-in wrote.
+    Rejected,
+}
+
+const KEYCHAIN: &str = "org.opentrickster.desktop/game";
 
 enum Runtime {
     Live(Box<Controller>),
@@ -155,6 +169,8 @@ pub struct Desktop {
     quit_requested: bool,
     pub remember_password: bool,
     pub keychain_status: &'static str,
+    saved_password: SavedPassword,
+    pub client_failure: Option<&'static str>,
     cache: Option<std::path::PathBuf>,
     menu_fingerprint: Cell<Option<MenuState>>,
 }
@@ -212,6 +228,8 @@ impl Desktop {
             quit_requested: false,
             remember_password: false,
             keychain_status: "The password is used for this session only.",
+            saved_password: SavedPassword::None,
+            client_failure: None,
             menu_fingerprint: Cell::new(None),
             cache,
         };
@@ -404,6 +422,7 @@ impl Desktop {
         self.allowed(Control::Open) || self.allowed(Control::DismissHalt)
     }
     pub fn load_game(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.client_failure = None;
         if self.allowed(Control::DismissHalt) {
             self.command(Command::DismissHalt, window, cx);
         }
@@ -421,11 +440,17 @@ impl Desktop {
             return;
         }
         self.credential_revision.invalidate();
-        let id = self.account.read(cx).value().to_owned();
-        let password = self.password.update(cx, |input, cx| input.take(cx));
+        self.saved_password = SavedPassword::None;
+        let id = zeroize::Zeroizing::new(self.account.read(cx).value().to_owned());
+        let password =
+            zeroize::Zeroizing::new(self.password.update(cx, |input, cx| input.take(cx)));
+        let Ok(credentials) = NetCredentials::new((*id).clone(), (*password).clone()) else {
+            self.say("Enter a valid Game ID and password.");
+            return;
+        };
         if self.remember_password {
-            let task =
-                cx.write_credentials("org.opentrickster.desktop/game", &id, password.as_bytes());
+            let task = cx.write_credentials(KEYCHAIN, &id, password.as_bytes());
+            self.saved_password = SavedPassword::Written;
             cx.spawn(async move |app, cx| {
                 let saved = task.await.is_ok();
                 let _ = app.update(cx, |app, cx| {
@@ -439,13 +464,8 @@ impl Desktop {
             })
             .detach();
         }
-        match NetCredentials::new(id, password) {
-            Ok(credentials) => {
-                self.credentials = Some(credentials);
-                self.command(Command::Open, window, cx);
-            }
-            Err(_) => self.say("Enter a valid Game ID and password."),
-        }
+        self.credentials = Some(credentials);
+        self.command(Command::Open, window, cx);
     }
     pub fn load_saved_password(&mut self, cx: &mut Context<Self>) {
         if self.snapshot().mode != Mode::Clientless
@@ -456,7 +476,7 @@ impl Desktop {
         }
         self.credential_revision.invalidate();
         let request = self.credential_context(cx);
-        let task = cx.read_credentials("org.opentrickster.desktop/game");
+        let task = cx.read_credentials(KEYCHAIN);
         cx.spawn(async move |app, cx| {
             // Protect results even if the entity disappears before update runs.
             let result = task.await.map(|entry| {
@@ -503,13 +523,36 @@ impl Desktop {
         if macos_native::termination_requested() {
             self.request_quit();
         }
-        if matches!(&self.adapter,Some(Adapter::ClosingEmbedded{stage:CloseStage::Sockets{started,..},..}) if started.elapsed()>Duration::from_secs(5))
-        {
+        let stalled = match &self.adapter {
+            Some(Adapter::ClosingEmbedded {
+                stage: CloseStage::Sockets { started, .. },
+                ..
+            })
+            | Some(Adapter::Closing { started, .. }) => started.elapsed() > Duration::from_secs(5),
+            _ => false,
+        };
+        if stalled {
             self.say(if self.quit_requested {
                 "Waiting for the game connections to close. The app stays open until cleanup is confirmed."
             } else {
                 "Waiting for the game connections to close. The next mode remains locked."
             });
+        }
+        if self.saved_password == SavedPassword::Rejected {
+            self.saved_password = SavedPassword::None;
+            let task = cx.delete_credentials(KEYCHAIN);
+            cx.spawn(async move |app, cx| {
+                let removed = task.await.is_ok();
+                let _ = app.update(cx, |app, cx| {
+                    app.keychain_status = if removed {
+                        "The rejected password was removed from macOS Keychain."
+                    } else {
+                        "The rejected password could not be removed from macOS Keychain."
+                    };
+                    cx.notify();
+                });
+            })
+            .detach();
         }
         if let Some(controller) = self.controller_mut() {
             controller.wake();
@@ -604,12 +647,16 @@ impl Desktop {
                         );
                     }
                 }
-                HostEvent::ProcessFailed | HostEvent::Overflow => {
-                    if let Some(session) = self.adapter.as_ref().map(Adapter::session) {
-                        self.close_adapter(session);
-                        self.observe(session, Event::Failed(engine::Halt::ClientFailed));
-                    }
+                HostEvent::ProcessFailed => {
+                    self.client_failed(true, "The game's web content process ended.")
                 }
+                HostEvent::PlacementFailed => {
+                    self.client_failed(false, "The game view could not be placed in the window.")
+                }
+                HostEvent::Overflow => self.client_failed(
+                    false,
+                    "The game sent more page messages than the app could check.",
+                ),
                 HostEvent::Message(_) => {}
             }
         }

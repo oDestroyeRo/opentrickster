@@ -24,9 +24,15 @@ pub enum HostSource {
 }
 pub enum HostEvent {
     PageReady,
+    /// The WebContent process terminated; its page script and sockets are gone.
     ProcessFailed,
+    /// The live page could not be placed in the window.
+    PlacementFailed,
     Neutralized,
-    NetworkPage { origin: String, json: String },
+    NetworkPage {
+        origin: String,
+        json: String,
+    },
     Overflow,
     FullscreenRequested,
     PhysicalInput,

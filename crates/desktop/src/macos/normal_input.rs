@@ -56,7 +56,8 @@ pub(super) struct Executor<S> {
     session: u64,
     context: Context,
     action: Option<u64>,
-    seen: Vec<S>,
+    /// Net mints step keys once, in increasing order; only an immediate replay can repeat one.
+    last_step: Option<S>,
     owned: Vec<Owned<S>>,
     cancelled: bool,
     uncertain: bool,
@@ -68,7 +69,7 @@ impl<S: Copy + Eq> Executor<S> {
             session,
             context,
             action: None,
-            seen: Vec::new(),
+            last_step: None,
             owned: Vec::new(),
             cancelled: false,
             uncertain: false,
@@ -100,8 +101,7 @@ impl<S: Copy + Eq> Executor<S> {
             || plan.host != self.context.host
             || plan.layout != self.context.layout
             || now >= plan.not_after
-            || self.seen.contains(&plan.step)
-            || self.seen.len() >= 4096
+            || self.last_step == Some(plan.step)
             || plan.steps.is_empty()
             || plan
                 .steps
@@ -134,7 +134,7 @@ impl<S: Copy + Eq> Executor<S> {
                 return Err(());
             }
         }
-        self.seen.push(plan.step);
+        self.last_step = Some(plan.step);
         let mut dispatched = None;
         for input in plan.steps {
             if target.context() != self.context {
@@ -545,6 +545,32 @@ mod tests {
         target.context.host -= 1;
         assert_eq!(executor.cleanup(Instant::now(), &mut target).len(), 1);
     }
+    #[test]
+    fn fresh_step_keys_stay_admissible_past_4096_steps_but_a_replay_is_refused() {
+        let mut target = Fixture::default();
+        let mut executor = Executor::new(1, target.context);
+        let mut step = 0;
+        for action in 0..2500 {
+            executor.begin(action, target.context).unwrap();
+            for input in [NormalInput::LeftDown, NormalInput::LeftUp] {
+                step += 1;
+                let steps = [input];
+                let mut next = plan(step, &steps);
+                next.action = action;
+                executor.execute(next, At(0), &mut target).unwrap();
+            }
+            executor.finish().unwrap();
+        }
+        assert_eq!(target.events.len(), 5000);
+        executor.begin(2500, target.context).unwrap();
+        let mut replay = plan(step, &[NormalInput::LeftDown]);
+        replay.action = 2500;
+        assert!(executor.execute(replay, At(0), &mut target).is_err());
+        let mut fresh = plan(step + 1, &[NormalInput::LeftDown]);
+        fresh.action = 2500;
+        executor.execute(fresh, At(0), &mut target).unwrap();
+    }
+
     #[test]
     fn only_finished_cleanup_can_admit_a_new_action_after_cancellation() {
         let mut target = Fixture::default();

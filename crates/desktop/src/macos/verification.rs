@@ -217,7 +217,10 @@ impl Probe {
                 _ => {}
             }
         }
-        if matches!(event, HostEvent::ProcessFailed | HostEvent::Overflow) {
+        if matches!(
+            event,
+            HostEvent::ProcessFailed | HostEvent::PlacementFailed | HostEvent::Overflow
+        ) {
             self.fail("host-event");
         }
     }

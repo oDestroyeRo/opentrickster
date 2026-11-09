@@ -77,9 +77,10 @@ impl Desktop {
                         macos_native::badge(true);
                     }
                     let (title, body) = match &notice {
-                        engine::Notice::Paused(reason) => {
-                            ("Run paused", crate::macos::view::pause_label(reason))
-                        }
+                        engine::Notice::Paused(reason) => (
+                            "Run paused",
+                            crate::macos::view::pause_text(reason, &self.snapshot().blockers),
+                        ),
                         engine::Notice::ConnectionLost => {
                             ("Connection lost", "Check the session before resuming.")
                         }
@@ -104,12 +105,19 @@ impl Desktop {
         }
         match self.adapter.take() {
             Some(Adapter::Preparing { cancel, .. }) => {
+                // The worker closes anything it opened and then reports Closed.
                 cancel.store(true, Ordering::Release);
-                self.adapter = Some(Adapter::Preparing { session, cancel });
+                self.adapter = Some(Adapter::Closing {
+                    session,
+                    started: std::time::Instant::now(),
+                });
             }
             Some(Adapter::Native { native, .. }) => {
                 self.background.close(session, native);
-                self.adapter = Some(Adapter::Closing { session });
+                self.adapter = Some(Adapter::Closing {
+                    session,
+                    started: std::time::Instant::now(),
+                });
             }
             Some(Adapter::Embedded {
                 host,
@@ -133,6 +141,53 @@ impl Desktop {
         }
     }
 
+    /// Halts the session as a stopped client before closing it, so the halt outlives Closed.
+    /// A terminated WebContent process took its page script and sockets with it: no socket
+    /// or neutralization notice can arrive, so its page detaches once owned input is released.
+    pub(super) fn client_failed(&mut self, process_gone: bool, cause: &'static str) {
+        let Some(session) = self.adapter.as_ref().map(Adapter::session) else {
+            return;
+        };
+        self.client_failure = Some(cause);
+        self.observe(session, Event::Failed(engine::Halt::ClientFailed));
+        if !process_gone {
+            self.close_adapter(session);
+            return;
+        }
+        self.adapter = match self.adapter.take() {
+            Some(Adapter::Embedded {
+                session,
+                host,
+                observer,
+                mut input,
+            }) => {
+                input.close();
+                Some(Adapter::ClosingEmbedded {
+                    session,
+                    host,
+                    observer,
+                    input,
+                    stage: CloseStage::Abandoned,
+                })
+            }
+            Some(Adapter::ClosingEmbedded {
+                session,
+                host,
+                observer,
+                input,
+                ..
+            }) => Some(Adapter::ClosingEmbedded {
+                session,
+                host,
+                observer,
+                input,
+                stage: CloseStage::Abandoned,
+            }),
+            other => other,
+        };
+        self.advance_embedded_close();
+    }
+
     pub(in crate::macos) fn request_quit(&mut self) {
         if self.quit_requested {
             return;
@@ -152,6 +207,9 @@ impl Desktop {
         ) {
             self.credential_revision.invalidate();
             self.credentials.take();
+        }
+        if error == NetError::InvalidCredentials && self.saved_password == SavedPassword::Written {
+            self.saved_password = SavedPassword::Rejected;
         }
         let halt = if error == NetError::BuildChanged {
             engine::Halt::BuildChanged
@@ -191,7 +249,10 @@ impl Desktop {
                                 .as_ref()
                                 .is_some_and(|adapter| adapter.session() == session)
                             {
-                                self.adapter = Some(Adapter::Closing { session });
+                                self.adapter = Some(Adapter::Closing {
+                                    session,
+                                    started: std::time::Instant::now(),
+                                });
                             }
                         } else if self
                             .adapter
@@ -414,38 +475,31 @@ impl Desktop {
         }
     }
     pub(super) fn finish_embedded_close(&mut self) {
-        if !matches!(
-            self.adapter,
+        let neutralized = match &self.adapter {
             Some(Adapter::ClosingEmbedded {
                 stage: CloseStage::Neutralizing,
+                input,
                 ..
-            })
-        ) {
-            return;
-        }
+            }) if input.controls_released() => true,
+            Some(Adapter::ClosingEmbedded {
+                stage: CloseStage::Abandoned,
+                input,
+                ..
+            }) if input.controls_released() => false,
+            _ => return,
+        };
         let Some(Adapter::ClosingEmbedded {
             session,
             host,
             mut observer,
-            input,
             ..
         }) = self.adapter.take()
         else {
             return;
         };
-        if !input.controls_released() {
-            self.adapter = Some(Adapter::ClosingEmbedded {
-                session,
-                host,
-                observer,
-                input,
-                stage: CloseStage::Neutralizing,
-            });
-            return;
-        }
         let _ = observer.close();
         host.close();
-        if let Some(probe) = &mut self.probe {
+        if neutralized && let Some(probe) = &mut self.probe {
             probe.document_neutralized = true;
         }
         self.observe(session, Event::Closed);
@@ -453,19 +507,24 @@ impl Desktop {
 
     fn advance_embedded_close(&mut self) {
         let now = self.controller().map(|c| c.now()).unwrap_or(engine::At(0));
-        if let Some(Adapter::ClosingEmbedded {
-            host,
-            observer,
-            input,
-            stage: CloseStage::Releasing,
-            ..
-        }) = &mut self.adapter
-        {
-            let _ = input.pump(now, host, observer);
-            if !input.controls_released() {
-                return;
+        let abandoned = match &mut self.adapter {
+            Some(Adapter::ClosingEmbedded {
+                host,
+                observer,
+                input,
+                stage: stage @ (CloseStage::Releasing | CloseStage::Abandoned),
+                ..
+            }) => {
+                let _ = input.pump(now, host, observer);
+                if !input.controls_released() {
+                    return;
+                }
+                matches!(stage, CloseStage::Abandoned)
             }
-        } else {
+            _ => return,
+        };
+        if abandoned {
+            self.finish_embedded_close();
             return;
         }
         self.next_close += 1;
@@ -514,5 +573,55 @@ impl Desktop {
         }
         self.advance_embedded_close();
         self.drain(window, cx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use opentrickster_engine::{
+        self as engine, At, Command, Control, Effect, Engine, Event, Input, Mode, Observation,
+        Phase, RequestKey, SessionOp,
+    };
+
+    #[test]
+    fn a_client_failure_observed_before_closed_survives_the_close() {
+        let mut reducer = Engine::new(Mode::Assisted);
+        let session = reducer
+            .handle(Input::User {
+                at: At(0),
+                request: RequestKey(1),
+                command: Command::Open,
+            })
+            .io
+            .into_iter()
+            .find_map(|effect| match effect {
+                Effect::Open { session, .. } => Some(session),
+                _ => None,
+            })
+            .unwrap();
+        let observed = |event| Input::Observed {
+            at: At(1),
+            observation: Observation { session, event },
+        };
+        let failed = reducer.handle(observed(Event::Failed(engine::Halt::ClientFailed)));
+        assert!(failed.io.iter().any(|effect| matches!(
+            effect,
+            Effect::Session {
+                op: SessionOp::Close,
+                ..
+            }
+        )));
+        let closed = reducer.handle(observed(Event::Closed));
+        assert!(matches!(
+            closed.snapshot.phase,
+            Phase::Error(engine::Halt::ClientFailed)
+        ));
+        assert!(
+            closed
+                .snapshot
+                .allowed
+                .iter()
+                .any(|control| matches!(control, Control::DismissHalt))
+        );
     }
 }

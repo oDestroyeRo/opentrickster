@@ -106,7 +106,9 @@ pub fn pause_label(pause: &e::Pause) -> &'static str {
     match pause {
         e::Pause::User => "By you",
         e::Pause::ManualInput => "Manual gameplay input. Check the character before resuming.",
-        e::Pause::HpPotions => "Restock HP potions in the game before resuming.",
+        e::Pause::HpPotions => {
+            "HP potions ran out or could not be used. Check HP and potions in the game before resuming."
+        }
         e::Pause::Weight => "Free bag space in the game before resuming.",
         e::Pause::Drill => "Repair or replace the drill in the game.",
         e::Pause::Depth => "Equip a deeper drill or choose another area.",
@@ -115,6 +117,19 @@ pub fn pause_label(pause: &e::Pause) -> &'static str {
         e::Pause::NoDrops => "Check the loot list and map.",
         e::Pause::Uncertain => "Resume requires fresh state and verified idle gameplay.",
         e::Pause::Reconnected => "Check the character and live state before resuming.",
+    }
+}
+/// Live pause text. The engine keeps an unavailable potion action as a blocker on this pause.
+pub fn pause_text(pause: &e::Pause, blockers: &[e::Blocker]) -> &'static str {
+    let has = |blocker| blockers.contains(&blocker);
+    match pause {
+        e::Pause::HpPotions if has(e::Blocker::NeedsCapability(e::Capability::HpPotion)) => {
+            "HP reached the potion threshold, and this session cannot use HP potions. Recover HP in the game before resuming."
+        }
+        e::Pause::HpPotions if has(e::Blocker::NeedsHpPotions) => {
+            "Restock HP potions in the game before resuming."
+        }
+        _ => pause_label(pause),
     }
 }
 pub fn refusal_label(refusal: &e::Refusal) -> &'static str {
@@ -165,7 +180,7 @@ impl Desktop {
                                 super::host::enqueue(
                                     &inbox,
                                     epoch,
-                                    super::host::HostEvent::ProcessFailed,
+                                    super::host::HostEvent::PlacementFailed,
                                 );
                             }
                         },
@@ -214,9 +229,12 @@ impl Desktop {
                                 .text_size(px(12.))
                                 .line_height(px(18.))
                                 .text_color(rgb(0xa7adb5))
-                                .child(
-                                    "Sign in inside the game. The app does not read its password.",
-                                ),
+                                .child(match self.snapshot().phase {
+                                    Phase::Error(e::Halt::ClientFailed) => self
+                                        .client_failure
+                                        .unwrap_or("The game view closed. Reload it to continue."),
+                                    _ => "Sign in inside the game. The app does not read its password.",
+                                }),
                         )
                         .child(
                             button(
@@ -531,7 +549,7 @@ impl Desktop {
     }
     fn alert_view(&self, theme: Theme, cx: &mut Context<Self>) -> Option<Div> {
         let (title, body) = match self.snapshot().phase {
-            Phase::Paused(reason) => ("Run paused", pause_label(&reason)),
+            Phase::Paused(reason) => ("Run paused", pause_text(&reason, &self.snapshot().blockers)),
             Phase::Reconnecting(_) => (
                 "Connection lost",
                 "Reconnecting. A recovered run stays paused until you check the character.",
@@ -607,7 +625,7 @@ impl Desktop {
             return message;
         }
         if let Phase::Paused(pause) = &self.snapshot().phase {
-            return pause_label(pause);
+            return pause_text(pause, &self.snapshot().blockers);
         }
         let now = self.controller().map(|c| c.now().0).unwrap_or(0);
         if let Some(entry) = self.snapshot().log.last()
@@ -794,6 +812,9 @@ fn blocker_text(blocker: &e::Blocker) -> &'static str {
         }
         e::Blocker::NeedsCapability(e::Capability::DigCycle) => {
             "A complete digging cycle is not available for this session."
+        }
+        e::Blocker::NeedsCapability(e::Capability::HpPotion) => {
+            "This session cannot use HP potions. Recover HP above the configured limit in the game."
         }
         e::Blocker::NeedsCapability(_) => {
             "A required game action is not available for this session."

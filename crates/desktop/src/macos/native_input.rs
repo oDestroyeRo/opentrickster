@@ -43,11 +43,19 @@ impl NativeInput {
         let shortcut_keys = Cell::new(0u128);
         let handler = block2::RcBlock::new(move |event: NonNull<NSEvent>| {
             let at = Instant::now();
-            changed.set(changed.get().saturating_add(1));
             // SAFETY: AppKit lends this event for the duration of the monitor callback.
             let incoming = unsafe { event.as_ref() };
-            let shortcut = if matches!(incoming.r#type(), NSEventType::KeyDown | NSEventType::KeyUp)
-            {
+            let kind = match incoming.r#type() {
+                NSEventType::KeyDown | NSEventType::KeyUp => Physical::Key,
+                NSEventType::FlagsChanged => Physical::Modifier,
+                NSEventType::MouseMoved
+                | NSEventType::LeftMouseDragged
+                | NSEventType::RightMouseDragged
+                | NSEventType::OtherMouseDragged
+                | NSEventType::ScrollWheel => Physical::Pointer,
+                _ => Physical::Button,
+            };
+            let shortcut = if kind == Physical::Key {
                 let bit = 1u128
                     .checked_shl(u32::from(incoming.keyCode()))
                     .unwrap_or(0);
@@ -65,10 +73,7 @@ impl NativeInput {
             } else {
                 false
             };
-            let in_game = if matches!(
-                incoming.r#type(),
-                NSEventType::KeyDown | NSEventType::KeyUp | NSEventType::FlagsChanged
-            ) {
+            let in_game = if matches!(kind, Physical::Key | Physical::Modifier) {
                 monitored
                     .window()
                     .and_then(|window| window.firstResponder())
@@ -82,7 +87,11 @@ impl NativeInput {
                     && point.x < bounds.origin.x + bounds.size.width
                     && point.y < bounds.origin.y + bounds.size.height
             };
-            if in_game && !shortcut && incoming.r#type() != NSEventType::FlagsChanged {
+            let (fence, gameplay) = classify(kind, in_game, shortcut);
+            if fence {
+                changed.set(changed.get().saturating_add(1));
+            }
+            if gameplay {
                 manual(at);
             }
             event.as_ptr()
@@ -342,6 +351,23 @@ impl Drop for NativeInput {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Physical {
+    Key,
+    Modifier,
+    Button,
+    Pointer,
+}
+
+/// Returns whether a physical event bumps the input fence and whether it is manual gameplay.
+/// Keys, modifiers and buttons fence anywhere. Pointer motion and scrolling fence only over
+/// the game, so moving the pointer over the dashboard cannot cancel an action.
+fn classify(kind: Physical, in_game: bool, shortcut: bool) -> (bool, bool) {
+    let fence = in_game || kind != Physical::Pointer;
+    let gameplay = in_game && !shortcut && kind != Physical::Modifier;
+    (fence, gameplay)
+}
+
 fn key_code(key: InputKey) -> Option<u16> {
     key.dom_code()?;
     Some(match key {
@@ -358,4 +384,26 @@ fn key_code(key: InputKey) -> Option<u16> {
         InputKey::ArrowDown => 125,
         InputKey::ArrowUp => 126,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dashboard_pointer_motion_neither_fences_nor_reports_gameplay() {
+        assert_eq!(classify(Physical::Pointer, false, false), (false, false));
+        assert_eq!(classify(Physical::Pointer, true, false), (true, true));
+    }
+
+    #[test]
+    fn keys_modifiers_and_buttons_fence_anywhere_but_only_game_input_is_gameplay() {
+        for kind in [Physical::Key, Physical::Modifier, Physical::Button] {
+            assert_eq!(classify(kind, false, false), (true, false));
+        }
+        assert_eq!(classify(Physical::Key, true, false), (true, true));
+        assert_eq!(classify(Physical::Key, true, true), (true, false));
+        assert_eq!(classify(Physical::Modifier, true, false), (true, false));
+        assert_eq!(classify(Physical::Button, true, false), (true, true));
+    }
 }

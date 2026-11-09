@@ -22,10 +22,28 @@ use gpui::{
 };
 use std::borrow::Cow;
 
+const VERIFICATION_FAILED: &str = "Native embedding verification failed. See report.json.";
+
 pub fn run() -> Result<(), &'static str> {
     let verification = verification::Options::parse()?;
     let verification_result = verification.as_ref().map(|options| options.result.clone());
+    let exit_result = verification_result.clone();
     Application::new().run(move |cx: &mut App| {
+        // AppKit's terminate: exits with status 0, so `run` never returns. GPUI polls quit
+        // futures after every quit observer has run and its windows are gone; only then can
+        // the verification status replace that exit status on every quit path.
+        if let Some(result) = exit_result {
+            cx.on_app_quit(move |_| {
+                let result = result.clone();
+                async move {
+                    if result.get() != Some(true) {
+                        eprintln!("OpenTrickster: {VERIFICATION_FAILED}");
+                        std::process::exit(1);
+                    }
+                }
+            })
+            .detach();
+        }
         if let Err(message) = macos_native::install_termination_gate() {
             eprintln!("OpenTrickster: {message}");
             macos_native::allow_termination();
@@ -75,7 +93,7 @@ pub fn run() -> Result<(), &'static str> {
         cx.activate(true);
     });
     if verification_result.is_some_and(|result| result.get() != Some(true)) {
-        return Err("Native embedding verification failed. See report.json.");
+        return Err(VERIFICATION_FAILED);
     }
     Ok(())
 }

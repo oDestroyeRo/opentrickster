@@ -269,6 +269,12 @@ impl Desktop {
                     "The run pauses when HP potions run out. This is always on.",
                     theme,
                 ));
+            if self.snapshot().mode == Mode::Assisted {
+                form = form.child(label(
+                    "HP potion use is unavailable in client-assisted mode. The run pauses at this HP percent instead.",
+                    theme,
+                ));
+            }
         }
         form = form
             .child(heading("Limits"))
