@@ -11,6 +11,8 @@ python3 scripts/package_macos.py
 open dist/OpenTrickster.app
 ```
 
+To use the app, follow the [operator guide](operator-guide.md).
+
 The script uses the desktop executable reported by Cargo, includes the application
 and bundled-font licenses, checks for unbundled dynamic libraries, and verifies
 an ad-hoc code signature. It records the source revision, dirty status, build
@@ -63,7 +65,9 @@ dist/OpenTrickster.app/Contents/MacOS/opentrickster --verify-application
 These checks exercise the host and application. Live login, bounded combat and
 completed digging in each mode remain separate acceptance requirements in
 [MVP behavior and acceptance](mvp.md). Keep credentials and private gameplay
-captures out of verification output, Git and issue comments.
+captures out of verification output, Git and issue comments. The
+[MVP acceptance checklist](acceptance.md) lists every automated and live check,
+its expected result and its current status.
 
 The application bundle follows Apple's
 [macOS bundle structure](https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html).
