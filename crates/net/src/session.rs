@@ -513,6 +513,7 @@ impl Actor {
             let p = self.receive(g, deadline).await?;
             startup.push_through(p, g.complete_through(self.order))?;
         }
+        g.send(5, &[], &mut self.order).await?;
         let mut decoder = startup.decoder;
         self.publish_descriptors(&mut decoder)?;
         *self.readiness.lock().map_err(|_| NetError::Io)? = decoder.readiness;
@@ -1096,7 +1097,23 @@ mod tests {
                         }
                         ws.send(Message::Binary(response.into())).await.unwrap();
                     }
-                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    let deadline = tokio::time::Instant::now() + Duration::from_secs(1);
+                    let bytes = loop {
+                        let message = tokio::time::timeout_at(deadline, ws.next())
+                            .await
+                            .expect("native must announce world entry after startup")
+                            .unwrap()
+                            .unwrap();
+                        match message {
+                            Message::Binary(bytes) => break bytes,
+                            Message::Text(text) if text == "p" || text.starts_with("a ") => {}
+                            _ => panic!("expected world-entry frame"),
+                        }
+                    };
+                    let packets = incoming.push(&bytes, &mut order).unwrap();
+                    assert_eq!(packets.len(), 1);
+                    assert_eq!(packets[0].opcode, 5);
+                    assert!(packets[0].payload.is_empty());
                     cancel.send_replace(true);
                     assert!(matches!(ws.next().await, Some(Ok(Message::Close(_)))));
                 });
