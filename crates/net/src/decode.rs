@@ -540,6 +540,10 @@ impl Decoder {
                 floor: mark,
             });
         }
+        // An echo answers only the request it followed. The assisted path arms no walk.
+        if let Some(Walk::Echoed { target, .. }) = &mut self.walk {
+            *target = None;
+        }
         self.pending = Some(PendingAction {
             action,
             mark,
@@ -2540,6 +2544,24 @@ mod tests {
             .unwrap();
         assert!(!d.walk_settled());
         assert!(arrivals(&mut d, facts).is_empty());
+        // An expired move's echo never answers the next request to the same target, whether
+        // its walk ends or a stop lands on its destination.
+        for stop in [false, true] {
+            let mut d = walker();
+            d.expect_action(e::Action::MoveTo(target), 10, false)
+                .unwrap();
+            let mut facts = d
+                .apply(&own_move(11, Some((100, 200)), (136, 200)))
+                .unwrap();
+            d.expire_action();
+            d.expect_action(e::Action::MoveTo(target), 20, false)
+                .unwrap();
+            if stop {
+                facts.extend(d.apply(&own_move(21, None, (136, 200))).unwrap());
+            }
+            assert!(arrivals(&mut d, facts).is_empty());
+            assert!(d.action_pending());
+        }
         // A stop on the accepted destination ends the walk there at once.
         let mut d = walker();
         start(&mut d);
