@@ -7,14 +7,17 @@ publication. They do not certify the production adapters or the complete MVP.
 The current implementation profile targets build
 `ea1a68bd89958fae94179f1e0835ffb5`. The reports below were written for
 `8502ebbf2fc9033d2fba50d02fd92002`; the [build `ea1a68bd` migration](build-ea1a68bd-migration.md)
-records which of their joins were re-proved and which pins moved. Validate asset
-fingerprints before using the recovered contracts. Older builds and prototype
+records which of their joins were re-proved and which pins moved. The
+[sampler migration](build-ea1a68bd-sampler-migration.md) does the same for the
+client-assisted sampler pins. Validate asset fingerprints before using the
+recovered contracts. Older builds and prototype
 labels are not interchangeable.
 
 | Contract | Report | Original commit | Evidence and limit |
 | --- | --- | --- | --- |
 | Framing, opcode maps, authentication/bootstrap compatibility | [Current-build revalidation](current-build-protocol-revalidation.md) | `df5fe0a5` | Pinned static joins and synthetic checks; no live acceptance in this report. |
 | Migration to build `ea1a68bd` | [Build ea1a68bd migration](build-ea1a68bd-migration.md) | This change | Rerunnable static re-derivation of every Net pin and normalized body comparison; no live acceptance. |
+| Client-assisted sampler on build `ea1a68bd` | [Sampler migration](build-ea1a68bd-sampler-migration.md) | This change | Rerunnable static re-derivation of every sampler pin and an uninstantiated Trial A probe; synthetic checks only. Records five pre-existing sampler read defects. |
 | Own/entity state, effects, inventory and action-result layouts | [State completion](target-state-completion.md) | `cb587e23` | Current and prior build joins; receipt, result and inventory mutation remain distinct. |
 | Native inventory startup and carried weight | [Inventory baseline](native-inventory-baseline.md) | `ce0cf202` | Exact replay/cache/weight oracle and comparison procedure; the candidate native cutoff remains unaccepted until a passive Unity comparison and serialized native boot pass. |
 | Clientless authentication and initial state | [Native startup](native-startup-current-build.md) | `5de55dbf` | One standalone script reached the existing character without Unity. This is not production Rust adapter or gameplay proof. |
