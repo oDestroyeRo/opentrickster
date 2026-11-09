@@ -36,6 +36,9 @@ pub(crate) struct GameDefinitions {
     pub(crate) normal_form_effects: Vec<i32>,
     /// `gulim13.fnt2`: 999 levels x 12 stats x 3 columns of player stat bases.
     pub(crate) player_levels: Vec<f64>,
+    /// `SetItemParam` as `AvatarStats.SetBonuses` keys it: set ID to the 12 stat bonus
+    /// columns. None when the definitions came from JSON, which does not carry the table.
+    pub(crate) set_bonuses: Option<BTreeMap<i64, [i16; 12]>>,
 }
 #[derive(Clone, Copy, Deserialize)]
 pub(crate) struct DrillMeta {
@@ -93,6 +96,9 @@ pub(crate) struct ItemInfo {
     pub(crate) life: i32,
     #[serde(rename = "FType")]
     pub(crate) ftype: i32,
+    /// `ItemInfo.StatPlus`: the catalog stat bonuses, or None when the row has no list.
+    #[serde(rename = "StatPlus")]
+    pub(crate) stat_plus: Option<Vec<f64>>,
 }
 #[derive(Deserialize)]
 struct RawDrill {
@@ -183,6 +189,10 @@ impl GameDefinitions {
                 || !item.hp_rate.is_finite()
                 || !item.mp_rate.is_finite()
                 || !item.delay.is_finite()
+                || item
+                    .stat_plus
+                    .as_ref()
+                    .is_some_and(|stats| stats.iter().any(|v| !v.is_finite()))
             {
                 return Err(NetError::Malformed);
             }
@@ -217,6 +227,7 @@ impl GameDefinitions {
             zone_labels: d.zone_labels,
             normal_form_effects: d.normal_form_effects,
             player_levels: d.level_tables.player,
+            set_bonuses: None,
         })
     }
 }

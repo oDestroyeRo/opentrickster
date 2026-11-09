@@ -1,5 +1,10 @@
 use crate::{
-    NetError, Result, codec::Packet, definitions::GameDefinitions, resources, wire::Reader,
+    NetError, Result,
+    codec::Packet,
+    definitions::GameDefinitions,
+    parts::{self, Cached},
+    resources,
+    wire::Reader,
 };
 use opentrickster_engine::{self as e, Fact};
 use std::{
@@ -161,6 +166,7 @@ pub(crate) struct Decoder {
     combat: crate::combat::Correlator,
     correlated: Vec<DeferredFacts>,
     status: resources::Status,
+    parts: parts::Parts,
     current_hp: Option<(u32, std::time::Instant)>,
     current_mp: Option<(u32, std::time::Instant)>,
     gun: crate::gun::Gun,
@@ -230,6 +236,7 @@ impl Decoder {
             combat: Default::default(),
             correlated: Vec::new(),
             status: Default::default(),
+            parts: Default::default(),
             current_hp: None,
             current_mp: None,
             gun: Default::default(),
@@ -389,11 +396,38 @@ impl Decoder {
     }
     /// Maximum HP (9), MP (3) or weight (6): `CharacterStatus.Total`, or unknown.
     fn maximum(&self, stat: usize) -> Option<NonZeroU32> {
-        let player = self
-            .definitions
-            .as_deref()
-            .map(|d| d.player_levels.as_slice());
-        self.status.maximum(stat, player)
+        let data = self.definitions.as_deref();
+        let game_parts = data.and_then(|data| {
+            let row = |uid| {
+                self.items.get(&uid).map(|item: &Item| parts::Row {
+                    id: item.id,
+                    wire_kind: item.wire_kind,
+                    options: item.options.as_deref().unwrap_or(&[]),
+                })
+            };
+            self.parts.value(stat, row, data)
+        });
+        let player = data.map(|d| d.player_levels.as_slice());
+        self.status.maximum(stat, player, game_parts)
+    }
+    /// The page bridge forwards only `page::INCOMING`, so frames `GameParts` depends on
+    /// never reach this decoder.
+    pub(crate) fn lose_game_parts(&mut self) {
+        self.parts.lose();
+        self.note_maxima();
+    }
+    fn note_maxima(&mut self) {
+        self.readiness.hp_maximum_known = self.maximum(9).is_some();
+        self.readiness.mp_maximum_known = self.maximum(3).is_some();
+        self.readiness.weight_maximum_known = self.maximum(6).is_some();
+    }
+    /// Whether a row would replace Net's cached one with the same ID, wire kind and options.
+    fn same_row(&self, item: &ItemBody) -> bool {
+        self.items.get(&item.uid).is_some_and(|old| {
+            old.id == item.id
+                && old.wire_kind == item.kind
+                && old.options.as_deref().unwrap_or(&[]) == item.options.as_deref().unwrap_or(&[])
+        })
     }
     pub(crate) fn set_definitions(
         &mut self,
@@ -591,20 +625,30 @@ impl Decoder {
     pub(crate) fn apply(&mut self, p: &Packet) -> Result<Vec<Fact>> {
         let old_maxima = [self.maximum(9), self.maximum(3)];
         let old_weight_maximum = self.maximum(6);
+        let live = !self.status.in_start_set(p.mark);
         self.status.observe(p)?;
         let b = &p.payload;
         let mut r = Reader::new(b);
         let mut out = Vec::new();
         let mut stray = false;
+        let data = self.definitions.clone();
+        let lookup = |items: &BTreeMap<u64, Item>, uid| cached(items, data.as_deref(), uid);
+        if live {
+            self.parts.finish_start(|uid| lookup(&self.items, uid));
+        }
+        self.parts
+            .frame(p.opcode, b, live, |uid| lookup(&self.items, uid));
         match p.opcode {
             230 => {
                 r.u32()?;
-                self.own = Some(r.u16()?);
+                let own = r.u16()?;
                 let point = e::Point {
                     x: r.u16()? as i32,
                     y: r.u16()? as i32,
                 };
                 r.end()?;
+                self.own = Some(own);
+                self.parts.clock(own, live);
                 self.point = Some(point);
                 self.clock_seen = true;
                 if let Some(map) = self.map {
@@ -628,6 +672,10 @@ impl Decoder {
                 for slot in &mut self.slots {
                     let uid = r.u64()?;
                     *slot = if uid >= 2 { uid } else { 0 };
+                }
+                if !live {
+                    self.parts
+                        .start_slots(&self.slots, |uid| lookup(&self.items, uid));
                 }
                 self.missing_slots.clear();
                 self.missing_slot_refs = [0; 23];
@@ -909,6 +957,11 @@ impl Decoder {
                 r.end()?;
                 let mut observed = Vec::new();
                 for item in list {
+                    if matches!(item.kind, 1 | 2) {
+                        let same = self.same_row(&item);
+                        self.parts
+                            .list_row(item.uid, same, live, |uid| lookup(&self.items, uid));
+                    }
                     let mut facts = Vec::new();
                     self.put(item, &mut facts)?;
                     for fact in facts {
@@ -943,6 +996,11 @@ impl Decoder {
                     r.end()?;
                 }
                 for (op, item) in changes {
+                    let same = self.same_row(&item);
+                    self.parts
+                        .delta(p.opcode, op, item.kind, item.uid, same, live, |uid| {
+                            lookup(&self.items, uid)
+                        });
                     // 68 updates an existing row; naming an uncached UID diverges from the client.
                     stray |= p.opcode == 68
                         && matches!(item.kind, 1 | 2)
@@ -957,17 +1015,25 @@ impl Decoder {
                 if slot > 22 {
                     return Err(NetError::Malformed);
                 }
+                if live {
+                    self.parts
+                        .equip(82, uid, slot, |uid| lookup(&self.items, uid));
+                }
                 if self.items.contains_key(&uid) {
                     self.slots[slot] = uid;
                     self.missing_slot_refs[slot] = 0;
                 }
             }
             85 => {
-                r.u64()?;
+                let uid = r.u64()?;
                 let slot = r.u8()? as usize;
                 r.end()?;
                 if slot > 22 {
                     return Err(NetError::Malformed);
+                }
+                if live {
+                    self.parts
+                        .equip(85, uid, slot, |uid| lookup(&self.items, uid));
                 }
                 self.slots[slot] = 0;
                 self.missing_slot_refs[slot] = 0;
@@ -1040,12 +1106,14 @@ impl Decoder {
             }
             437 => {
                 self.physical_uncertain = true;
-                self.own = Some(r.u16()?);
+                let own = r.u16()?;
                 let point = e::Point {
                     x: r.u16()? as i32,
                     y: r.u16()? as i32,
                 };
                 r.end()?;
+                self.own = Some(own);
+                self.parts.enter_zone(own, live);
                 self.point = Some(point);
                 self.map = None;
                 self.zone = None;
@@ -1110,6 +1178,9 @@ impl Decoder {
             _ => {}
         }
         self.gun_observe(p);
+        if self.status.closes_start_set(p.mark) {
+            self.parts.finish_start(|uid| lookup(&self.items, uid));
+        }
         let correlated = self.combat.observe(p, self.own)?;
         let completed = !correlated.is_empty();
         for result in correlated {
@@ -1169,9 +1240,7 @@ impl Decoder {
             out.push(self.drill_fact());
         }
         self.readiness.own_baseline_seen = self.baseline();
-        self.readiness.hp_maximum_known = self.maximum(9).is_some();
-        self.readiness.mp_maximum_known = self.maximum(3).is_some();
-        self.readiness.weight_maximum_known = self.maximum(6).is_some();
+        self.note_maxima();
         self.readiness.missing_gun = self.gun_prerequisite();
         self.readiness.missing_hp_potion = self.potion_prerequisite();
         self.track_carried(p, stray, old_weight_maximum, &mut out)?;
@@ -1665,6 +1734,17 @@ fn gun_skills(learned: &BTreeSet<u16>) -> (bool, bool) {
         learned.contains(&crate::gun::HIT_SKILL),
     )
 }
+/// What `Parts` reads from the cache: whether a row is held, and whether it is ammunition
+/// `GunFlowing` consumes locally (catalog Type 29 without `FlagsEx` bit 64).
+fn cached(items: &BTreeMap<u64, Item>, data: Option<&GameDefinitions>, uid: u64) -> Cached {
+    let Some(item) = items.get(&uid) else {
+        return Cached::Absent;
+    };
+    match data.and_then(|data| data.items.get(&item.id)) {
+        Some(info) if info.kind != 29 || info.flags_ex & 64 != 0 => Cached::Held,
+        _ => Cached::Ammo,
+    }
+}
 /// Why a cached stack is not yet a proven usable HP potion, or None when it is no candidate.
 fn potion_reason(
     data: &GameDefinitions,
@@ -2007,28 +2087,44 @@ mod tests {
         assert_eq!(d.items[&42].options.as_deref(), Some(rows.as_slice()));
     }
     #[test]
-    fn complete_status_inputs_without_game_parts_leave_maxima_unknown() {
-        let mut definitions = crate::test_support::definitions(&[]);
-        std::sync::Arc::get_mut(&mut definitions)
-            .unwrap()
-            .player_levels = vec![1000.0; crate::resources::PLAYER_LEVELS];
+    fn derived_maxima_add_game_parts_to_the_packet_fed_core() {
+        let mut definitions =
+            crate::test_support::definitions(&[(7, crate::test_support::Def::Plain { weight: 1 })]);
+        let data = std::sync::Arc::get_mut(&mut definitions).unwrap();
+        data.player_levels = vec![1000.0; crate::resources::PLAYER_LEVELS];
+        let bonuses = data.items.get_mut(&7).unwrap().stat_plus.as_mut().unwrap();
+        for (stat, value) in [(9, 50.0), (3, 20.0), (6, 7.0)] {
+            bonuses[stat] = value;
+        }
         let mut d = Decoder::new();
         d.set_definitions(Some(definitions));
-        d.startup_cutoff(1);
-        d.apply(&packet(233, vec![0; 251])).unwrap();
-        let known = |d: &Decoder| {
-            let r = &d.readiness;
-            [
-                r.hp_maximum_known,
-                r.mp_maximum_known,
-                r.weight_maximum_known,
-            ]
+        let at = |opcode, mark, b| {
+            let mut p = packet(opcode, b);
+            p.mark = mark;
+            p
         };
-        assert_eq!(known(&d), [false; 3]);
-        let mut total = packet(282, vec![1, 9, 100, 0, 0, 0]);
-        total.mark = 2;
-        d.apply(&total).unwrap();
-        assert_eq!(known(&d), [true, false, false]);
+        let maxima = |d: &Decoder| [9, 3, 6].map(|stat| d.maximum(stat).map(|m| m.get()));
+        let mut list = vec![1, 0];
+        list.extend(item(1, 42, 1));
+        d.apply(&at(231, 1, list)).unwrap();
+        assert_eq!(maxima(&d), [None; 3]);
+        // The 233 at H wears row 42 in slot 0; its points select level-table row 0.
+        let mut stats = vec![0; 251];
+        stats[..8].copy_from_slice(&42u64.to_le_bytes());
+        d.startup_cutoff(2);
+        d.apply(&at(233, 2, stats)).unwrap();
+        assert_eq!(maxima(&d), [Some(1050), Some(1020), Some(1007)]);
+        let r = &d.readiness;
+        assert!(r.hp_maximum_known && r.mp_maximum_known && r.weight_maximum_known);
+        // A live unequip whose leading UID is held rebuilds the snapshot.
+        let mut unequip = 42u64.to_le_bytes().to_vec();
+        unequip.push(0);
+        d.apply(&at(85, 3, unequip)).unwrap();
+        assert_eq!(maxima(&d), [Some(1000); 3]);
+        // A received S282 total still wins.
+        d.apply(&at(282, 4, vec![1, 9, 100, 0, 0, 0])).unwrap();
+        d.lose_game_parts();
+        assert_eq!(maxima(&d), [Some(100), None, None]);
     }
     #[test]
     fn resource_composites_keep_old_current_time_and_never_guess_a_reduction() {

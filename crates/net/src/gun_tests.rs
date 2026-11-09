@@ -53,6 +53,7 @@ pub(crate) fn definitions() -> Arc<GameDefinitions> {
         exist_type: 0,
         life: 0,
         ftype: 0,
+        stat_plus: Some(vec![0.0; 12]),
     };
     let rows = [
         (GUN, info(2, 54, 0)),
@@ -74,6 +75,7 @@ pub(crate) fn definitions() -> Arc<GameDefinitions> {
         zone_labels: BTreeMap::new(),
         normal_form_effects: Vec::new(),
         player_levels: Vec::new(),
+        set_bonuses: Some(BTreeMap::new()),
     })
 }
 

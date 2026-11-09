@@ -136,11 +136,11 @@ def text_assets(blob, name):
     return found
 
 
-# Tables the native catalog reads: the IIDX read set and the six decoded XML tables. An overlay
+# Tables the native catalog reads: the IIDX read set and the seven decoded XML tables. An overlay
 # that defines any of them would be merged by the client, so Net's catalog would be incomplete.
 RELEVANT_TABLES = frozenset((
     "ItemParamCM2", "ItemParamEx2", "ItemParamEx", "ItemParam2", "Item_DrillParam",
-    "Item_GunParam2", "MapInfoEx", "MapAttr", "CharacterInfo", "MonsterParamEx2"))
+    "Item_GunParam2", "MapInfoEx", "MapAttr", "CharacterInfo", "MonsterParamEx2", "SetItemParam"))
 TABLE = re.compile(rb"<TABLE\b([^>]*)>")
 NAME = re.compile(rb"""\bname\s*=\s*(?:"([^"]*)"|'([^']*)')""")
 

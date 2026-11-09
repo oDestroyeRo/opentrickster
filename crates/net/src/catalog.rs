@@ -163,6 +163,25 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
             .entry(id)
             .or_insert(row.get("Name").ok_or(NetError::Malformed)?.clone());
     }
+    // `AvatarStatsUi` loads `SetItemParam`. `AvatarStats.SetBonuses` keys each row by its
+    // parsed ID, keeps the first row per key and keeps the low 16 bits of each bonus.
+    let mut set_bonuses = BTreeMap::new();
+    for row in table(
+        &public[2],
+        &entries,
+        key,
+        "SetItemParam",
+        247,
+        "2ef5e986e0865015a1618c8bad923a694a14eb711a58cd851c12d15c9d56e022",
+    )? {
+        let mut bonuses = [0; 12];
+        for (bonus, column) in bonuses.iter_mut().zip(SET_COLUMNS) {
+            *bonus = long(row.get(column).ok_or(NetError::Malformed)?) as i16;
+        }
+        set_bonuses
+            .entry(long(row.get("ID").ok_or(NetError::Malformed)?))
+            .or_insert(bonuses);
+    }
     // The immutable Unity data pin binds the relevant-overlay absence proof (#27,
     // re-proved for this build by tools/build-migrate). Any new Unity/public asset
     // fingerprint is refused before this resolver runs.
@@ -183,7 +202,11 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
             player_levels = values;
         }
     }
-    if items.len() != 18118 || drills.len() != 191 || gun_params.len() != 611 || zones.len() != 696
+    if items.len() != 18118
+        || drills.len() != 191
+        || gun_params.len() != 611
+        || zones.len() != 696
+        || set_bonuses.len() != 247
     {
         return Err(NetError::BuildChanged);
     }
@@ -212,7 +235,28 @@ pub(crate) fn load(cache: &Path, metadata: &[u8]) -> Result<Option<GameDefinitio
             .map(|b| i32::from_le_bytes(*b))
             .collect(),
         player_levels,
+        set_bonuses: Some(set_bonuses),
     }))
+}
+
+/// `AvatarStats.SetColumns`: the set bonus column for each stat index.
+const SET_COLUMNS: [&str; 12] = [
+    "APPlus",
+    "ACPlus",
+    "DXPlus",
+    "MaxMPPlus",
+    "MAPlus",
+    "MDPlus",
+    "MaxWTPlus",
+    "DAPlus",
+    "LKPlus",
+    "MaxHPPlus",
+    "DPPlus",
+    "HVPlus",
+];
+/// `AvatarStats.Long`: the trimmed text as an invariant integer-style I64, else 0.
+fn long(text: &str) -> i64 {
+    text.trim().parse().unwrap_or(0)
 }
 
 struct IndexEntry {
@@ -560,9 +604,10 @@ fn items(b: &[u8]) -> Result<(BTreeMap<u32, ItemInfo>, BTreeMap<u32, String>)> {
         if !(-1..1000).contains(&stats) {
             return Err(NetError::Malformed);
         }
-        for _ in 0..stats.max(0) {
-            r.number()?;
-        }
+        // A negative length is the client's null `StatPlus`.
+        let stat_plus = (stats >= 0)
+            .then(|| (0..stats).map(|_| r.number()).collect::<Result<Vec<_>>>())
+            .transpose()?;
         if items
             .insert(
                 id,
@@ -583,6 +628,7 @@ fn items(b: &[u8]) -> Result<(BTreeMap<u32, ItemInfo>, BTreeMap<u32, String>)> {
                     exist_type,
                     life,
                     ftype,
+                    stat_plus,
                 },
             )
             .is_some()
@@ -740,6 +786,17 @@ mod tests {
         assert!(cell(&BTreeMap::from([("x".into(), "NaN".into())]), "x").is_err());
     }
     #[test]
+    fn set_bonus_text_parses_as_the_client_long() {
+        assert_eq!(long(" 12 "), 12);
+        assert_eq!(long("+7"), 7);
+        assert_eq!(long("-3"), -3);
+        for text in ["", "1.5", "1e3", "0x10", "9223372036854775808", "+", "1 2"] {
+            assert_eq!(long(text), 0, "{text:?}");
+        }
+        assert_eq!(long("65537") as i16, 1);
+        assert_eq!(long("40000") as i16, -25536);
+    }
+    #[test]
     #[ignore = "requires caller-provided pinned public caches; no network, account or target execution"]
     fn verified_public_catalog() {
         let path = std::env::var_os("OPENTRICKSTER_PUBLIC_CACHE").expect("public cache");
@@ -755,5 +812,14 @@ mod tests {
         assert_eq!(data.items[&2001].hp, 200);
         assert!(!data.items.contains_key(&19907));
         assert_eq!(data.player_levels.len(), crate::resources::PLAYER_LEVELS);
+        assert!(
+            data.items
+                .values()
+                .all(|i| i.stat_plus.as_ref().is_some_and(|s| s.len() == 12))
+        );
+        let sets = data.set_bonuses.as_ref().unwrap();
+        assert_eq!(sets.len(), 247);
+        let nonzero = |stat: usize| sets.values().filter(|b| b[stat] != 0).count();
+        assert_eq!([nonzero(9), nonzero(3), nonzero(6)], [138, 87, 16]);
     }
 }
