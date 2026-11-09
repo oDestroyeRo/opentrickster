@@ -206,6 +206,8 @@ pub enum Event {
         facts: Vec<Fact>,
         resumed: bool,
     },
+    /// The client finished or tore down its deferred dig feature after Baseline. Online sessions only.
+    DigCycle(bool),
     Facts {
         revision: EvidenceKey,
         ingress: IngressMark,

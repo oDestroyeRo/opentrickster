@@ -377,6 +377,11 @@ impl Desktop {
                     support.quiesce = false;
                 }
             }
+            if matches!(self.adapter, Some(Adapter::ClosingEmbedded { .. }))
+                && let Event::DigCycle(available) = &mut observation.event
+            {
+                *available = false;
+            }
             if matches!(
                 observation.event,
                 Event::Failed(engine::Halt::SessionReplaced)

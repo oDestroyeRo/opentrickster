@@ -762,6 +762,22 @@ fn unsupported_action_capabilities_do_not_emit_actions() {
 }
 
 #[test]
+fn dig_cycle_follows_a_client_dig_feature_that_arrives_after_baseline() {
+    let mut capabilities = support();
+    capabilities.dig_cycle = false;
+    let mut h = Harness::with(true, capabilities, baseline(), None);
+    let missing = Blocker::NeedsCapability(Capability::DigCycle);
+    assert!(h.engine.snapshot().blockers.contains(&missing));
+    let arrived = h.event(Event::DigCycle(true));
+    assert!(!arrived.snapshot.blockers.contains(&missing));
+    let start = h.command(Command::Start);
+    assert_eq!(acts(&start)[0].action, Action::DigAt(center()));
+    let gone = h.event(Event::DigCycle(false));
+    assert!(gone.snapshot.blockers.contains(&missing));
+    assert_eq!(gone.snapshot.blocked, Some(Refusal::Unsupported));
+}
+
+#[test]
 fn request_replays_and_backwards_time_do_not_duplicate_effects_or_elapsed() {
     let mut h = Harness::new(false);
     let id = h.start_attack();

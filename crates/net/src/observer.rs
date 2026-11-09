@@ -47,6 +47,8 @@ pub struct GameObserver {
     input_flow: Option<crate::input_flow::Flow>,
     input_step: u64,
     barrier: Option<(e::BarrierKey, u64, u64)>,
+    /// The dig capability last reported since an assisted Baseline.
+    dig_cycle: Option<bool>,
     ordered: crate::ordered::OrderedIngress,
     definitions: Option<std::sync::Arc<crate::definitions::GameDefinitions>>,
     session: e::SessionKey,
@@ -79,6 +81,7 @@ impl GameObserver {
             input_flow: None,
             input_step: 0,
             barrier: None,
+            dig_cycle: None,
             ordered: Default::default(),
             definitions: profile.definitions,
             session,
@@ -504,6 +507,13 @@ impl GameObserver {
                         == Some((s.motion.own, s.zone))
             });
             let available = self.sample.is_some();
+            if let Some((dig, captured)) =
+                self.sample.as_ref().map(|s| (s.dig.is_some(), s.captured))
+                && self.dig_cycle.is_some_and(|reported| reported != dig)
+            {
+                self.dig_cycle = Some(dig);
+                self.emit_at(Event::DigCycle(dig), captured)?;
+            }
             self.maybe_quiescent()?;
             return Ok(Some(crate::PageNotice::Sample { request, available }));
         }
@@ -609,6 +619,7 @@ impl GameObserver {
             self.active = None;
             self.startup = None;
             self.decoder = None;
+            self.dig_cycle = None;
             self.aux = Default::default();
             self.ordered = Default::default();
             self.ordered = Default::default();
@@ -718,8 +729,10 @@ impl GameObserver {
                 if self.page.is_some() {
                     support.move_to = true;
                     support.basic_attack = true;
-                    support.dig_cycle = true;
+                    // The client installs its dig feature after world entry. A later sample reports it.
+                    support.dig_cycle = false;
                     support.quiesce = true;
+                    self.dig_cycle = Some(false);
                 }
                 let mut facts = startup.facts;
                 if startup.settled > 0 {
@@ -999,6 +1012,7 @@ impl GameObserver {
         self.active = None;
         self.startup = None;
         self.decoder = None;
+        self.dig_cycle = None;
         self.armed = None;
         self.aux = Default::default();
         self.ordered = Default::default();
@@ -1033,6 +1047,7 @@ impl GameObserver {
         self.active = None;
         self.startup = None;
         self.decoder = None;
+        self.dig_cycle = None;
         self.armed = None;
         self.fault = Some(error);
         self.closed = true;
@@ -1249,5 +1264,114 @@ mod tests {
                 ..
             }
         ));
+    }
+    #[test]
+    fn assisted_dig_cycle_waits_for_a_sample_that_reads_the_client_dig_feature() {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        use serde_json::json;
+        use zeroize::Zeroizing;
+        let profile = VerifiedProfile {
+            first_host: "127.0.0.1".into(),
+            first_port: 1234,
+            marker: Zeroizing::new("fixture".into()),
+            client_version: Zeroizing::new(vec![0; 4]),
+            definitions: None,
+        };
+        let mut engine = e::Engine::new(e::Mode::Assisted);
+        let opened = engine.handle(e::Input::User {
+            at: e::At(0),
+            request: e::RequestKey(1),
+            command: e::Command::Open,
+        });
+        let session = opened
+            .io
+            .iter()
+            .find_map(|effect| match effect {
+                e::Effect::Open { session, .. } => Some(*session),
+                _ => None,
+            })
+            .unwrap();
+        let mut observer = GameObserver::new(session, profile);
+        observer
+            .bind_page(crate::PageBinding::new(7, "a".repeat(32)).unwrap())
+            .unwrap();
+        let sample = crate::test_support::sample_value();
+        let own = sample["snapshot"]["motion"]["own"].as_u64().unwrap() as u16;
+        let zone = sample["snapshot"]["zone"].as_u64().unwrap() as u16;
+        let mut sequence = 0;
+        let mut ingest = |observer: &mut GameObserver, kind: &str, fields: serde_json::Value| {
+            sequence += 1;
+            let mut value = json!({"channel":"opentrickster.net.v1","epoch":"7","guard":"a".repeat(32),"sequence":sequence,"rawIngress":fields["ingress"].as_u64().unwrap_or(0),"kind":kind});
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            observer
+                .ingest_page(ORIGIN, &value.to_string(), std::time::Instant::now())
+                .unwrap();
+        };
+        ingest(&mut observer, "socket", json!({"connection":1}));
+        let login = crate::codec::OpcodeMap::current(b"c2s")
+            .encode(4, 0, &[0; 14])
+            .unwrap();
+        ingest(
+            &mut observer,
+            "game-login",
+            json!({"connection":1,"ingress":1,"header":login[..6]}),
+        );
+        ingest(&mut observer, "frontier", json!({"ingress":1,"ageMs":0}));
+        let incoming = crate::codec::OpcodeMap::current(b"s2c");
+        let mut profile = vec![0; 69];
+        profile[17] = b'S';
+        let mut clock = vec![0; 10];
+        clock[4..6].copy_from_slice(&own.to_le_bytes());
+        let mut stats = vec![0; 251];
+        stats[219..221].copy_from_slice(&zone.to_le_bytes());
+        for (i, (opcode, payload)) in [(5, vec![]), (679, profile), (230, clock), (233, stats)]
+            .into_iter()
+            .enumerate()
+        {
+            let bytes = incoming.encode(opcode, 0, &payload).unwrap();
+            ingest(
+                &mut observer,
+                "frame",
+                json!({"connection":1,"direction":"inbound","ingress":i+2,"ageMs":0,"data":STANDARD.encode(bytes)}),
+            );
+        }
+        ingest(&mut observer, "frontier", json!({"ingress":5,"ageMs":0}));
+        let mut drained = Vec::new();
+        while let Some((_, observation)) = observer.try_next_at(e::At(10000)).unwrap() {
+            drained.push(observation.event);
+        }
+        assert!(matches!(
+            drained.as_slice(),
+            [Event::Baseline { support, .. }] if support.quiesce && !support.dig_cycle
+        ));
+        let mut request = 9;
+        let mut dig_events = |observer: &mut GameObserver, snapshot: serde_json::Value| {
+            request += 1;
+            observer.sample_script(request, 11).unwrap();
+            let mut fields = sample.clone();
+            fields["request"] = json!(format!("{request:x}"));
+            fields["snapshot"] = snapshot;
+            ingest(observer, "sample", fields);
+            let mut reported = Vec::new();
+            while let Some((_, observation)) = observer.try_next_at(e::At(10000)).unwrap() {
+                if let Event::DigCycle(available) = observation.event {
+                    reported.push(available);
+                }
+            }
+            reported
+        };
+        let present = sample["snapshot"].clone();
+        let mut absent = present.clone();
+        absent["dig"] = serde_json::Value::Null;
+        let cold = json!({"version":1,"status":"unavailable","reason":"cold"});
+        let none: [bool; 0] = [];
+        assert_eq!(dig_events(&mut observer, absent.clone()), none);
+        assert_eq!(dig_events(&mut observer, present.clone()), [true]);
+        assert_eq!(dig_events(&mut observer, present), none);
+        assert_eq!(dig_events(&mut observer, cold), none);
+        assert_eq!(dig_events(&mut observer, absent), [false]);
     }
 }

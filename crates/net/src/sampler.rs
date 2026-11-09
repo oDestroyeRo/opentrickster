@@ -24,7 +24,8 @@ pub(crate) struct Snapshot {
     pub(crate) input: InputState,
     pub(crate) motion: Motion,
     pub(crate) combat: Combat,
-    pub(crate) dig: DigState,
+    /// None until the client's deferred drill install provides DrillFeature and DigAssist.
+    pub(crate) dig: Option<DigState>,
     pub(crate) binding: Binding,
     actors: Vec<Actor>,
     portals: Vec<[f64; 4]>,
@@ -180,7 +181,8 @@ struct Payload {
     input: InputState,
     motion: Motion,
     combat: Combat,
-    dig: DigState,
+    #[serde(deserialize_with = "present")]
+    dig: Option<DigState>,
     binding: Binding,
     actors: Vec<Actor>,
     portals: Vec<[f64; 4]>,
@@ -311,16 +313,18 @@ pub(crate) fn parse_snapshot(value: &Value, captured: Instant) -> Result<Snapsho
         || p.zone == 0
         || p.motion.own == 0
         || p.motion.fsm > 64
-        || p.dig.fsm != p.motion.fsm
-        || p.dig.stage > 7
-        || p.dig.assist > 4
-        || p.dig.flags > 255
+        || p.dig.as_ref().is_some_and(|d| {
+            d.fsm != p.motion.fsm
+                || d.stage > 7
+                || d.assist > 4
+                || d.flags > 255
+                || !bounded(d.gauge, 0.0, 200.0)
+                || d.area.is_some_and(|a| !(0..=200).contains(&a))
+        })
         || p.motion.path > 1024
         || p.motion.route > 1024
         || p.combat.gun_state > 5
         || !matches!(p.input.mode, 1 | 2)
-        || !bounded(p.dig.gauge, 0.0, 200.0)
-        || p.dig.area.is_some_and(|a| !(0..=200).contains(&a))
         || p.binding.dig == p.binding.run
         || p.combat.target == Some(0)
         || p.pointer.picked == Some(0)
@@ -437,15 +441,15 @@ fn combat_idle(s: &Snapshot) -> bool {
         && s.combat.gun_state != 5
 }
 
-fn manual(s: &Snapshot) -> bool {
-    s.dig.manual
-        && s.dig.map_allowed
-        && !s.dig.automatic_pet
-        && s.dig.assist == 0
-        && !s.dig.auto_mode
-        && !s.dig.auto_flag
-        && !s.dig.automatic
-        && !s.dig.crazy
+fn manual(d: &DigState) -> bool {
+    d.manual
+        && d.map_allowed
+        && !d.automatic_pet
+        && d.assist == 0
+        && !d.auto_mode
+        && !d.auto_flag
+        && !d.automatic
+        && !d.crazy
 }
 
 pub(crate) fn idle(s: &Snapshot) -> bool {
@@ -458,15 +462,17 @@ pub(crate) fn idle(s: &Snapshot) -> bool {
         && !s.input.dig_held
         && !s.input.run_held
         && !s.input.modifiers.iter().any(|m| *m)
-        && !s.dig.in_state
-        && s.dig.fsm != 5
-        && s.dig.flags & 0x0c == 0
-        && !s.dig.held
-        && s.dig.assist == 0
-        && !s.dig.auto_mode
-        && !s.dig.auto_flag
-        && !s.dig.automatic
-        && !s.dig.crazy
+        && s.dig.as_ref().is_none_or(|d| {
+            !d.in_state
+                && d.fsm != 5
+                && d.flags & 0x0c == 0
+                && !d.held
+                && d.assist == 0
+                && !d.auto_mode
+                && !d.auto_flag
+                && !d.automatic
+                && !d.crazy
+        })
 }
 
 fn project(s: &Snapshot, p: [f64; 2]) -> Result<[f64; 2]> {
@@ -577,21 +583,24 @@ pub(crate) fn plan(
             world_press(s, p, Some(id))
         }
         Action::DigAt(p) => {
-            if !manual(s)
-                || s.dig.tool_usable != Some(true)
+            let Some(dig) = &s.dig else {
+                return Err(NetError::Refused);
+            };
+            if !manual(dig)
+                || dig.tool_usable != Some(true)
                 || !motion_idle(s)
                 || !combat_idle(s)
-                || !matches!(s.dig.fsm, 0 | 1)
-                || s.dig.in_state
-                || s.dig.held
-                || s.dig.flags & 0x08 != 0
+                || !matches!(dig.fsm, 0 | 1)
+                || dig.in_state
+                || dig.held
+                || dig.flags & 0x08 != 0
             {
                 return Err(NetError::Refused);
             }
             let p = [f64::from(p.x), f64::from(p.y)];
             ground_clear(s, p)?;
             project(s, p)?;
-            if s.dig.flags & 4 == 0 {
+            if dig.flags & 4 == 0 {
                 if !idle(s) {
                     return Err(NetError::Busy);
                 }
@@ -626,12 +635,15 @@ pub(crate) enum DigPhase {
 /// The controller latches Charging until stage 5, acknowledges release, then uses Tracking.
 /// A decision never acknowledges delivery. Compare a new capture with the dispatch Instant.
 pub(crate) fn dig_button(s: &Snapshot, phase: DigPhase) -> Result<Option<bool>> {
+    let Some(dig) = &s.dig else {
+        return Err(NetError::Refused);
+    };
     if !fresh(s)
-        || !manual(s)
-        || s.dig.tool_usable != Some(true)
+        || !manual(dig)
+        || dig.tool_usable != Some(true)
         || s.input.modifiers.iter().any(|m| *m)
-        || s.dig.fsm != 5
-        || !s.dig.in_state
+        || dig.fsm != 5
+        || !dig.in_state
         || s.motion.path != 0
         || s.motion.route != 0
         || s.motion.steering
@@ -640,14 +652,14 @@ pub(crate) fn dig_button(s: &Snapshot, phase: DigPhase) -> Result<Option<bool>> 
     {
         return Err(NetError::Refused);
     }
-    let area = s.dig.area.ok_or(NetError::Unsupported)?;
-    match s.dig.stage {
+    let area = dig.area.ok_or(NetError::Unsupported)?;
+    match dig.stage {
         1 => Ok(None),
         7 => Ok(Some(false)),
         2..=4 if phase == DigPhase::Charging => Ok(Some(true)),
         5 if phase == DigPhase::Charging => Ok(Some(false)),
         2..=6 if phase == DigPhase::Tracking => {
-            let gauge = ((s.dig.gauge as f32 * 100.0_f32) / 200.0_f32) as f64;
+            let gauge = ((dig.gauge as f32 * 100.0_f32) / 200.0_f32) as f64;
             let marker = (((200 - area) as f64 * 100.0) / 200.0) as f32;
             Ok(Some(gauge <= f64::from(marker) + 10.0))
         }
@@ -660,9 +672,10 @@ pub(crate) fn press_sampled(s: &Snapshot, step: &NormalInput) -> Result<bool> {
     if !fresh(s) {
         return Err(NetError::Timeout);
     }
+    let dig = s.dig.as_ref();
     Ok(match *step {
         NormalInput::PointerMove { .. } => return Err(NetError::Unsupported),
-        NormalInput::LeftDown if s.dig.fsm == 5 => s.dig.held,
+        NormalInput::LeftDown if dig.is_some_and(|d| d.fsm == 5) => dig.is_some_and(|d| d.held),
         NormalInput::LeftDown => {
             s.input.left
                 && (s.motion.screen_held
@@ -672,7 +685,9 @@ pub(crate) fn press_sampled(s: &Snapshot, step: &NormalInput) -> Result<bool> {
                     || s.combat.own_attack
                     || s.combat.gun_state == 5)
         }
-        NormalInput::LeftUp => !s.input.left && !s.motion.screen_held && !s.dig.held,
+        NormalInput::LeftUp => {
+            !s.input.left && !s.motion.screen_held && !dig.is_some_and(|d| d.held)
+        }
         NormalInput::RightDown => s.input.right,
         NormalInput::RightUp => !s.input.right,
         NormalInput::KeyDown(k) if k == s.binding.dig() => s.input.dig_held,
@@ -707,6 +722,12 @@ mod tests {
                 serde_json::from_slice(&out.stdout).expect("private synthetic snapshot")
             })
             .clone()
+    }
+
+    fn dig(s: &mut Snapshot) -> &mut DigState {
+        s.dig
+            .as_mut()
+            .expect("the invented heap provides the drill feature")
     }
 
     fn snapshot() -> Snapshot {
@@ -915,6 +936,12 @@ mod tests {
         v["snapshot"]["dig"]["gauge"] = json!(-1);
         assert!(parse_snapshot(&v, Instant::now()).is_err());
         let mut v = value();
+        v["snapshot"].as_object_mut().unwrap().remove("dig");
+        assert!(
+            parse_snapshot(&v, Instant::now()).is_err(),
+            "an absent drill feature must be an explicit null"
+        );
+        let mut v = value();
         v["snapshot"]["surprise"] = json!(false);
         assert!(parse_snapshot(&v, Instant::now()).is_err());
         let mut v = value();
@@ -1034,7 +1061,7 @@ mod tests {
                 .steps,
             vec![NormalInput::KeyDown(InputKey::Character('F'))]
         );
-        s.dig.flags = 4;
+        dig(&mut s).flags = 4;
         s.pointer.world = Some([600.0, 400.0]);
         s.pointer.picked = None;
         assert_eq!(
@@ -1043,38 +1070,38 @@ mod tests {
                 .steps,
             vec![NormalInput::LeftDown]
         );
-        s.dig.manual = false;
+        dig(&mut s).manual = false;
         assert!(candidate(&s, action, None).is_err());
-        s.dig.manual = true;
-        s.dig.fsm = 5;
+        dig(&mut s).manual = true;
+        dig(&mut s).fsm = 5;
         s.motion.fsm = 5;
-        s.dig.in_state = true;
-        s.dig.area = Some(70);
+        dig(&mut s).in_state = true;
+        dig(&mut s).area = Some(70);
         for stage in [2, 3, 4] {
-            s.dig.stage = stage;
+            dig(&mut s).stage = stage;
             assert_eq!(dig_button(&s, DigPhase::Charging).unwrap(), Some(true));
         }
-        s.dig.stage = 5;
+        dig(&mut s).stage = 5;
         assert_eq!(dig_button(&s, DigPhase::Charging).unwrap(), Some(false));
-        s.dig.gauge = 150.0;
+        dig(&mut s).gauge = 150.0;
         assert_eq!(dig_button(&s, DigPhase::Tracking).unwrap(), Some(true));
-        s.dig.gauge = 150.01;
+        dig(&mut s).gauge = 150.01;
         assert_eq!(dig_button(&s, DigPhase::Tracking).unwrap(), Some(false));
         assert!(!press_sampled(&s, &NormalInput::LeftDown).unwrap());
-        s.dig.held = true;
+        dig(&mut s).held = true;
         assert!(press_sampled(&s, &NormalInput::LeftDown).unwrap());
         assert!(!press_sampled(&s, &NormalInput::LeftUp).unwrap());
-        s.dig.held = false;
+        dig(&mut s).held = false;
         assert!(press_sampled(&s, &NormalInput::LeftUp).unwrap());
-        s.dig.stage = 7;
+        dig(&mut s).stage = 7;
         assert_eq!(dig_button(&s, DigPhase::Tracking).unwrap(), Some(false));
         assert!(!idle(&s));
-        s.dig.fsm = 0;
+        dig(&mut s).fsm = 0;
         s.motion.fsm = 0;
-        s.dig.in_state = false;
+        dig(&mut s).in_state = false;
         assert!(dig_button(&s, DigPhase::Tracking).is_err());
         assert!(!idle(&s), "EndLocal can re-arm targeting");
-        s.dig.flags = 0;
+        dig(&mut s).flags = 0;
         assert!(idle(&s), "stage 7 can remain after real FSM exit");
         s.input.right = true;
         assert!(press_sampled(&s, &NormalInput::RightDown).unwrap());
@@ -1104,12 +1131,12 @@ mod tests {
         assert!(!idle(&s));
         s.combat.gun_state = 2;
         assert!(idle(&s));
-        s.dig.assist = 2;
+        dig(&mut s).assist = 2;
         assert!(!idle(&s));
-        s.dig.assist = 0;
-        s.dig.held = true;
+        dig(&mut s).assist = 0;
+        dig(&mut s).held = true;
         assert!(!idle(&s));
-        s.dig.held = false;
+        dig(&mut s).held = false;
         s.input.modifiers[0] = true;
         assert!(candidate(&s, Action::BasicAttack(e::EntityKey(1)), Some(73)).is_err());
         s.input.modifiers[0] = false;
@@ -1130,5 +1157,34 @@ mod tests {
             plan(&s, At(10), fences(), session, &t, Some(73)),
             Err(NetError::Timeout)
         ));
+    }
+
+    #[test]
+    fn absent_drill_feature_is_no_dig_work_and_never_plans_a_dig() {
+        let mut v = value();
+        v["snapshot"]["dig"] = Value::Null;
+        let mut s = parse_snapshot(&v, Instant::now())
+            .unwrap_or_else(|_| panic!("sample before the deferred drill install"));
+        assert!(s.dig.is_none());
+        assert!(idle(&s));
+        let action = Action::DigAt(e::Point { x: 600, y: 400 });
+        assert!(matches!(
+            candidate(&s, action, None),
+            Err(NetError::Refused)
+        ));
+        assert!(matches!(
+            dig_button(&s, DigPhase::Charging),
+            Err(NetError::Refused)
+        ));
+        s.input.left = true;
+        s.motion.screen_held = true;
+        assert!(press_sampled(&s, &NormalInput::LeftDown).unwrap());
+        s.input.left = false;
+        s.motion.screen_held = false;
+        assert!(press_sampled(&s, &NormalInput::LeftUp).unwrap());
+        s.motion.fsm = 5;
+        assert!(!idle(&s), "the shared avatar state still gates idle");
+        v["snapshot"]["motion"]["fsm"] = json!(5);
+        assert!(parse_snapshot(&v, Instant::now()).is_ok());
     }
 }

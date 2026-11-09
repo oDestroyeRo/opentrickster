@@ -660,6 +660,13 @@ impl Engine {
                     self.quiesce(io);
                 }
             }
+            Event::DigCycle(available) => {
+                if matches!(self.connection, Connection::Online(_))
+                    && let Some(support) = &mut self.support
+                {
+                    support.dig_cycle = available;
+                }
+            }
             Event::Facts {
                 revision,
                 ingress,
