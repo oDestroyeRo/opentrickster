@@ -678,6 +678,10 @@ impl Decoder {
             }
             6 | 15 | 16 | 21 => {
                 let id = r.u16()?;
+                // Live ea1a68bd removals on 15 carry one trailing byte; the client reads the ID.
+                if p.opcode == 15 && r.remaining() == 1 {
+                    r.u8()?;
+                }
                 r.end()?;
                 if let Some(old) = self.actors.remove(&id)
                     && old.kind == 3
@@ -1339,7 +1343,13 @@ fn appearance(b: &[u8]) -> Result<Appearance> {
         2 => {
             r.take(6)?;
         }
-        3 => target = Some(r.u16()?),
+        3 => {
+            target = Some(r.u16()?);
+            // Live ea1a68bd monsters carry one trailing byte; the client stops after Target.
+            if r.remaining() == 1 {
+                r.u8()?;
+            }
+        }
         4 | 16 => {
             r.u16()?;
             if kind == 16 && r.remaining() > 0 {
@@ -1685,6 +1695,33 @@ mod tests {
         assert!(!d.baseline());
         d.apply(&packet(230, vec![0; 10])).unwrap();
         assert!(d.baseline());
+    }
+    #[test]
+    fn live_monster_and_removal_tails_allow_exactly_one_trailing_byte() {
+        let mut monster = vec![0; 38];
+        monster[22] = b'S';
+        monster[0..2].copy_from_slice(&321u16.to_le_bytes());
+        monster[2..4].copy_from_slice(&3u16.to_le_bytes());
+        monster[36..38].copy_from_slice(&77u16.to_le_bytes());
+        let mut d = Decoder::new();
+        let mut tail = monster.clone();
+        tail.push(0);
+        d.apply(&packet(8, tail.clone())).unwrap();
+        assert_eq!(d.actors[&321].target, Some(77));
+        tail.push(0);
+        assert!(d.apply(&packet(8, tail)).is_err());
+        let mut owned = monster;
+        owned[2..4].copy_from_slice(&4u16.to_le_bytes());
+        owned.push(0);
+        assert!(d.apply(&packet(8, owned)).is_err());
+        let mut removal = 321u16.to_le_bytes().to_vec();
+        removal.push(1);
+        assert!(d.apply(&packet(6, removal.clone())).is_err());
+        let facts = d.apply(&packet(15, removal.clone())).unwrap();
+        assert!(matches!(facts.as_slice(), [Fact::EntityGone(_)]));
+        assert!(!d.actors.contains_key(&321));
+        removal.push(1);
+        assert!(d.apply(&packet(15, removal)).is_err());
     }
     #[test]
     fn raw_incarnations_are_not_reused_and_faint_is_not_kill() {

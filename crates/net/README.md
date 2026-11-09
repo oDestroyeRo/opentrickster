@@ -128,7 +128,9 @@ receipt means owned emergency release plus uncertainty/drain, never replay.
 
 The decoder handles own profile/zone/resources, full typed entity appearance
 and effects, moves, HP, faint/despawn, inventories/equipment, ground items and
-dig feedback. Actor incarnations fence raw-ID reuse. Wire Kind, Count, state,
+dig feedback. Parsers are exact, with two exceptions seen in live ea1a68bd
+traffic: a type-3 appearance and a removal on 15 may each carry one unread
+trailing byte. Actor incarnations fence raw-ID reuse. Wire Kind, Count, state,
 full option triplets and 23 raw slot UIDs remain private. Stack pieces use Count
 only for wire Kind 1. Catalog Type/SubType remain separate.
 
