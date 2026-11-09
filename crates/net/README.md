@@ -192,11 +192,12 @@ Unattributed HP falls, captions and faint alone cannot award outcomes.
 | Native gun controller | Serializer and source-backed profile/key/skill/ammo prerequisites exist. Tick/CRC/effect-lifetime controller integration remains unfinished. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
-| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. The maxima remain unknown without S282 (#47). |
+| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. The maxima remain unknown without S282: Net models every packet-fed `CharacterStatus.Total` term, but `GameParts` is not provable from packets. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |
 | Runtime acceptance | One production Rust startup and joined cleanup passed. Gameplay, inventory readiness, and Desktop integration remain open. See the [runtime report](../../docs/research/native-rust-startup.md). |
 
 These gaps remain visible in support/readiness and cannot be called a completed
-MVP. S282 totals become unknown on source-backed recompute events. Potion
+MVP. S282 totals become unknown on source-backed recompute events. HP, MP and
+weight maxima are otherwise unknown, because their `GameParts` term is unproven. Potion
 restoration arithmetic, gun defaults and full-inventory claims are not invented.
 
 The catalog and input contracts use the immutable

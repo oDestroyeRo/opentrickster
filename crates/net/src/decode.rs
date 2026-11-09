@@ -1,4 +1,6 @@
-use crate::{NetError, Result, codec::Packet, definitions::GameDefinitions, wire::Reader};
+use crate::{
+    NetError, Result, codec::Packet, definitions::GameDefinitions, resources, wire::Reader,
+};
 use opentrickster_engine::{self as e, Fact};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -152,7 +154,7 @@ pub(crate) struct Decoder {
     pending: Option<PendingAction>,
     combat: crate::combat::Correlator,
     correlated: Vec<DeferredFacts>,
-    totals: crate::resources::Totals,
+    status: resources::Status,
     current_hp: Option<(u32, std::time::Instant)>,
     current_mp: Option<(u32, std::time::Instant)>,
     gun_key: Option<u16>,
@@ -203,7 +205,7 @@ impl Decoder {
             pending: None,
             combat: Default::default(),
             correlated: Vec::new(),
-            totals: Default::default(),
+            status: Default::default(),
             current_hp: None,
             current_mp: None,
             gun_key: None,
@@ -239,6 +241,7 @@ impl Decoder {
     /// Records H once the four startup receipts are known. Packets are numbered in raw
     /// order, so every packet decoded before this call precedes H.
     pub(crate) fn startup_cutoff(&mut self, cutoff: u64) {
+        self.status.startup(cutoff);
         if let Carried::Startup { cutoff: None } = self.carried {
             self.carried = Carried::Startup {
                 cutoff: Some(cutoff),
@@ -311,7 +314,7 @@ impl Decoder {
         if matches!(self.carried, Carried::Complete { .. })
             && (INVENTORY_DELTAS.contains(&p.opcode)
                 || p.opcode == 233
-                || old_maximum != self.totals.maximum(6))
+                || old_maximum != self.maximum(6))
         {
             let Some(carry) = self.carry() else {
                 return self.lose_carried();
@@ -347,9 +350,17 @@ impl Decoder {
         Some(Carry {
             weight,
             // As for resource composites, an exceeded maximum is reported as unknown.
-            maximum: self.totals.maximum(6).filter(|max| weight <= max.get()),
+            maximum: self.maximum(6).filter(|max| weight <= max.get()),
             potions,
         })
+    }
+    /// Maximum HP (9), MP (3) or weight (6): `CharacterStatus.Total`, or unknown.
+    fn maximum(&self, stat: usize) -> Option<NonZeroU32> {
+        let player = self
+            .definitions
+            .as_deref()
+            .map(|d| d.player_levels.as_slice());
+        self.status.maximum(stat, player)
     }
     pub(crate) fn set_definitions(
         &mut self,
@@ -543,9 +554,9 @@ impl Decoder {
         })))
     }
     pub(crate) fn apply(&mut self, p: &Packet) -> Result<Vec<Fact>> {
-        let old_maxima = [self.totals.maximum(9), self.totals.maximum(3)];
-        let old_weight_maximum = self.totals.maximum(6);
-        self.totals.observe(p)?;
+        let old_maxima = [self.maximum(9), self.maximum(3)];
+        let old_weight_maximum = self.maximum(6);
+        self.status.observe(p)?;
         let b = &p.payload;
         let mut r = Reader::new(b);
         let mut out = Vec::new();
@@ -743,9 +754,9 @@ impl Decoder {
                     self.current_mp = Some((value, p.received));
                 }
                 out.push(if p.opcode == 36 {
-                    Fact::Hp(self.totals.gauge(value, 9))
+                    Fact::Hp(resources::gauge(value, self.maximum(9)))
                 } else {
-                    Fact::Mp(self.totals.gauge(value, 3))
+                    Fact::Mp(resources::gauge(value, self.maximum(3)))
                 });
             }
             32 => {
@@ -802,7 +813,7 @@ impl Decoder {
                 r.end()?;
                 if Some(id) == self.own {
                     self.current_hp = Some((0, p.received));
-                    out.push(Fact::Hp(self.totals.gauge(0, 9)));
+                    out.push(Fact::Hp(resources::gauge(0, self.maximum(9))));
                 }
                 if let Some(a) = self.actors.get_mut(&id) {
                     a.alive = false;
@@ -1064,7 +1075,7 @@ impl Decoder {
             self.pending = None;
             self.combat.clear();
         }
-        if p.opcode != 233 && old_maxima != [self.totals.maximum(9), self.totals.maximum(3)] {
+        if p.opcode != 233 && old_maxima != [self.maximum(9), self.maximum(3)] {
             let mut facts = Vec::new();
             let mut original = None;
             for (value, stat, hp) in [(self.current_hp, 9, true), (self.current_mp, 3, false)] {
@@ -1072,7 +1083,7 @@ impl Decoder {
                     original = Some(
                         original.map_or(received, |old: std::time::Instant| old.min(received)),
                     );
-                    let gauge = self.totals.composite(current, stat);
+                    let gauge = resources::composite(current, self.maximum(stat));
                     facts.push(if hp { Fact::Hp(gauge) } else { Fact::Mp(gauge) });
                 }
             }
@@ -1093,9 +1104,9 @@ impl Decoder {
             out.push(self.drill_fact());
         }
         self.readiness.own_baseline_seen = self.baseline();
-        self.readiness.hp_maximum_known = self.totals.maximum(9).is_some();
-        self.readiness.mp_maximum_known = self.totals.maximum(3).is_some();
-        self.readiness.weight_maximum_known = self.totals.maximum(6).is_some();
+        self.readiness.hp_maximum_known = self.maximum(9).is_some();
+        self.readiness.mp_maximum_known = self.maximum(3).is_some();
+        self.readiness.weight_maximum_known = self.maximum(6).is_some();
         self.readiness.missing_gun = self.gun_prerequisite();
         self.readiness.missing_hp_potion = self.potion_prerequisite();
         self.track_carried(p, stray, old_weight_maximum, &mut out)?;
@@ -1572,6 +1583,30 @@ mod tests {
         assert_eq!(d.items[&42].count, 300);
         assert_eq!(d.items[&42].state, [1, 2, 3, 4]);
         assert_eq!(d.items[&42].options.as_deref(), Some(rows.as_slice()));
+    }
+    #[test]
+    fn complete_status_inputs_without_game_parts_leave_maxima_unknown() {
+        let mut definitions = crate::test_support::definitions(&[]);
+        std::sync::Arc::get_mut(&mut definitions)
+            .unwrap()
+            .player_levels = vec![1000.0; crate::resources::PLAYER_LEVELS];
+        let mut d = Decoder::new();
+        d.set_definitions(Some(definitions));
+        d.startup_cutoff(1);
+        d.apply(&packet(233, vec![0; 251])).unwrap();
+        let known = |d: &Decoder| {
+            let r = &d.readiness;
+            [
+                r.hp_maximum_known,
+                r.mp_maximum_known,
+                r.weight_maximum_known,
+            ]
+        };
+        assert_eq!(known(&d), [false; 3]);
+        let mut total = packet(282, vec![1, 9, 100, 0, 0, 0]);
+        total.mark = 2;
+        d.apply(&total).unwrap();
+        assert_eq!(known(&d), [true, false, false]);
     }
     #[test]
     fn resource_composites_keep_old_current_time_and_never_guess_a_reduction() {
