@@ -17,8 +17,11 @@ stay outside Git. Static definitions never become received character state.
 `NativeSession::open` starts one private Tokio runtime thread. It registers
 startup waits before FL, LS and GS sends, consumes coalesced 2014 and 3 in raw
 order, and requires accepted 5 plus all 679/230/233 before its baseline.
-It then sends the normal empty C5 world-entry frame. This local milestone does
-not prove inventory completeness or an accepted gameplay action.
+It then sends the normal empty C5 world-entry frame. Like the client, it keeps
+the LS link open and pumped until the GS link closes, answers 2028 only on the
+LS link, and drops the LS link's other frames; see the
+[login-link report](../../docs/research/native-login-link.md). This local
+milestone does not prove inventory completeness or an accepted gameplay action.
 `submit_at` supplies the engine clock at actual enqueue time. `submit(Act)`
 refuses. `try_next_at` preserves original receive age across every queue.
 

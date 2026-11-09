@@ -26,7 +26,7 @@ The cutoff was switched on in the same private copy, with the live-frame fixes f
 
 The production `Weight` fact equals the candidate sum, and `HpPotions` was reported.
 
-The session did not stay open. About 0.1 s after the native world-entry C5, the gateway sent `g server`, while the browser client stays connected. That is outside the inventory cutoff and is being diagnosed separately. Start availability and reconnect behavior could therefore not be exercised. Start would also still be blocked by unknown HP and weight maxima (#47).
+The session did not stay open. About 0.1 s after the native world-entry C5, the gateway sent `g server`, while the browser client stays connected. That is outside the inventory cutoff. The [login-link report](native-login-link.md) records the cause and the fix. Start availability and reconnect behavior could therefore not be exercised in this trial. Start would also still be blocked by unknown HP and weight maxima (#47).
 
 ## Coverage and limits
 
