@@ -336,6 +336,14 @@ impl Gun {
             self.load = 0.0;
         }
     }
+    /// An own ESA start whose damage reaches `Hit` later through unmodelled effect timers.
+    /// Resetting early only while reloading or Ready can only delay Ready. A shot in flight
+    /// (state 5) keeps waiting for its own firing or a release, as in the client.
+    pub(crate) fn effect_hit(&mut self, keeps_on_hit: bool) {
+        if matches!(self.state, State::S2 | State::S3 | State::S4) {
+            self.hit(keeps_on_hit);
+        }
+    }
     /// Own `GuardDamage`: the client applies it 500 ms later. Resetting now as well can only
     /// delay readiness.
     pub(crate) fn guard_hit(&mut self, keeps_on_hit: bool) {
@@ -461,10 +469,12 @@ impl LoadSpeed {
             self.tainted = true;
         }
     }
-    /// A 224/292 start. An own-recipient FastLoad is attached; any other one is global.
-    pub(crate) fn skill_start(&mut self, esa: u16, own: bool) {
+    /// A 224/292 start. An own-recipient FastLoad with EsClass other than -1 or 6 is
+    /// attached, so the next own snapshot lists it. Any other one is never attached, and an
+    /// own snapshot cannot end it, so the speed stays unknown for the session.
+    pub(crate) fn skill_start(&mut self, esa: u16, own: bool, class: i8) {
         if esa == FAST_LOAD {
-            if own {
+            if own && !matches!(class, -1 | 6) {
                 self.stale = true;
             } else {
                 self.tainted = true;
@@ -498,6 +508,47 @@ impl LoadSpeed {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unattached_own_fast_load_is_never_repaired_by_an_own_snapshot() {
+        for class in [-1, 6] {
+            let mut s = LoadSpeed::default();
+            s.own_snapshot(&[]);
+            assert_eq!(s.value(), Some(1.0));
+            s.skill_start(FAST_LOAD, true, class);
+            s.own_snapshot(&[]);
+            assert_eq!(s.value(), None, "EsClass {class} never attaches");
+        }
+        let mut s = LoadSpeed::default();
+        s.own_snapshot(&[]);
+        s.skill_start(FAST_LOAD, true, 1);
+        assert_eq!(s.value(), None);
+        s.own_snapshot(&[]);
+        assert_eq!(
+            s.value(),
+            Some(1.0),
+            "an attached start is listed by the snapshot"
+        );
+    }
+
+    #[test]
+    fn an_effect_reset_never_releases_a_shot_in_flight() {
+        let mut gun = Gun {
+            state: State::S5,
+            ..Gun::default()
+        };
+        gun.effect_hit(false);
+        assert_eq!(gun.state, State::S5);
+        for state in [State::S2, State::S3, State::S4] {
+            gun.state = state;
+            gun.load = 1.0;
+            gun.effect_hit(false);
+            assert_eq!((gun.state, gun.load), (State::S2, 0.0));
+        }
+        gun.state = State::S4;
+        gun.effect_hit(true);
+        assert_eq!(gun.state, State::S4, "skill 3011 keeps the reload");
+    }
 
     fn profile(speed: i32, range: i32, start: i32) -> GunParams {
         GunParams {
@@ -857,7 +908,7 @@ mod tests {
         assert_eq!(s.value(), None);
         s.own_snapshot(&[]);
         assert_eq!(s.value(), Some(1.0));
-        s.skill_start(FAST_LOAD, true);
+        s.skill_start(FAST_LOAD, true, 0);
         assert_eq!(s.value(), None);
         s.own_snapshot(&[(1, 0.0), (2, 0.0)]);
         assert_eq!(
@@ -866,7 +917,7 @@ mod tests {
             "overlapping FastLoads have no recomputation rule"
         );
         s.own_snapshot(&[]);
-        s.skill_start(FAST_LOAD + 1, false);
+        s.skill_start(FAST_LOAD + 1, false, 0);
         s.detached_start(FAST_LOAD + 1);
         s.foreign_snapshot(0);
         assert_eq!(s.value(), Some(1.0));

@@ -202,9 +202,14 @@ follows C5 like the client's held send. Baseline waits up to `ACTION_MS` for tha
 512, because support is fixed at Baseline.
 
 A gun ticket waits for Ready until 250 ms before `not_after`, then sends one 477
-with the actual target, key, Bunch, moveMode and computed critical bit. It gets
-`NotSent` instead when Ready needs new input, at `Quiesce`, or when that window
-ends. A shot is never sent early or resent. Own Kind-2 firing starts the reload
+with the actual target, key, Bunch, moveMode and computed critical bit. It shoots
+only on a tick where every received frame is applied, so it never decides
+halfway through a message. Cancel and engine ops win over a due tick. The ticket
+gets `NotSent` instead when Ready needs new input, at `Quiesce`, while the own
+character is fainted or its HP is unknown, or when that window ends. A shot is
+never sent early or resent. The engine pauses as Uncertain on that `NotSent`, so
+a reload longer than the ticket window (about 1.75 s) pauses the run instead of
+shooting late. Own Kind-2 firing starts the reload
 and projects the client's local ammo use until an authoritative count replaces
 it. 32, 310 and 525 only release the wait. Outcomes come only from the own
 Strike-bundle attribution above. With a worn gun, `Support.basic_attack`
@@ -213,10 +218,15 @@ the first unknown one.
 
 Where source leaves an input unproven, the controller leans toward a later
 Ready: no StartSet 271, or a 523 that could set a flag, makes learned skills
-unknown; own ESA damage and own `GuardDamage` restart the reload at once;
-walking starts at an own move request. Two client delays are not modelled, so
-Ready can come earlier than the client's: the client defers an own strike, and
-so its reload, while an earlier own strike is still queued, and ESA damage after
+unknown, and so does a 271 after construction that changes a flag, because the
+client's StartSet can end later; own `GuardDamage` restarts the reload at once,
+and an own ESA start restarts it only while reloading or Ready, never during a
+shot in flight; an own FastLoad with EsClass -1 or 6 is never attached, so it
+leaves `LoadSpeed` unknown for the session; walking starts at an own move
+request. Only a complete 14-byte Swing counts as own firing. Some client delays
+are not modelled, so Ready can come earlier than the client's: `StrikeOf`
+defers `Begin`, and so an own strike's reload or another attacker's damage to
+us, while that attacker's earlier strikes are still queued, and ESA damage after
 an effect's start is not seen. The assisted observer builds the same controller
 at its startup cutoff only to report `missing_gun` and to correlate the client's
 own 477. The page bridge forwards no camp, ESA, counter or guard damage frames,

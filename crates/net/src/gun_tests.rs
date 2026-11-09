@@ -83,6 +83,8 @@ fn stats(zone: u16, slots: &[(usize, u64)]) -> Vec<u8> {
         b[slot * 8..slot * 8 + 8].copy_from_slice(&uid.to_le_bytes());
     }
     b[219..221].copy_from_slice(&zone.to_le_bytes());
+    // A living character: HP follows the zone, ten skipped bytes and Galder.
+    b[235..239].copy_from_slice(&100u32.to_le_bytes());
     b
 }
 fn clock() -> Vec<u8> {
@@ -614,15 +616,17 @@ fn learned_skills_come_from_startset_and_a_new_learn_is_unknown() {
     run.d.gun_tick(RELOAD_MS * 3.0);
     run.d.gun_tick(1.0);
     assert!(!run.ready(), "the later StartSet list cleared 3010");
-    // A live 271 is not replayed into the controller.
+    // A 271 after our construction may still be the client's last StartSet 271, so a
+    // changed flag becomes unknown; an unchanged list keeps the flags known.
     let mut run = Run::armed();
-    run.apply(271, learned(&[MOVE_SKILL, HIT_SKILL]));
+    run.apply(271, learned(&[]));
     assert_eq!(run.missing(), None);
-    run.d.gun_tick(0.0);
-    run.apply(24, walk(OWN, (110, 210)));
-    run.d.gun_tick(RELOAD_MS * 3.0);
-    run.d.gun_tick(1.0);
-    assert!(!run.ready(), "a live 271 sets no flag");
+    run.apply(271, learned(&[MOVE_SKILL, HIT_SKILL]));
+    assert_eq!(run.missing(), Some(M::GunSkills));
+    assert!(!run.d.basic_attack_supported());
+    let mut run = Run::reloaded(with(startup(), 271, Some(learned(&[HIT_SKILL]))));
+    run.apply(271, learned(&[]));
+    assert!(!run.waitable(), "the client may have dropped 3011");
     // OnLearned (f24407) may newly set a flag through an unmodelled level lookup.
     let mut run = Run::armed();
     run.apply(523, words(&[MOVE_SKILL]));
@@ -743,5 +747,35 @@ fn camp_and_dig_hooks_follow_the_client() {
     run.d.drilling(true);
     run.d.drilling(false);
     run.d.gun_tick(1.0);
+    assert!(run.waitable() && !run.ready());
+}
+
+#[test]
+fn a_fainted_character_never_shoots() {
+    let mut run = Run::reloaded(startup());
+    run.apply(43, words(&[OWN]));
+    assert!(!run.waitable() && !run.ready());
+    assert!(run.d.gun_shot(run.key()).is_err());
+}
+
+#[test]
+fn only_a_complete_own_swing_fires_the_gun() {
+    let mut run = Run::reloaded(startup());
+    run.shoot();
+    run.apply(31, words(&[OWN, 2]));
+    assert!(!run.waitable(), "ParseSwing rejects a truncated swing");
+    run.apply(31, strike(OWN, 2, MONSTER));
+    assert!(run.waitable(), "own firing starts the reload");
+}
+
+#[test]
+fn an_own_effect_start_never_releases_a_shot_in_flight() {
+    let mut run = Run::reloaded(startup());
+    run.shoot();
+    run.apply(224, effect_start(OWN, 9, crate::gun::FAST_LOAD + 1, 0.0));
+    assert!(!run.waitable(), "Hit comes only from Damaged");
+    // While reloading or Ready, the early reset only delays Ready.
+    let mut run = Run::reloaded(startup());
+    run.apply(224, effect_start(OWN, 9, crate::gun::FAST_LOAD + 1, 0.0));
     assert!(run.waitable() && !run.ready());
 }

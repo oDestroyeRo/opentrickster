@@ -604,6 +604,9 @@ impl Actor {
                 return Err(NetError::Cancelled);
             }
             tokio::select! {
+                // Cancel and engine ops (Close, Quiesce) win over a due tick, so no shot leaves
+                // after the engine asked the session to stop.
+                biased;
                 _=self.cancel.changed()=>return Err(NetError::Cancelled),
                 op=self.ops.recv()=>{
                     let queued=op.ok_or(NetError::Closed)?;
@@ -675,7 +678,10 @@ impl Actor {
                     // The gun advances by real elapsed time, one state branch per tick.
                     decoder.gun_tick(now.duration_since(gun_clock).as_secs_f64()*1000.0);gun_clock=now;
                     if let Some(waiting)=held.take() {
-                        if now<waiting.until && decoder.gun_ready(waiting.target) {
+                        // Like the client, decide on whole received messages only: every frame
+                        // received so far is applied before a shot.
+                        let applied=ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order;
+                        if now<waiting.until && applied && decoder.gun_ready(waiting.target) {
                             let mark=self.shoot(g,&mut decoder,&waiting).await?;
                             action_until=Some(Instant::now()+Duration::from_millis(e::ACTION_MS));
                             self.emit(Event::Receipt{action:waiting.ticket.id,delivery:e::Delivery::Sent(e::IngressMark(mark))})?;

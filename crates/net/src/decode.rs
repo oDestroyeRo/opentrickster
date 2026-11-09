@@ -835,7 +835,12 @@ impl Decoder {
                     r.u16()?;
                 }
                 r.end()?;
-                self.start_skills = Some(gun_skills(&learned));
+                let skills = gun_skills(&learned);
+                // The client's StartSet can end after our construction; its last 271 wins.
+                if self.gun_live && self.gun_skills != Some(skills) {
+                    self.gun_skills = None;
+                }
+                self.start_skills = Some(skills);
                 self.learned = Some(learned);
             }
             523 => {
@@ -1340,7 +1345,12 @@ impl Decoder {
     /// Whether a gun ticket for `key` can wait for Ready: a valid target and an armed,
     /// fully known controller that reaches Ready without another received input.
     pub(crate) fn gun_waitable(&self, key: e::EntityKey) -> bool {
-        self.raw_target(key).is_ok() && self.gun_prerequisite().is_none() && self.gun.waitable()
+        // WorldClick rejects the own fainted state before its gun branch, so no shot can
+        // leave while own HP is unknown or zero.
+        self.current_hp.is_some_and(|(hp, _)| hp > 0)
+            && self.raw_target(key).is_ok()
+            && self.gun_prerequisite().is_none()
+            && self.gun.waitable()
     }
     pub(crate) fn gun_ready(&self, key: e::EntityKey) -> bool {
         self.gun_waitable(key) && self.gun.ready()
@@ -1429,11 +1439,12 @@ impl Decoder {
             224 | 292 => match (word(2), word(6)) {
                 (Some(target), Some(esa)) if b.len() >= 14 => {
                     let mine = own.is_some() && Some(target) == own;
-                    self.load_speed.skill_start(esa, mine);
+                    self.load_speed.skill_start(esa, mine, b[9] as i8);
                     // ESA damage to the own avatar reaches Hit through effect timers that
-                    // are not modelled; resetting at the start can only delay Ready.
+                    // are not modelled. The early reset applies only where it delays Ready.
                     if mine && self.gun_live {
-                        self.gun_damage(false);
+                        let keeps = self.gun_skills.is_some_and(|(_, hit)| hit);
+                        self.gun.effect_hit(keeps);
                     }
                 }
                 _ => self.load_speed.unreadable(),
@@ -1507,7 +1518,10 @@ impl Decoder {
                 self.gun.camp_leave(worn, profile);
             }
             // CombatModel.Begin (f17574) calls GunFired for an own Kind-2 Swing.
-            31 | 485 | 1438 if own.is_some() && word(0) == own && word(2) == Some(2) => {
+            // ParseSwing (f13206) needs all seven U16 fields before Begin can run.
+            31 | 485 | 1438
+                if b.len() >= 14 && own.is_some() && word(0) == own && word(2) == Some(2) =>
+            {
                 let ammo = self.items.get(&self.gun.loaded()).map(|item| {
                     let info = self.info(item.id);
                     crate::gun::Ammo {
