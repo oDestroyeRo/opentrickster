@@ -399,7 +399,7 @@ The toolbar is 52 px tall (`size.toolbar`) and uses `surface.panel`. The window 
 | Panel shown | App name, mode switch, keyboard badge, panel toggle |
 | Panel hidden | Status pill, HP, MP, and weight mini meters, run controls, keyboard badge, panel toggle |
 
-Every toolbar control has a visible label. A mini meter is 92 px wide. It shows a label and a percentage over a 4 px track and takes the same tones as the full meter. The mini meters appear only once a character is in the world, and they hide below a 1232 px window.
+Every toolbar control has a visible label. A mini meter is 92 px wide. It shows a label and a percentage over a 4 px track and takes the same tones as the full meter. While the maximum is unknown, the percentage reads "–" and the track stays empty; the side panel shows the current value. The mini meters appear only once a character is in the world, and they hide below a 1232 px window.
 
 ### Mode switch
 

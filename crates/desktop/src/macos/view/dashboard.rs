@@ -43,6 +43,52 @@ impl Desktop {
             )
     }
 
+    /// The 92 px toolbar meter: a label and a percentage over a 4 px track.
+    pub(super) fn mini_gauge(
+        &self,
+        name: &'static str,
+        gauge: Option<&e::Gauge>,
+        theme: Theme,
+    ) -> Div {
+        let ratio = gauge.and_then(|g| {
+            g.maximum
+                .map(|max| (g.current as f32 / max.get() as f32).clamp(0., 1.))
+        });
+        let value = ratio
+            .map(|r| format!("{}%", (r * 100.).round() as u32))
+            .unwrap_or_else(|| "–".into());
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap(px(3.))
+            .child(
+                div()
+                    .flex()
+                    .justify_between()
+                    .text_size(px(12.))
+                    .line_height(px(16.))
+                    .child(div().text_color(theme.secondary).child(name))
+                    .child(value),
+            )
+            .child(
+                div()
+                    .h(px(4.))
+                    .w_full()
+                    .rounded(px(2.))
+                    .bg(theme.line)
+                    .when_some(ratio, |bar, r| {
+                        bar.child(
+                            div()
+                                .h_full()
+                                .w(relative(r))
+                                .rounded(px(2.))
+                                .bg(theme.accent),
+                        )
+                    }),
+            )
+    }
+
     pub(super) fn vitals(&self, theme: Theme) -> Div {
         let v = self.snapshot().own.vitals.as_ref();
         let drill = match &self.snapshot().own.drill {
