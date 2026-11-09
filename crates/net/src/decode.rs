@@ -215,6 +215,11 @@ impl Decoder {
     pub(crate) fn action_pending(&self) -> bool {
         self.pending.is_some()
     }
+    /// The action's window closed without a correlated outcome; later evidence is not attributed.
+    pub(crate) fn expire_action(&mut self) {
+        self.pending = None;
+        self.combat.clear();
+    }
     pub(crate) fn physical_uncertain(&self) -> bool {
         self.physical_uncertain
     }

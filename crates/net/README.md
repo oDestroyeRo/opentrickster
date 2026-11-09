@@ -30,12 +30,23 @@ and clears it on disconnect, mode change, quit or failed authorization.
 There is no raw getter, Debug or Serialize implementation.
 
 The native actor revalidates fresh config/version/page references before each
-physical authentication attempt. Occupied 60013, gateway busy, unknown security
-or refusal stops it. Optional absent character status remains Unknown;
-`CharacterChoice.busy=false` means no positive busy signal. The explicitly
-approved security state 0 decline uses UID-only 2012 without changing settings.
+physical authentication attempt. Occupied 60013, gateway busy, refusal, any
+second-password state other than 0 or a nonzero failure count stops it. Optional
+absent character status remains Unknown; `CharacterChoice.busy=false` means no
+positive busy signal. Only security state 0 has a recovered client path: its
+explicitly approved decline uses UID-only 2012 without changing settings.
 There is no takeover, release-held retry or automatic uncertain gameplay replay.
 Only engine recovery effects authorize another physical attempt, up to five.
+
+A ticket's `not_after` bounds only the send receipt. After the actual send, the
+engine's `ACTION_MS` (5 s) or `DIG_MS` (30 s) window bounds completion. The
+native adapter starts its window at the send, so it closes no later than the
+engine's. When it closes without a correlated outcome, the adapter cancels a dig
+with the normal 48 request, expires the pending action and attributes no later
+evidence to it. `Quiesce` also cancels an active native dig. `Quiescent` is
+reported only when no action is outstanding. If a window closes while a
+`Quiesce` is pending, idle stays unproven: the adapter reports no further
+`Quiescent`, and the engine's 2 s `DRAIN_MS` closes the session.
 
 `close` waits up to 2.5 seconds and retains its worker on timeout. A finished
 worker can join without a done signal, including after panic. Native `Closed`

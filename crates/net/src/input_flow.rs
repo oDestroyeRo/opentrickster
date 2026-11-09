@@ -35,6 +35,7 @@ pub(crate) struct Flow {
     pub(crate) armed: bool,
     pub(crate) submitted: bool,
     pub(crate) sent: Option<u64>,
+    sent_at: Option<At>,
     accepted: bool,
     spot: bool,
     completed: bool,
@@ -56,6 +57,7 @@ impl Flow {
             armed: false,
             submitted: false,
             sent: None,
+            sent_at: None,
             accepted: false,
             spot: false,
             completed: false,
@@ -148,8 +150,25 @@ impl Flow {
     pub(crate) fn done(&self) -> bool {
         self.phase == Phase::Done
     }
-    pub(crate) fn draining(&self) -> bool {
-        self.draining
+    /// Before the actual send, the ticket's receipt deadline bounds the flow. After it, the
+    /// engine's completion window for the action applies, measured from when the send was seen.
+    pub(crate) fn deadline(&mut self, now: At) -> u64 {
+        if self.draining {
+            return u64::MAX;
+        }
+        if self.sent.is_some() && self.sent_at.is_none() {
+            self.sent_at = Some(now);
+        }
+        match self.sent_at {
+            None => self.ticket.not_after.0,
+            Some(at) => {
+                at.0.saturating_add(if matches!(self.ticket.action, Action::DigAt(_)) {
+                    e::DIG_MS
+                } else {
+                    e::ACTION_MS
+                })
+            }
+        }
     }
     pub(crate) fn gauge_hold(&self) -> bool {
         matches!(self.phase, Phase::Charging | Phase::Tracking)
@@ -206,7 +225,7 @@ impl Flow {
             self.issued = None;
             return Ok(Some(Self::one(up)));
         }
-        if !self.draining && now >= self.ticket.not_after {
+        if now.0 >= self.deadline(now) {
             return Err(NetError::Timeout);
         }
         if let Some(issued) = &self.issued {
@@ -374,6 +393,37 @@ impl Flow {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn continuation_after_the_actual_send_uses_the_completion_window() {
+        let value = crate::test_support::sample_value();
+        let s = crate::sampler::parse_snapshot(&value, Instant::now()).unwrap();
+        for (action, opcode, window) in [
+            (Action::DigAt(e::Point { x: 540, y: 350 }), 44, e::DIG_MS),
+            (
+                Action::MoveTo(e::Point { x: 540, y: 350 }),
+                24,
+                e::ACTION_MS,
+            ),
+        ] {
+            let (session, ticket) = crate::test_support::ticket(action);
+            let receipt = ticket.not_after.0;
+            let mut flow = Flow::new(ticket, &s);
+            assert_eq!(flow.deadline(At(10)), receipt);
+            flow.observe_send(opcode, 5);
+            assert_eq!(flow.deadline(At(400)), 400 + window);
+            assert_eq!(flow.deadline(At(receipt + 100)), 400 + window);
+            assert!(400 + window > receipt);
+            let fences = crate::InputFences {
+                host_epoch: 7,
+                layout_epoch: 11,
+                not_after: At(u64::MAX),
+            };
+            let late = flow.next(Some(&s), At(receipt + 100), fences, session, None, false);
+            assert!(!matches!(late, Err(NetError::Timeout)), "{action:?}");
+            let expired = flow.next(Some(&s), At(400 + window), fences, session, None, false);
+            assert!(matches!(expired, Err(NetError::Timeout)), "{action:?}");
+        }
+    }
     #[test]
     fn dig_keeps_one_ticket_and_uses_observed_hold_release_and_first_coast() {
         let value = crate::test_support::sample_value();

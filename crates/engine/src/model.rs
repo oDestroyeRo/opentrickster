@@ -1,6 +1,16 @@
 use std::num::{NonZeroU16, NonZeroU32};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct At(pub u64); // monotonic ms
+/// Conservative application timing defaults from `docs/mvp.md`, in engine milliseconds.
+/// Adapters use these to bound an action's continuation after its actual send.
+/// An action ticket must reach `Delivery::Sent` before its `not_after` (`RECEIPT_MS`).
+pub const RECEIPT_MS: u64 = 2_000;
+/// Ordinary action confirmation window, measured from the actual send.
+pub const ACTION_MS: u64 = 5_000;
+/// Complete dig-cycle window, measured from the actual send.
+pub const DIG_MS: u64 = 30_000;
+/// Window for an adapter to report `Quiescent` after `SessionOp::Quiesce`.
+pub const DRAIN_MS: u64 = 2_000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SessionKey(pub(crate) u64); // engine minted
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
