@@ -57,6 +57,7 @@ pub(crate) struct Row<'a> {
 }
 
 /// The client state behind `Part`. `None` marks state Net cannot prove.
+#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 pub(crate) struct Parts {
     /// The client `Inventory` slots. They follow `SetSlot` and ignore a live 233.
     slots: [Option<u64>; SLOTS],
@@ -104,6 +105,7 @@ impl Default for Parts {
 
 /// `Inventory.Apply` of one `ReadItemChange`, as it affects rows and slots.
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 enum Change {
     /// Ops 2, 4, 6 and 8 with Kind 1 or 2 replace the row.
     Set(u64),

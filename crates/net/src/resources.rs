@@ -14,6 +14,7 @@ pub(crate) const PLAYER_LEVELS: usize = 999 * STATS * 3;
 /// The client's `CharacterStatus` inputs, applied in arrival order. Frames through the
 /// startup cutoff H are the client's StartSet, which `CharacterStatus` reads only through
 /// `ApplyStart`; later frames reach its hooks. `None` marks an input Net cannot prove.
+#[cfg_attr(test, derive(Clone, Debug, PartialEq))]
 pub(crate) struct Status {
     /// S282 `Totals`, cleared by the recompute events Net has always recognised.
     totals: Nullable,

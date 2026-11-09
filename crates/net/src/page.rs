@@ -7,6 +7,9 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use std::time::Instant;
 use zeroize::Zeroizing;
 
+/// Inbound opcodes the page forwards. They include the `CharacterStatus` and `GameParts`
+/// inputs of derived maxima (docs/research/derived-resource-maxima.md) and the login-time
+/// 1487 and 1489, whose handlers `Parts` is to model.
 pub(crate) const INCOMING: &[u16] = &[
     5, 159, 679, 230, 233, 7, 8, 9, 6, 15, 16, 21, 24, 25, 26, 27, 729, 36, 37, 38, 1030, 286, 289,
     43, 42, 231, 561, 160, 770, 262, 246, 260, 843, 68, 82, 85, 41, 10, 11, 12, 13, 14, 617, 34,
@@ -19,6 +22,19 @@ pub(crate) const INCOMING: &[u16] = &[
 /// is delivering frames (docs/research/pass-progress-liveness.md).
 pub(crate) const HEADER_ONLY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 32572];
 pub(crate) const OUTGOING: &[u16] = &[24, 288, 29, 477, 44, 48, 49];
+
+/// Inbound opcodes whose payload never crosses IPC. Besides the startup verdicts, the group
+/// markers and `HEADER_ONLY`, every `parts::UNMODELED` opcode outside `INCOMING` crosses
+/// header-only, so a page-bound decoder loses `GameParts` when one arrives, as the native
+/// decoder does.
+pub(crate) fn header_only(opcode: u16) -> bool {
+    matches!(opcode, 5 | 159 | 1951 | 1952)
+        || HEADER_ONLY.contains(&opcode)
+        || (!INCOMING.contains(&opcode) && crate::parts::UNMODELED.binary_search(&opcode).is_ok())
+}
+pub(crate) fn forwarded(opcode: u16) -> bool {
+    INCOMING.contains(&opcode) || header_only(opcode)
+}
 
 /// Host-only binding. Never print this value or the script/message that carries its guard.
 pub struct PageBinding {
@@ -141,7 +157,17 @@ impl State {
 pub(crate) fn script(binding: &PageBinding) -> Result<ObserverScript> {
     let c2s = OpcodeMap::current(b"c2s");
     let s2c = OpcodeMap::current(b"s2c");
-    let settings = serde_json::json!({"origin":ORIGIN,"build":crate::BUILD,"epoch":binding.epoch_text(),"guard":binding.guard.as_str(),"incoming":INCOMING.iter().map(|op|s2c.wire_opcode(*op)).collect::<Vec<_>>(),"outgoing":OUTGOING.iter().map(|op|c2s.wire_opcode(*op)).collect::<Vec<_>>(),"login":c2s.wire_opcode(4),"profile":s2c.wire_opcode(679),"accepted":s2c.wire_opcode(5),"refused":s2c.wire_opcode(159),"markers":[s2c.wire_opcode(1951),s2c.wire_opcode(1952)],"headerOnly":HEADER_ONLY.iter().map(|op|s2c.wire_opcode(*op)).collect::<Vec<_>>()});
+    let unmodeled = crate::parts::UNMODELED
+        .iter()
+        .filter(|op| !INCOMING.contains(op));
+    let incoming: Vec<u16> = INCOMING.iter().chain(unmodeled.clone()).copied().collect();
+    let header: Vec<u16> = HEADER_ONLY.iter().chain(unmodeled).copied().collect();
+    let wire = |ops: &[u16]| {
+        ops.iter()
+            .map(|op| s2c.wire_opcode(*op))
+            .collect::<Vec<_>>()
+    };
+    let settings = serde_json::json!({"origin":ORIGIN,"build":crate::BUILD,"epoch":binding.epoch_text(),"guard":binding.guard.as_str(),"incoming":wire(&incoming),"outgoing":OUTGOING.iter().map(|op|c2s.wire_opcode(*op)).collect::<Vec<_>>(),"login":c2s.wire_opcode(4),"profile":s2c.wire_opcode(679),"accepted":s2c.wire_opcode(5),"refused":s2c.wire_opcode(159),"markers":[s2c.wire_opcode(1951),s2c.wire_opcode(1952)],"headerOnly":wire(&header)});
     let settings =
         Zeroizing::new(serde_json::to_string(&settings).map_err(|_| NetError::Malformed)?);
     Ok(ObserverScript(Zeroizing::new(
@@ -205,11 +231,11 @@ pub(crate) fn frame(
     let wire = u16::from_le_bytes(bytes[2..4].try_into().unwrap());
     let opcode = map.logical_opcode(wire);
     let allowed = if direction == crate::ObservedDirection::Inbound {
-        INCOMING
+        forwarded(opcode)
     } else {
-        OUTGOING
+        OUTGOING.contains(&opcode)
     };
-    if !allowed.contains(&opcode) {
+    if !allowed {
         return Err(NetError::Malformed);
     }
     if direction == crate::ObservedDirection::Inbound
@@ -221,10 +247,7 @@ pub(crate) fn frame(
     {
         return Err(NetError::Malformed);
     }
-    if direction == crate::ObservedDirection::Inbound
-        && (matches!(opcode, 5 | 159 | 1951 | 1952) || HEADER_ONLY.contains(&opcode))
-        && bytes.len() != 6
-    {
+    if direction == crate::ObservedDirection::Inbound && header_only(opcode) && bytes.len() != 6 {
         return Err(NetError::Malformed);
     }
     let mark = ordinal(value)?;
@@ -264,7 +287,12 @@ mod tests {
         let script = script(&binding).unwrap();
         let c2s = OpcodeMap::current(b"c2s");
         let s2c = OpcodeMap::current(b"s2c");
-        let input = serde_json::json!({"script":script.as_str(),"auth":c2s.wire_opcode(11501),"ls":c2s.wire_opcode(2000),"ticket":s2c.wire_opcode(2014),"move":c2s.wire_opcode(24),"hp":s2c.wire_opcode(36),"pass":s2c.wire_opcode(32572)});
+        let wire = |ops: &[u16]| {
+            ops.iter()
+                .map(|op| s2c.wire_opcode(*op))
+                .collect::<Vec<_>>()
+        };
+        let input = serde_json::json!({"script":script.as_str(),"auth":c2s.wire_opcode(11501),"ls":c2s.wire_opcode(2000),"ticket":s2c.wire_opcode(2014),"move":c2s.wire_opcode(24),"hp":s2c.wire_opcode(36),"state":wire(&[151,1487,1489,837,1386,1387]),"bare":wire(&[586,94,1065,1389,32572]),"dropped":s2c.wire_opcode(999)});
         let mut child = Command::new("node")
             .arg(concat!(
                 env!("CARGO_MANIFEST_DIR"),
@@ -288,5 +316,108 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(String::from_utf8_lossy(&output.stdout).contains("PASS page privacy"));
+    }
+    /// The host never trusts the page to strip a payload: a header-only frame that carries
+    /// one is malformed, and an opcode outside the forwarded set is refused.
+    #[test]
+    fn header_only_frames_cross_bare_or_not_at_all() {
+        let s2c = OpcodeMap::current(b"s2c");
+        let posted = |opcode, payload: &[u8]| {
+            let bytes = s2c.encode(opcode, 0, payload).unwrap();
+            let value = serde_json::json!({"direction":"inbound","ingress":2,"ageMs":0,"data":STANDARD.encode(bytes)});
+            frame(&value, Instant::now()).map(|(_, packet)| packet.payload.len())
+        };
+        for opcode in [5, 159, 1951, 1952, 586, 1065, 94, 1491] {
+            assert!(header_only(opcode));
+            assert_eq!(posted(opcode, &[]), Ok(0), "{opcode}");
+            assert_eq!(posted(opcode, &[1]), Err(NetError::Malformed), "{opcode}");
+        }
+        for opcode in [1487, 1489, 837, 151] {
+            assert_eq!(posted(opcode, &[1; 4]), Ok(4), "{opcode}");
+        }
+        assert_eq!(posted(999, &[]), Err(NetError::Malformed));
+    }
+    /// Any logical opcode can arrive. One the page drops never changes what derived maxima
+    /// and carried weight are computed from, and one it strips to its header changes them,
+    /// and the decoder's result, the same way whatever its payload. A filtered stream never
+    /// passes for a complete one.
+    #[test]
+    fn the_page_withholds_no_input_of_derived_maxima_or_carried_weight() {
+        use crate::{codec::Packet, decode::Decoder, parts::Cached};
+        let session = crate::test_support::maxima_session();
+        let packet = |opcode, payload: &[u8], mark| Packet {
+            opcode,
+            aux: 0,
+            payload: Zeroizing::new(payload.to_vec()),
+            mark,
+            received: Instant::now(),
+        };
+        let nth = |opcode: u16, n: usize| {
+            let mut frames = session.frames.iter().filter(|f| f.0 == opcode);
+            frames.nth(n).unwrap().clone()
+        };
+        // Before H, the StartSet without its 233. After H, with a set, an aura, a pending
+        // override and an S282 total that a later frame could disturb.
+        let decoder = |live: bool| {
+            let mut d = Decoder::new();
+            d.set_definitions(Some(session.definitions.clone()));
+            let h = session.h as u64 + 1;
+            let mut frames = session.frames[..session.h].to_vec();
+            if live {
+                d.startup_cutoff(h);
+                frames.push(session.frames[session.h].clone());
+                frames.extend([nth(837, 0), nth(1070, 1), nth(784, 0), nth(282, 0)]);
+            }
+            for (mark, (opcode, _, payload)) in (1..).zip(&frames) {
+                d.apply(&packet(*opcode, payload, mark)).unwrap();
+            }
+            if live {
+                assert!(!d.settle_carried(h).is_empty());
+                assert!(d.maxima().iter().all(Option::is_some));
+            }
+            (d, frames.len() as u64 + 1)
+        };
+        // Each reader of derived state accepts one of the session's payloads.
+        let mut payloads: Vec<&[u8]> = session.frames.iter().map(|f| f.2.as_slice()).collect();
+        payloads.push(&[]);
+        payloads.sort_unstable();
+        payloads.dedup();
+        for live in [false, true] {
+            let outcome = |opcode, payload| {
+                let (mut d, mark) = decoder(live);
+                let facts = d
+                    .apply(&packet(opcode, payload, mark))
+                    .map(|facts| facts.len());
+                (facts, d.derived_inputs())
+            };
+            let (mut d, mark) = decoder(live);
+            let (status, parts, cache) = d.derived_state();
+            let cached = |uid| cache.get(&uid).copied().unwrap_or(Cached::Absent);
+            let apply = |opcode, payload| {
+                let (mut s, mut p) = (status.clone(), parts.clone());
+                s.observe(&packet(opcode, payload, mark)).unwrap();
+                p.frame(opcode, payload, live, cached);
+                (s, p)
+            };
+            let inputs = d.derived_inputs();
+            for opcode in 0..=u16::MAX {
+                if header_only(opcode) {
+                    let bare = (apply(opcode, &[]), outcome(opcode, &[]));
+                    for payload in &payloads {
+                        let full = (apply(opcode, payload), outcome(opcode, payload));
+                        assert!(full == bare, "{opcode} reads its payload");
+                    }
+                } else if !forwarded(opcode) {
+                    let (mut s, mut p) = (status.clone(), parts.clone());
+                    for payload in &payloads {
+                        s.observe(&packet(opcode, payload, mark)).unwrap();
+                        p.frame(opcode, payload, live, cached);
+                    }
+                    let facts = d.apply(&packet(opcode, &[], mark)).map(|facts| facts.len());
+                    let unchanged = s == status && p == parts && d.derived_inputs() == inputs;
+                    assert!(facts == Ok(0) && unchanged, "{opcode} is an input");
+                }
+            }
+        }
     }
 }
