@@ -250,7 +250,7 @@ Net matches the client's `Total`, which the client caches and displays at its ne
 
 ### Page path
 
-The page bridge forwards only `page::INCOMING` payloads and `page::HEADER_ONLY` headers. A decoder bound to it never sees the 518, 521, 837, 1386 or 1387 payloads that `GameParts` needs. Binding a page marks `GameParts` lost (`Decoder::lose_game_parts`), so every derived maximum stays unknown on that path, in all three bind orders. A received S282 total is still reported. The follow-up is to forward the frames `GameParts` needs.
+The page bridge forwards only `page::INCOMING` payloads and `page::HEADER_ONLY` headers. A decoder bound to it receives the 518 and 521 payloads, but only the header of 151. It never sees the 837, 1386, 1387, 1487 or 1489 frames that `GameParts` needs, or 175 of the 181 denied opcodes. Binding a page marks `GameParts` lost (`Decoder::lose_game_parts`), so every derived maximum stays unknown on that path, in all three bind orders. A received S282 total is still reported. The follow-up is to forward the frames `GameParts` needs.
 
 ## Net model
 
