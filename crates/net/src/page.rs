@@ -396,7 +396,7 @@ mod tests {
             let apply = |opcode, payload| {
                 let (mut s, mut p) = (status.clone(), parts.clone());
                 s.observe(&packet(opcode, payload, mark)).unwrap();
-                p.frame(opcode, payload, live, cached);
+                p.frame(opcode, payload, live, None, cached);
                 (s, p)
             };
             let inputs = d.derived_inputs();
@@ -411,7 +411,7 @@ mod tests {
                     let (mut s, mut p) = (status.clone(), parts.clone());
                     for payload in &payloads {
                         s.observe(&packet(opcode, payload, mark)).unwrap();
-                        p.frame(opcode, payload, live, cached);
+                        p.frame(opcode, payload, live, None, cached);
                     }
                     let facts = d.apply(&packet(opcode, &[], mark)).map(|facts| facts.len());
                     let unchanged = s == status && p == parts && d.derived_inputs() == inputs;

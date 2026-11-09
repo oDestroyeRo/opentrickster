@@ -1345,6 +1345,10 @@ mod tests {
         assert!(paged.readiness().own_baseline_seen);
         assert_eq!(seen[session.h - 1], [None; 3]);
         assert!(seen[session.h].iter().all(Option::is_some));
+        // The login soul frames after H cross with their payload and keep the maxima.
+        assert_eq!(session.frames[session.h + 1].0, 1489);
+        assert_eq!(session.frames[session.h + 2].0, 1487);
+        assert!(seen[session.h + 2].iter().all(Option::is_some));
         let mut hp: Vec<u32> = seen.iter().filter_map(|m| m[0]).collect();
         hp.sort_unstable();
         hp.dedup();

@@ -306,7 +306,10 @@ pub(crate) fn maxima_session() -> MaximaSession {
         (518, 0, special.to_le_bytes().to_vec()),
         (230, 0, clock),
         (233, 0, stats),
-        // Live from here. The page drops 999.
+        // Live from here. The login soul frames arrive right after H and keep the maxima.
+        (1489, 0, vec![0; 6]),
+        (1487, 0, vec![0; 38]),
+        // The page drops 999.
         (999, 0, vec![1; 8]),
         (784, 0, indexed(9, 2000)),
         (283, 0, indexed(9, 40)),
