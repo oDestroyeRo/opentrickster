@@ -43,14 +43,15 @@ Spinel.Game.Play.StatValues Spinel.Game.Play.ItemInfo Spinel.Game.Play.DrillData
 Spinel.Game.Play.AutoDrill Spinel.UI.Pc.Hud.Hud Spinel.UI.Pc.Hud.HudCover Spinel.UI.Pc.UiSkins
 Spinel.UI.Pc.Play.DigKeySettings Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0
 Spinel.UI.Pc.Screens.GroundItems Spinel.UI.Pc.Screens.GroundItems/Entry Spinel.UI.Pc.EditBox
-Spinel.UI.Pc.UiPressOrigin
+Spinel.UI.Pc.UiPressOrigin Spinel.UI.Pc.Screens.GroundItems/HoverDraw System.Collections.Generic.KeyValuePair`2
+UnityEngine.InputSystem.InputActionState/TriggerState
 """.split()
 
 # Fields by name. "s:" marks a static field; <Name>k__BackingField is written Name.
 FIELDS = {
     'Spinel.UI.Pc.Screens.GameFlow': 'Engine Screen s:Current',
     'Spinel.Engine.Unity.SpinelEngine': 'Stage Input s:Instance',
-    'Spinel.UI.Pc.Screens.GameplayScreen': 'steering steerWarping play zone run avatar actors groundItems ground '
+    'Spinel.UI.Pc.Screens.GameplayScreen': 'steering steerWarping play zone run avatar actors ground '
                                            'hoveredId services hud route ready changingZone loggingOut localScene '
                                            'campScene held pointer cameraX cameraY worldCovered artAwaited '
                                            'probedAt probedTime overUi',
@@ -64,7 +65,7 @@ FIELDS = {
     'Spinel.Engine.Unity.World.MapView': 'Width Height',
     'Spinel.UI.Pc.Screens.PlayServices': 'items',
     'System.Type': '_impl',
-    'System.RuntimeType': 'type_info',
+    'System.RuntimeTypeHandle': 'value',
     'Spinel.Game.Play.SkillsApi': 'target shownTarget combatPlaysEsa UiWait heldCast',
     'Spinel.Game.Play.CombatModel': 'session Target Fainted attackTargets Fsm striking waitingMoves fading',
     'Spinel.Game.Play.DrillFeature': 'Data Inventory session fsm Flags inDrillState drill param State Gauge Held '
@@ -72,7 +73,7 @@ FIELDS = {
     'Spinel.Game.Play.DigAssist': 'drill State',
     'Spinel.Game.Play.GunFlowing': 'Inventory session infos Armed Ready State',
     'Spinel.Game.Play.AvatarFsm': 'State',
-    'Spinel.UI.Pc.Hud.Hud': 'keyMask Stats Keys Waiting',
+    'Spinel.UI.Pc.Hud.Hud': 'keyMask Stats Keys installing',
     'Spinel.Game.Play.HotkeyMap': 'Bindings',
     'Spinel.Game.Play.KeyBinding': 'Code Modifier Exclusive',
     'UnityEngine.InputSystem.Keyboard': 'shiftKey ctrlKey altKey m_Keys s:current',
@@ -102,13 +103,17 @@ FIELDS = {
     'Spinel.UI.Pc.Play.DigKeySettings': 's:semiAuto',
     'Spinel.Engine.Unity.World.ActorView': 'Actor',
     'Spinel.Game.World.WarpRegion': 'X1 Y1 X2 Y2',
-    'Spinel.UI.Pc.Screens.GroundItems': 'hover',
+    'Spinel.UI.Pc.Screens.GroundItems': 'entries hover',
     'Spinel.UI.Pc.Screens.GroundItems/HoverDraw': 'Entry',
-    'Spinel.UI.Pc.EditBox': 's:SelectedText s:Focused',
+    'Spinel.UI.Pc.Screens.GroundItems/Entry': 'View',
+    'Spinel.UI.Pc.EditBox': 's:Focused',
     'Spinel.UI.Pc.Hud.HudCover': 's:covers',
     'UnityEngine.EventSystems.EventSystem': 'm_CurrentSelected m_HasFocus m_SelectionGuard s:m_EventSystems',
     'Spinel.UI.Pc.UiPressOrigin': 'left right s:Current',
     'Spinel.Game.Play.AutoDrill': 'State',
+    'System.String': '_stringLength _firstChar',
+    'UnityEngine.Vector2': 'x y',
+    'UnityEngine.Rect': 'm_XMin m_YMin m_Width m_Height',
 }
 
 # Metadata usage cells the sampler dereferences ("!X" is a generic parameter name).
@@ -125,7 +130,6 @@ CELLS = [
     ('TypeInfo', 'UnityEngine.EventSystems.EventSystem'),
     ('TypeInfo', 'Spinel.UI.Pc.UiPressOrigin'),
     ('MethodRef', 'mscorlib.dll|System.Nullable`1::get_HasValue()<vt:UnityEngine.Vector2Int>'),
-    ('MethodRef', 'mscorlib.dll|System.Nullable`1::get_Value()<vt:UnityEngine.Vector2Int>'),
     ('MethodRef', 'mscorlib.dll|System.Nullable`1::GetValueOrDefault()<vt:UnityEngine.Vector2>'),
     ('MethodRef', 'mscorlib.dll|System.Nullable`1::get_HasValue()<vt:UnityEngine.Vector2>'),
     ('MethodRef', 'mscorlib.dll|System.Nullable`1::GetValueOrDefault()<i4>'),
@@ -151,7 +155,8 @@ RGCTX = {
     'System.Nullable`1': (0, 8, 12),
     'System.Collections.Generic.Dictionary`2': (36, 40, 44, 48, 52),
     'UnityEngine.InputSystem.InputControl`1': (4, 16, 28),
-    'Spinel.Net.OrderedMap`2': (52, 84),
+    'Spinel.Net.OrderedMap`2': (12, 16),
+    'System.Collections.Generic.KeyValuePair`2': (0, 4, 8, 12, 16),
 }
 
 # Managed methods whose source the sampler transcribes; every overload is fingerprinted.
@@ -746,6 +751,204 @@ def rgctx_slots(build, ti):
     raise SystemExit(f'no RGCTX for {build.fullname(ti)}')
 
 
+NATURAL = {'bool': 1, 'i1': 1, 'u1': 1, 'char': 2, 'i2': 2, 'u2': 2, 'i4': 4, 'u4': 4, 'r4': 4, 'i8': 8, 'u8': 8,
+           'r8': 8, 'iptr': 4, 'uptr': 4}
+
+# Generic instances the sampler reads, by argument shape: "object" stands for any reference type.
+# Metadata keeps zero offsets for generic definitions, so these are computed by Layout, which must
+# first reproduce the metadata offsets of every non-generic owner.
+GENERICS = [
+    ('System.Nullable`1', ('vt:UnityEngine.Vector2',)),
+    ('System.Nullable`1', ('vt:UnityEngine.Vector2Int',)),
+    ('System.Nullable`1', ('i4',)),
+    ('System.Nullable`1', ('bool',)),
+    ('System.Collections.Generic.KeyValuePair`2', ('u8', 'object')),
+    ('System.Collections.Generic.KeyValuePair`2', ('i4', 'object')),
+    ('Spinel.Net.OrderedMap`2', ('u8', 'object')),
+    ('Spinel.Net.OrderedMap`2', ('i4', 'object')),
+    ('System.Collections.Generic.Dictionary`2', ('object', 'object')),
+    ('System.Collections.Generic.Dictionary`2', ('i8', 'object')),
+    ('System.Collections.Generic.Dictionary`2', ('i8', 'i4')),
+    ('System.Collections.Generic.Dictionary`2', ('i4', 'object')),
+    ('System.Collections.Generic.Dictionary`2', ('i4', 'i4')),
+    ('System.Collections.Generic.Dictionary`2/Entry', ('object', 'object')),
+    ('System.Collections.Generic.Dictionary`2/Entry', ('i8', 'object')),
+    ('System.Collections.Generic.Dictionary`2/Entry', ('i8', 'i4')),
+    ('System.Collections.Generic.Dictionary`2/Entry', ('i4', 'object')),
+    ('System.Collections.Generic.Dictionary`2/Entry', ('i4', 'i4')),
+    ('System.Collections.Generic.List`1', ('object',)),
+    ('System.Collections.Generic.List`1', ('vt:Spinel.Game.World.Point',)),
+    ('System.Func`1', ('bool',)),
+    ('UnityEngine.InputSystem.InputControl`1', ('r4',)),
+]
+
+
+class Layout:
+    """IL2CPP sequential field layout: natural alignment, a subclass starting at its parent's unpadded end.
+
+    Offsets follow metadata: value-type offsets include the 8-byte object header."""
+
+    def __init__(self, build, names):
+        self.b, self.names = build, names
+
+    def is_value(self, ti):
+        return (self.b.il2type(self.b.types[ti]['byval'])[2] >> 16) & 0xff == 17
+
+    def arg(self, text):
+        if text in NATURAL:
+            return NATURAL[text], NATURAL[text], text
+        if text.startswith('vt:'):
+            size, align = self.value(unique(self.names.get(text[3:], []), text), ())
+            return size, align, text
+        return 4, 4, text
+
+    def text(self, a, args):
+        b = self.b
+        data, kind = b.u32(a), (b.u32(a + 4) >> 16) & 0xff
+        if kind == 19:
+            return args[b.generic_params[data]['num']][2]
+        if kind == 29:
+            return self.text(data, args) + '[]'
+        if kind == 21:
+            g = b.u32(data + 4)
+            return b.render(b.u32(data)) + '<' + ','.join(
+                self.text(b.u32(b.u32(g + 4) + 4 * i), args) for i in range(b.u32(g))) + '>'
+        return b.render(a)
+
+    def args(self, g, args):
+        """Shapes of a generic instance's arguments, resolved against the enclosing arguments."""
+        argv = [self.b.u32(self.b.u32(g + 4) + 4 * i) for i in range(self.b.u32(g))]
+        return tuple(self.shape(a, args) + (self.text(a, args),) for a in argv)
+
+    def shape(self, a, args):
+        """(size, alignment) of a value of Il2CppType a stored inline."""
+        b = self.b
+        data, kind = b.u32(a), (b.u32(a + 4) >> 16) & 0xff
+        if kind == 19:
+            return args[b.generic_params[data]['num']][:2]
+        if PRIMITIVE.get(kind) in NATURAL:
+            return NATURAL[PRIMITIVE[kind]], NATURAL[PRIMITIVE[kind]]
+        if kind == 17:
+            return self.value(data, ())
+        if kind == 21 and (b.u32(b.u32(data) + 4) >> 16) & 0xff == 17:
+            g = b.u32(data + 4)
+            return self.value(b.u32(b.u32(data)), self.args(g, args))
+        return 4, 4
+
+    def generic(self, ti):
+        return self.b.types[ti]['generic'] != (1 << 8 * struct.calcsize(self.b.w('genericContainers'))) - 1
+
+    def fields(self, ti, args, compute=False):
+        """Instance fields as (name, unboxed offset, size, alignment, type), and the unpadded end.
+
+        Non-generic types keep their metadata offsets unless compute is set; generic ones are laid out."""
+        b, t = self.b, self.b.types[ti]
+        header = 8 if self.is_value(ti) else 0
+        end = 0
+        if not header:
+            parent = b.il2type(t['parent']) if t['parent'] != none_of(b) else (0, 0, 28 << 16)
+            if (parent[2] >> 16) & 0xff == 21:
+                end = self.fields(b.generic_definition(t['parent']), self.args(b.u32(parent[1] + 4), args))[1]
+            elif (parent[2] >> 16) & 0xff != 28:
+                end = self.fields(b.generic_definition(t['parent']), ())[1]
+            else:
+                end = 8  # System.Object: klass and monitor
+        offsets = None if compute or self.generic(ti) else b.u32(b.field_offsets + 4 * ti)
+        out = []
+        for j in range(t['fieldCount']):
+            f = b.fields[t['fieldStart'] + j]
+            a, _, bits = b.il2type(f['type'])
+            if bits & 0x50:  # static or literal
+                continue
+            size, align = self.shape(a, args)
+            at = b.i32(offsets + 4 * j) - header if offsets else (end + align - 1) // align * align
+            out.append((b.string(f['name']), at, size, align, self.text(a, args)))
+            end = max(end, at + size)
+        return out, end
+
+    def value(self, ti, args):
+        fields, end = self.fields(ti, args)
+        align = max([f[3] for f in fields] + [1])
+        if not self.generic(ti):
+            return b_size(self.b, ti) - 8, align
+        return max(1, (end + align - 1) // align * align), align
+
+    def check(self, ti):
+        """Raise unless sequential layout reproduces metadata for a non-generic, non-explicit type."""
+        b, t = self.b, self.b.types[ti]
+        if t['flags'] & 0x10 or self.generic(ti):
+            return
+        header = 8 if self.is_value(ti) else 0
+        actual = {name: offset + header for name, offset, *_ in self.fields(ti, ())[0]}
+        computed = {name: offset + header for name, offset, *_ in self.fields(ti, (), compute=True)[0]}
+        if computed != actual:
+            raise SystemExit(f'{b.fullname(ti)}: computed layout {computed} differs from metadata {actual}')
+
+    def instance(self, name, args):
+        ti = unique(self.names.get(name, []), name)
+        shapes = tuple(self.arg(a) for a in args)
+        fields, end = self.fields(ti, shapes)
+        header = 8 if self.is_value(ti) else 0
+        size = self.value(ti, shapes)[0] + 8 if header else end
+        return {'size': size, 'fields': {f[0]: [f[1] + header, f[4]] for f in fields}}
+
+
+def b_size(build, ti):
+    return build.u32(build.u32(build.type_sizes + 4 * ti))
+
+
+def metadata_globals(build):
+    """libil2cpp's s_GlobalMetadata and s_GlobalMetadataHeader, from its type-handle-to-index idiom:
+    (handle - (metadata + header.typeDefinitionsOffset)) / (typeDefinitionsSize / typeDefinitionsCount)."""
+    at = 8 + 12 * SECTIONS.index('typeDefinitions')
+    marker = b'\x28\x02' + bytes([at & 0x7f | 0x80, at >> 7])
+    found = set()
+    for fn, (start, size) in build.bodies.items():
+        code = build.wasm[start:start + size]
+        if fn in build.methods_at or marker not in code:
+            continue
+        ops = [(op, imm) for _, op, imm in instructions(code) if op != 'locals']
+        for k in range(len(ops) - 13):
+            window = ops[k:k + 14]
+            shape = [op for op, _ in window]
+            if shape != [0x41, 0x28, 0x41, 0x28, 0x22, 0x28, 0x6a, 0x6b, 0x20, 0x28, 0x20, 0x28, 0x6d, 0x6d]:
+                continue
+            if [window[i][1][2] for i in (1, 3, 5, 9, 11)] == [0, 0, at, at + 4, at + 8] and \
+                    window[4][1] == window[8][1] == window[10][1]:
+                found.add((window[0][1][0], window[2][1][0]))
+    metadata, header = unique(sorted(found), 'type-handle index idiom')
+    return {'s_GlobalMetadata': metadata, 's_GlobalMetadataHeader': header,
+            'typeDefinitions': list(build.h['typeDefinitions']), 'typeDefinitionsAt': at}
+
+
+def enums(build, names, fields):
+    """Underlying type of each enum that a pinned field stores inline, from its value__ field."""
+    out = {}
+    for _, text in fields.values():
+        name = text.removeprefix('vt:')
+        if text == name or name not in names:
+            continue
+        t = build.types[unique(names[name], name)]
+        if not t['bitfield'] & 2:  # Il2CppTypeDefinition bit 1: enumtype
+            continue
+        own = [build.fields[t['fieldStart'] + j] for j in range(t['fieldCount'])]
+        out[name] = unique([build.render(build.il2type(f['type'])[0]) for f in own
+                            if build.string(f['name']) == 'value__'], f'{name}.value__')
+    return out
+
+
+def none_of(build):
+    return (1 << 8 * struct.calcsize(build.tw)) - 1
+
+
+def bases(build, ti):
+    chain, t = [], build.types[ti]
+    while t['parent'] != none_of(build) and (build.il2type(t['parent'])[2] >> 16) & 0xff in (18, 21):
+        chain.append(build.render(build.il2type(t['parent'])[0]))
+        t = build.types[build.generic_definition(t['parent'])]
+    return chain
+
+
 def derive(build, build_id, unity, artifacts):
     names = {}
     for i in range(len(build.types)):
@@ -773,12 +976,19 @@ def derive(build, build_id, unity, artifacts):
             if attrs & 0x40:  # literal: no storage
                 continue
             key = ('s:' if attrs & 0x10 else '') + short(build.string(f['name']))
-            have[key] = build.i32(offsets + 4 * j)
+            have[key] = [build.i32(offsets + 4 * j), build.render(build.il2type(f['type'])[0])]
         for name in spec.split():
             if name not in have:
                 raise SystemExit(f'{owner}: field {name} is absent')
             fields[f"{owner}{'::' if name.startswith('s:') else '.'}{name.removeprefix('s:')}"] = have[name]
     out['fields'] = fields
+    out['enums'] = enums(build, names, fields)
+    out['bases'] = {name: bases(build, unique(names.get(name, []), name)) for name in sorted(set(TYPES) | set(FIELDS))}
+    layout = Layout(build, names)
+    for name in sorted(set(TYPES) | set(FIELDS)):
+        layout.check(unique(names.get(name, []), name))
+    out['generics'] = {f"{name}<{','.join(args)}>": layout.instance(name, args) for name, args in GENERICS}
+    out['runtime'] = metadata_globals(build)
     # Cells: candidate usage values by name, then one scan of initialized data.
     wanted = {}
     by_def = {}
@@ -827,7 +1037,7 @@ def derive(build, build_id, unity, artifacts):
 
 # Sections that hold build-local indices and addresses. Every other difference is a
 # layout, generic-context, code or toolchain change that needs a semantic review.
-MOVES = ('typedefMax', 'types', 'cells', 'slots')
+MOVES = ('typedefMax', 'types', 'cells', 'slots', 'runtime')
 
 
 def compare(old, new):

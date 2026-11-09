@@ -1,317 +1,766 @@
 "use strict";
+// Invented-heap tests for src/sampler.js. Every object is laid out from the pinned build in
+// tools/build-migrate/sampler/ea1a68bd.json, and every sampler read must land on a pinned field of a
+// matching type. No target runtime state is encoded here.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const crypto = require("node:crypto");
-const script = fs.readFileSync(path.join(__dirname,"../src/sampler.js"),"utf8");
-const BUILD = "ea1a68bd89958fae94179f1e0835ffb5";
-const TYPE_KINDS={8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,13051:17,13052:17};
+const script = fs.readFileSync(path.join(__dirname, "../src/sampler.js"), "utf8");
+const pins = JSON.parse(fs.readFileSync(path.join(__dirname, "../../../tools/build-migrate/sampler/ea1a68bd.json"), "utf8"));
 
-// Invented objects encode only the whitelisted fields, never a target runtime.
+// libil2cpp structures the sampler reads. Metadata does not describe them; each offset was read off this
+// Unity version's compiled libil2cpp (docs/research/sampler-heap-reads.md).
+const UNITY = "6000.6.5f1";
+const HEADER = pins.runtime.typeDefinitionsAt;
+const RUNTIME = {
+  Il2CppGlobalMetadataHeader: {sanity: [0, "u4"], typeDefinitionsOffset: [HEADER, "u4"], typeDefinitionsSize: [HEADER + 4, "u4"], typeDefinitionsCount: [HEADER + 8, "u4"]},
+  Il2CppObject: {klass: [0, "ptr"]},
+  Il2CppType: {data: [0, "ptr"], type: [6, "u1"]},
+  Il2CppGenericClass: {type: [0, "ptr"], class_inst: [4, "ptr"]},
+  Il2CppGenericInst: {type_argc: [0, "u4"], type_argv: [4, "ptr"]},
+  Il2CppClass: {"byval_arg.data": [16, "ptr"], "byval_arg.type": [22, "u1"], element_class: [32, "ptr"], interfaceOffsets: [72, "ptr"], static_fields: [76, "ptr"],
+    instance_size: [128, "u4"], stack_slot_size: [132, "u4"], element_size: [140, "u4"], interface_offsets_count: [182, "u2"]},
+  Il2CppRuntimeInterfaceOffsetPair: {interfaceType: [0, "ptr"], offset: [4, "i4"]},
+  VirtualInvokeData: {method: [4, "ptr"]},
+  Il2CppArray: {klass: [0, "ptr"], bounds: [8, "ptr"], max_length: [12, "i4"]},
+  MethodInfo: {klass: [16, "ptr"], rgctx_data: [28, "ptr"]},
+};
+const VTABLE = 192, VTABLE_ENTRY = 8, ARRAY_DATA = 16;
+const STRIDE = pins.runtime.typeDefinitions[1] / pins.runtime.typeDefinitions[2];
+assert.equal(pins.unity, UNITY, "re-prove RUNTIME against the new Unity version's libil2cpp");
+assert(Number.isInteger(STRIDE));
+// Generic parameters of the pinned RGCTX owners, in declaration order.
+const PARAMS = {"System.Nullable`1": ["T"], "UnityEngine.InputSystem.InputControl`1": ["TValue"], "System.Collections.Generic.Dictionary`2": ["TKey", "TValue"],
+  "System.Collections.Generic.KeyValuePair`2": ["TKey", "TValue"], "Spinel.Net.OrderedMap`2": ["TKey", "TValue"]};
+
+// Type text is derive.py's: i4, bool, object, vt:Name, Name<args>, X[], X*. A type spec is a name or [name, ...args].
+const ACCESS = {bool: "byte", u1: "byte", i1: "byte", char: "short", u2: "short", i2: "short", i4: "int", u4: "int", r4: "float", r8: "double", i8: "long", u8: "long", iptr: "ptr", uptr: "ptr", ptr: "ptr"};
+const GETTERS = {byte: ["getUint8"], short: ["getUint16"], int: ["getInt32", "getUint32"], float: ["getFloat32"], double: ["getFloat64"], long: ["getBigUint64", "getBigInt64"], ptr: ["getUint32"]};
+const WIDTH = {byte: 1, short: 2, int: 4, float: 4, double: 8, long: 8, ptr: 4};
+const PRIM = {"System.Boolean": "bool", "System.Char": "char", "System.Int32": "i4", "System.Int64": "i8", "System.UInt64": "u8", "System.Single": "r4", "System.Double": "r8"};
+const NAMED = {...Object.fromEntries(Object.entries(PRIM).map(([name, text]) => [text, name])), object: "System.Object", string: "System.String"};
+const VALUE_KINDS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17]);
+const inline = text => text.startsWith("vt:") && !/(\[\]|\*)$/.test(text);
+const accessOf = text => ACCESS[text] ?? (inline(text) ? assert.fail(`${text} is stored inline`) : "ptr");
+const nameOf = t => typeof t === "string" ? t : t[0];
+const isArray = t => Array.isArray(t) && t[0] === "[]";
+const key = t => typeof t === "string" ? t : isArray(t) ? `${key(t[1])}[]` : `${t[0]}<${t.slice(1).map(key).join(",")}>`;
+const defKind = t => pins.typeKinds[nameOf(t)] ?? 18;
+const isValue = t => !isArray(t) && VALUE_KINDS.has(defKind(t));
+const render = t => PRIM[t] ?? `${isValue(t) ? "vt:" : ""}${typeof t === "string" ? t : `${t[0]}<${t.slice(1).map(render).join(",")}>`}`;
+const shape = t => PRIM[t] ?? (isValue(t) ? render(t) : "object");
+// derive.py lays out generic instances by argument shape. An unpinned one is opaque: no read may enter it.
+const layoutOf = t => pins.generics[`${t[0]}<${t.slice(1).map(shape).join(",")}>`];
+function parse(text) {
+  let i = 0;
+  const one = () => {
+    if (text.startsWith("vt:", i)) i += 3;
+    const start = i;
+    while (i < text.length && !"<>,".includes(text[i])) i++;
+    const name = NAMED[text.slice(start, i)] ?? text.slice(start, i);
+    if (text[i] !== "<") return name;
+    const t = [name];
+    do { i++; t.push(one()); } while (text[i] === ",");
+    assert.equal(text[i++], ">", text);
+    return t;
+  };
+  const t = one();
+  assert.equal(i, text.length, text);
+  return t;
+}
+const bind = (t, names) => typeof t !== "string" ? t.map(a => bind(a, names)) : t[0] !== "!" ? t : names[t.slice(1)] ?? assert.fail(`unbound ${t}`);
+
+// Pinned fields by owner. Field names hold no ".", static ones follow "::".
+const OWN = new Map(), STATIC = new Map();
+for (const [label, [offset, type]] of Object.entries(pins.fields)) {
+  const s = label.indexOf("::"), cut = s >= 0 ? s : label.lastIndexOf("."), map = s >= 0 ? STATIC : OWN, owner = label.slice(0, cut);
+  if (!map.has(owner)) map.set(owner, []);
+  map.get(owner).push({name: label.slice(cut + (s >= 0 ? 2 : 1)), offset, type, credit: label});
+}
+const entries = fields => Object.entries(fields).map(([name, [offset, type]]) => ({name, offset, type, credit: null}));
+function fieldsOf(t) {
+  const own = typeof t === "string" ? OWN.get(t) ?? [] : entries(layoutOf(t)?.fields ?? {});
+  return [...own, ...(pins.bases[nameOf(t)] ?? []).flatMap(b => pins.generics[b] ? entries(pins.generics[b].fields) : OWN.get(b) ?? [])];
+}
+function sizeOf(t) {
+  if (isArray(t)) return ARRAY_DATA;
+  if (typeof t !== "string") return layoutOf(t)?.size ?? 0;
+  assert(pins.instanceSizes[t] !== undefined, `no pinned size for ${t}`);
+  return pins.instanceSizes[t];
+}
+function slotSize(t) {
+  if (!isValue(t)) return 4;
+  assert(sizeOf(t) > 8, `no pinned size for ${key(t)}`);
+  return sizeOf(t) - 8;
+}
+// Leaf fields with offsets relative to the object (static storage when statik). Value-type offsets in
+// metadata include the 8-byte object header, so an inline value type starts 8 bytes before its offsets.
+const LEAVES = new Map();
+function leavesOf(t, statik = false) {
+  const label = `${statik ? "static " : ""}${key(t)}`;
+  if (!LEAVES.has(label)) {
+    const out = [];
+    const walk = (fields, base, prefix, credit) => {
+      for (const f of fields) {
+        const c = f.credit ? [...credit, f.credit] : credit, at = base + f.offset, name = prefix + f.name;
+        if (!inline(f.type)) out.push({path: name, offset: at, type: f.type, credit: c});
+        else if (pins.enums[f.type.slice(3)]) out.push({path: name, offset: at, type: pins.enums[f.type.slice(3)], credit: c});
+        else walk(fieldsOf(parse(f.type)), at - 8, `${name}.`, c);
+      }
+    };
+    walk(statik ? STATIC.get(t) ?? [] : fieldsOf(t), 0, "", []);
+    LEAVES.set(label, out);
+  }
+  return LEAVES.get(label);
+}
+function typed(type, access, value, label) {
+  const ok = type === "bool" ? typeof value === "boolean" : access === "long" ? typeof value === "bigint" || Number.isSafeInteger(value)
+    : access === "float" || access === "double" ? typeof value === "number" : access === "ptr" ? Number.isSafeInteger(value) && value >= 0 : Number.isSafeInteger(value);
+  assert(ok, `${label} is ${type}, not ${typeof value} ${value}`);
+}
+
+const COVERED = new Set();
+// A 16 MiB invented heap. Objects, classes, generic contexts and metadata cells exist only where pinned.
 class Heap {
   constructor() {
-    this.buffer = new ArrayBuffer(16*1024*1024);
+    this.buffer = new ArrayBuffer(16 << 20);
     this.view = new DataView(this.buffer);
     this.next = 0x500000;
-    this.classes = new Map();
-    this.signatures = new Map();
-  }
-  alloc(n) { const p=this.next; this.next=(p+n+7)&~7; assert(this.next<this.buffer.byteLength); return p; }
-  u32(p,n) { if(n===undefined)return this.view.getUint32(p,true); this.view.setUint32(p,n,true); }
-  i32(p,n) { this.view.setInt32(p,n,true); }
-  u16(p,n) { this.view.setUint16(p,n,true); }
-  byte(p,n) { this.view.setUint8(p,n); }
-  f32(p,n) { this.view.setFloat32(p,n,true); }
-  f64(p,n) { this.view.setFloat64(p,n,true); }
-  u64(p,n) { this.view.setBigUint64(p,BigInt(n),true); }
-  type(id,args=[]) {
-    const key=JSON.stringify([id,args]);
-    if(this.signatures.has(key))return this.signatures.get(key);
-    const p=this.alloc(8);this.signatures.set(key,p);
-    if(!args.length){this.u32(p,id);this.byte(p+6,TYPE_KINDS[id]??18);return p;}
-    const g=this.alloc(12),inst=this.alloc(8),a=this.alloc(args.length*4);
-    this.u32(g,this.type(id));this.u32(g+4,inst);this.u32(inst,args.length);this.u32(inst+4,a);
-    args.forEach((arg,i)=>this.u32(a+4*i,Array.isArray(arg)?this.type(...arg):this.type(arg)));
-    this.u32(p,g);this.byte(p+6,21);return p;
-  }
-  cls(id,size=256,args=[],valueSize=4) {
-    const key=JSON.stringify([id,args]);
-    if(this.classes.has(key)) { const c=this.classes.get(key);this.u32(c+128,Math.max(size,this.u32(c+128)));return c; }
-    const c=this.alloc(2400),t=this.type(id,args);
-    this.classes.set(key,c);
-    new Uint8Array(this.buffer,c+16,8).set(new Uint8Array(this.buffer,t,8));
-    this.u32(c+128,size);this.u32(c+132,valueSize);
-    return c;
-  }
-  object(id,size=256,args=[]) { const p=this.alloc(size);this.u32(p,this.cls(id,size,args));return p; }
-  statics(cell,id,size=16) {
-    const c=this.cls(id),p=this.alloc(size);this.u32(cell,c);this.u32(c+76,p);return p;
-  }
-  root(cell,id,size,offset=0) { const s=this.statics(cell,id),p=this.object(id,size);this.u32(s+offset,p);return p; }
-  array(id,stride,count) {
-    const p=this.alloc(16+stride*count),c=this.alloc(192);
-    const element=Array.isArray(id)?this.cls(id[0],256,id[1],stride):this.cls(id,256,[],stride);
-    this.u32(p,c);this.u32(c+16,element+16);this.byte(c+22,29);this.u32(c+32,element);this.u32(c+140,stride);this.i32(p+12,count);
-    return p;
-  }
-  list(id,values=[],stride=4) {
-    const p=this.object(10006,24,[id]),a=this.array(id,stride,values.length);
-    this.u32(p+8,a);this.u32(p+12,values.length);this.u32(p+16,1);
-    values.forEach((v,i)=>{if(stride===4)this.u32(a+16+i*4,v);});
-    return p;
-  }
-  method(c,keyType,valueType) {
-    const p=this.alloc(40),ctx=this.alloc(112);
-    this.u32(p+16,c);this.u32(p+28,ctx);
-    const keyClass=Array.isArray(keyType)?this.cls(keyType[0],256,keyType[1]):this.cls(keyType,256,[],[9024,9095].includes(keyType)?8:4);
-    const valueClass=Array.isArray(valueType)?this.cls(valueType[0],256,valueType[1]):this.cls(valueType);
-    const kw=this.u32(keyClass+132),vw=this.u32(valueClass+132);
-    this.u32(ctx+36,0);this.u32(ctx+40,keyClass);this.u32(ctx+44,8);this.u32(ctx+48,valueClass);this.u32(ctx+52,8+kw);
-    return {p,ctx,kw,vw};
-  }
-  dict(keyType,valueType,rows=[],cell=null,wrapper=false) {
-    const p=this.object(9991,40,[keyType,valueType]);
-    const c=this.u32(p),m=this.method(c,keyType,valueType),stride=(8+m.kw+m.vw+7)&~7;
-    const a=this.array([9985,[keyType,valueType]],stride,rows.length),table=this.alloc(12);
-    this.u32(p+12,a);this.u32(p+16,rows.length);this.u32(p+28,1);
-    const iface=this.cls(10000,256,[keyType,valueType]);
-    this.u16(c+182,1);this.u32(c+72,table);this.u32(table,iface);this.u32(table+4,0);this.u32(c+192+8+4,m.p);
-    if(cell){
-      if(wrapper){const w=this.alloc(40),ctx=this.alloc(112);this.u32(w+28,ctx);this.u32(ctx+52,m.p);this.u32(cell,w);}
-      else this.u32(cell,m.p);
+    this.fields = new Map();
+    this.layouts = new Map();
+    this.memo = new Map();
+    this.violations = [];
+    // libil2cpp loads global-metadata.dat at s_GlobalMetadata and points s_GlobalMetadataHeader at it.
+    this.metadata = this.alloc(HEADER + 12);
+    this.struct(this.metadata, "Il2CppGlobalMetadataHeader");
+    this.write(this.metadata, "int", 0xfab11baf);
+    pins.runtime.typeDefinitions.forEach((v, i) => this.write(this.metadata + HEADER + 4 * i, "int", v));
+    for (const label of ["s_GlobalMetadata", "s_GlobalMetadataHeader"]) this.cell(pins.runtime[label], label, this.metadata);
+    for (const [label, cell] of Object.entries(pins.cells)) {
+      const info = /^TypeInfo (.+)$/.exec(label), ref = /^MethodRef [^|]+\|(.+)::([^(]+)\([^)]*\)<(.+)>$/.exec(label);
+      assert(info || ref, label);
+      if (info) this.statics(info[1]);
+      this.cell(cell, label, info ? this.cls(info[1]) : this.method(parse(`${ref[1]}<${ref[3]}>`), ref[2]));
     }
-    rows.forEach(([k,v],i)=>{
-      const q=a+16+i*stride;this.i32(q,i);this.i32(q+4,-1);
-      if(m.kw===8)this.u64(q+8,k);else this.u32(q+8,k);
-      this.u32(q+8+m.kw,v);
+  }
+  alloc(n) { const p = this.next; this.next = (p + n + 7) & ~7; assert(this.next < this.buffer.byteLength); return p; }
+  once(label, make) { if (!this.memo.has(label)) this.memo.set(label, make()); return this.memo.get(label); }
+  u32(p) { return this.view.getUint32(p, true); }
+  declare(p, label, access, credit = []) {
+    const old = this.fields.get(p);
+    assert(!old || old.label === label, `${label} overlaps ${old?.label} at ${p}`);
+    this.fields.set(p, {label, access, credit});
+  }
+  struct(p, name) {
+    for (const [field, [offset, type]] of Object.entries(RUNTIME[name])) this.declare(p + offset, `${name}.${field}`, accessOf(type), [`${name}.${field}`]);
+  }
+  cell(p, label, value) { this.declare(p, label, "ptr", [label]); this.write(p, "ptr", value); }
+  write(p, access, v) {
+    const view = this.view;
+    if (access === "byte") view.setUint8(p, Number(v));
+    else if (access === "short") view.setUint16(p, v, true);
+    else if (access === "int") v < 0 ? view.setInt32(p, v, true) : view.setUint32(p, v, true);
+    else if (access === "float") view.setFloat32(p, v, true);
+    else if (access === "double") view.setFloat64(p, v, true);
+    else if (access === "long") view.setBigUint64(p, BigInt.asUintN(64, BigInt(v)), true);
+    else if (access === "ptr") view.setUint32(p, v, true);
+    else assert.fail(access);
+  }
+  // Deliberately malformed or unpinned bytes for refusal cases.
+  raw(p, access, v) { this.write(p, access, v); }
+  place(p, prefix, leaves) {
+    const map = new Map();
+    for (const leaf of leaves) {
+      assert(!map.has(leaf.path), `${prefix}${leaf.path} is pinned twice`);
+      this.declare(p + leaf.offset, prefix + leaf.path, accessOf(leaf.type), leaf.credit);
+      map.set(leaf.path, leaf);
+    }
+    this.layouts.set(p, map);
+  }
+  leaf(p, field) { const leaf = this.layouts.get(p)?.get(field); assert(leaf, `${field} is not a pinned field at ${p}`); return leaf; }
+  addr(p, field) { return p + this.leaf(p, field).offset; }
+  set(p, field, value) {
+    if (typeof field === "object") { for (const [k, v] of Object.entries(field)) this.set(p, k, v); return p; }
+    if (value !== null && typeof value === "object") { for (const [k, v] of Object.entries(value)) this.set(p, `${field}.${k}`, v); return p; }
+    const leaf = this.leaf(p, field), access = accessOf(leaf.type);
+    typed(leaf.type, access, value, field);
+    this.write(p + leaf.offset, access, value);
+    return p;
+  }
+  get(p, field) {
+    const leaf = this.leaf(p, field), access = accessOf(leaf.type), at = p + leaf.offset;
+    return access === "long" ? this.view.getBigUint64(at, true) : access === "byte" ? this.view.getUint8(at) : this.u32(at);
+  }
+  handle(name) {
+    assert(pins.types[name] !== undefined, `${name} is not a pinned type`);
+    return this.metadata + pins.runtime.typeDefinitions[0] + pins.types[name] * STRIDE;
+  }
+  type(t) {
+    return this.once(`type ${key(t)}`, () => {
+      const p = this.alloc(8);
+      this.struct(p, "Il2CppType");
+      if (typeof t === "string") { this.write(p, "ptr", this.handle(t)); this.write(p + 6, "byte", defKind(t)); return p; }
+      if (isArray(t)) { this.write(p, "ptr", this.type(t[1])); this.write(p + 6, "byte", 29); return p; }
+      const g = this.alloc(16), inst = this.alloc(8), argv = this.alloc(4 * (t.length - 1));
+      this.struct(g, "Il2CppGenericClass");
+      this.struct(inst, "Il2CppGenericInst");
+      this.write(g, "ptr", this.type(t[0]));
+      this.write(g + 4, "ptr", inst);
+      this.write(inst, "int", t.length - 1);
+      this.write(inst + 4, "ptr", argv);
+      t.slice(1).forEach((a, i) => { this.declare(argv + 4 * i, `Il2CppGenericInst.type_argv[${i}]`, "ptr", ["Il2CppGenericInst.type_argv[]"]); this.write(argv + 4 * i, "ptr", this.type(a)); });
+      this.write(p, "ptr", g);
+      this.write(p + 6, "byte", 21);
+      return p;
     });
-    return {p,a,c,method:m.p,ctx:m.ctx,kw:m.kw,vw:m.vw,stride};
   }
+  cls(t) {
+    return this.once(`class ${key(t)}`, () => {
+      const c = this.alloc(VTABLE + 2 * VTABLE_ENTRY), byval = this.type(t);
+      this.struct(c, "Il2CppClass");
+      this.write(c + 16, "ptr", this.u32(byval));
+      this.write(c + 22, "byte", this.view.getUint8(byval + 6));
+      if (isArray(t)) { this.write(c + 32, "ptr", this.cls(t[1])); this.write(c + 140, "int", slotSize(t[1])); }
+      this.write(c + 128, "int", sizeOf(t));
+      this.write(c + 132, "int", slotSize(t));
+      return c;
+    });
+  }
+  method(t, name) {
+    return this.once(`method ${key(t)}::${name}`, () => {
+      const m = this.alloc(48);
+      this.struct(m, "MethodInfo");
+      this.write(m + 16, "ptr", this.cls(t));
+      this.write(m + 28, "ptr", this.rgctx(t));
+      return m;
+    });
+  }
+  // A class RGCTX built from derive.py's slot descriptions. Field slots hold offsets: unboxed for value types.
+  rgctx(t) {
+    return this.once(`rgctx ${key(t)}`, () => {
+      const slots = pins.rgctx[t[0]], names = {};
+      assert(slots && PARAMS[t[0]], `no pinned RGCTX for ${t[0]}`);
+      PARAMS[t[0]].forEach((n, i) => { names[n] = t[i + 1]; });
+      const used = Object.keys(slots).filter(k => k[0] === "+").map(k => [Number(k.slice(1)), slots[k]]);
+      const p = this.alloc(Math.max(56, ...used.map(([o]) => o + 4)));
+      for (const [o, text] of used) {
+        const label = `rgctx ${t[0]}+${o}`, cls = /^class (.+)$/.exec(text), method = /^method [^|]+\|(.+)::([^(]+)\([^)]*\)<(.+)>$/.exec(text), field = /^field (.+)\.([^.]+)$/.exec(text);
+        if (cls) { this.declare(p + o, label, "ptr", [label]); this.write(p + o, "ptr", this.cls(bind(parse(cls[1]), names))); }
+        else if (method) { this.declare(p + o, label, "ptr", [label]); this.write(p + o, "ptr", this.method(bind(parse(`${method[1]}<${method[3]}>`), names), method[2])); }
+        else {
+          assert(field, `unknown RGCTX slot ${text}`);
+          const owner = bind(parse(field[1]), names), f = fieldsOf(owner).find(f => f.name === field[2]);
+          assert(f, text);
+          this.declare(p + o, label, "int", [label]);
+          this.write(p + o, "int", isValue(owner) ? f.offset - 8 : f.offset);
+        }
+      }
+      return p;
+    });
+  }
+  statics(name) {
+    return this.once(`statics ${name}`, () => {
+      const leaves = leavesOf(name, true), s = this.alloc(Math.max(8, ...leaves.map(l => l.offset + WIDTH[accessOf(l.type)])));
+      this.place(s, `${name}::`, leaves);
+      this.write(this.cls(name) + 76, "ptr", s);
+      return s;
+    });
+  }
+  root(name, field) { const o = this.object(name); this.set(this.statics(name), field, o); return o; }
+  object(t) {
+    const size = sizeOf(t);
+    assert(size > 0, `no instance size for ${key(t)}`);
+    const p = this.alloc(size);
+    this.struct(p, "Il2CppObject");
+    this.write(p, "ptr", this.cls(t));
+    this.place(p, `${key(t)}.`, leavesOf(t));
+    return p;
+  }
+  array(e, length) {
+    const t = ["[]", e], stride = slotSize(e), p = this.alloc(ARRAY_DATA + stride * length);
+    const one = isValue(e) && !PRIM[e] ? leavesOf(e).map(l => ({...l, offset: l.offset - 8})) : [{path: "", offset: 0, type: PRIM[e] ?? "object", credit: []}];
+    this.struct(p, "Il2CppArray");
+    this.write(p, "ptr", this.cls(t));
+    this.write(p + 12, "int", length);
+    this.place(p, key(t), Array.from({length}, (_, i) => one.map(l => ({...l, path: `[${i}]${l.path ? "." : ""}${l.path}`, offset: ARRAY_DATA + i * stride + l.offset}))).flat());
+    return p;
+  }
+  list(e, values = []) {
+    const items = this.array(e, values.length);
+    values.forEach((v, i) => this.set(items, `[${i}]`, v));
+    return this.set(this.object(["System.Collections.Generic.List`1", e]), {_items: items, _size: values.length, _version: 1});
+  }
+  // String stores its characters inline from _firstChar, then a NUL.
   string(s) {
-    const p=this.object(8917,14+s.length*2);this.u32(p+8,s.length);
-    [...s].forEach((ch,i)=>this.u16(p+12+i*2,ch.charCodeAt(0)));return p;
+    const p = this.alloc(Math.max(sizeOf("System.String"), 14 + 2 * s.length)), base = leavesOf("System.String"), first = base.find(l => l.path === "_firstChar");
+    this.struct(p, "Il2CppObject");
+    this.write(p, "ptr", this.cls("System.String"));
+    this.place(p, "System.String.", [...base, ...Array.from({length: s.length}, (_, i) => ({...first, path: `_firstChar[${i + 1}]`, offset: first.offset + 2 * (i + 1)}))]);
+    this.set(p, "_stringLength", s.length);
+    [...s, "\0"].forEach((ch, i) => this.write(p + first.offset + 2 * i, "short", ch.charCodeAt(0)));
+    return p;
   }
-  nullableMethods(value,has,vo,ho) {
-    const [size,id,width] = value===3334068 ? [12,13051,8] : value===3334092 ? [12,13052,8] : value===3333184 ? [8,9023,4] : [2,8962,1];
-    const owner=this.cls(9046,256,[id],size),v=this.cls(id,256,[],width);
-    for(const [cell,off,field] of [[value,vo,8],[has,ho,12]]) {
-      const p=this.alloc(40),ctx=this.alloc(56);this.u32(p+16,owner);this.u32(p+28,ctx);this.u32(ctx,v);this.u32(ctx+field,off);this.u32(cell,p);
+  // IReadOnlyDictionary`2 declares ContainsKey then TryGetValue, so TryGetValue is one past its interface offset.
+  virtual(t) {
+    return this.once(`virtual ${key(t)}`, () => {
+      const c = this.cls(t), row = this.alloc(12), slot = c + VTABLE + VTABLE_ENTRY;
+      this.struct(row, "Il2CppRuntimeInterfaceOffsetPair");
+      this.write(row, "ptr", this.cls(["System.Collections.Generic.IReadOnlyDictionary`2", t[1], t[2]]));
+      this.write(c + 72, "ptr", row);
+      this.write(c + 182, "short", 1);
+      this.struct(slot, "VirtualInvokeData");
+      this.write(slot + 4, "ptr", this.method(t, "TryGetValue"));
+    });
+  }
+  // A Dictionary`2; deleted rows carry hashCode -1. An unused dictionary has no entries array.
+  dict(k, v, rows = [], deleted = []) {
+    const t = ["System.Collections.Generic.Dictionary`2", k, v], p = this.object(t);
+    this.virtual(t);
+    if (!rows.length) return p;
+    const a = this.array(["System.Collections.Generic.Dictionary`2/Entry", k, v], rows.length);
+    rows.forEach(([key, value], i) => this.set(a, `[${i}]`, {hashCode: deleted.includes(i) ? -1 : i, next: -1, key, value}));
+    return this.set(p, {_entries: a, _count: rows.length, _freeCount: deleted.length, _version: 1});
+  }
+  // An OrderedMap`2: KeyValuePair slots in insertion order, tombstoned by gone[] and counted in gaps.
+  orderedMap(k, v, rows = [], gone = []) {
+    const t = ["Spinel.Net.OrderedMap`2", k, v], slots = this.array(["System.Collections.Generic.KeyValuePair`2", k, v], rows.length), marks = this.array("System.Boolean", rows.length);
+    rows.forEach(([key, value], i) => this.set(slots, `[${i}]`, {key, value}));
+    gone.forEach(i => this.set(marks, `[${i}]`, true));
+    return this.set(this.object(t), {slots, gone: marks, used: rows.length, gaps: gone.length, version: 1});
+  }
+  // InputActionState's unmanaged TriggerState array.
+  triggers(n) {
+    const t = "UnityEngine.InputSystem.InputActionState/TriggerState", stride = slotSize(t), p = this.alloc(n * stride);
+    this.place(p, t, Array.from({length: n}, (_, i) => leavesOf(t).map(l => ({...l, path: `[${i}].${l.path}`, offset: i * stride + l.offset - 8}))).flat());
+    return p;
+  }
+  // A DataView whose reads must each hit a pinned field of the read's type.
+  recorder() {
+    const heap = this;
+    class RecordingView extends DataView {}
+    for (const g of ["getInt8", "getUint8", "getInt16", "getUint16", "getInt32", "getUint32", "getFloat32", "getFloat64", "getBigInt64", "getBigUint64"]) {
+      RecordingView.prototype[g] = function (p, little) {
+        const f = heap.fields.get(p);
+        if (!f) heap.violations.push(`${g}(${p}) reads no pinned field`);
+        else if (!GETTERS[f.access].includes(g)) heap.violations.push(`${g}(${p}) reads ${f.label}, a ${f.access} field`);
+        else f.credit.forEach(c => COVERED.add(c));
+        return DataView.prototype[g].call(this, p, little);
+      };
     }
+    return RecordingView;
   }
+  audit() { assert.deepEqual(this.violations, [], "sampler reads must hit pinned fields"); }
 }
 
-function fixture(primePointer=true) {
-  const h=new Heap(), p={};
-  h.nullableMethods(3334068,3334072,0,8);
-  h.nullableMethods(3333184,3333192,0,4);
-  h.nullableMethods(3332756,3332764,1,0);
-  h.nullableMethods(3334092,3334088,0,8);
-  p.flow=h.root(0x318d9c,2621,132,4);p.engine=h.root(0x31b074,13665,44);
-  h.u32(p.flow+16,p.engine);
-  p.screen=h.object(2669,656);h.u32(p.flow+84,p.screen);
-  p.stage=h.object(13686,392);h.u32(p.engine+20,p.stage);h.byte(p.stage+332,1);
-  [8,10,1870,1310].forEach((n,i)=>h.f32(p.stage+56+4*i,n));h.f64(p.stage+144,1.25);
-  h.f64(p.stage+136,1.0);h.f64(p.stage+152,1.0);[1920,1350,1536,1080].forEach((n,i)=>h.u32(p.stage+176+i*4,n));
-  p.input=h.object(13644,128);h.u32(p.engine+28,p.input);
-  p.own=h.object(5467,344);h.u32(p.screen+236,p.own);h.u32(p.own+40,41);h.u32(p.own+44,1);h.f64(p.own+56,350);h.f64(p.own+64,110);
-  [-10,-10,20,20].forEach((n,i)=>h.i32(p.own+176+4*i,n));h.u32(p.own+12,h.list(5592,[],16));
-  p.session=h.object(11820,140);h.u32(p.screen+144,p.session);h.byte(p.session+89,1);
-  p.zone=h.object(2622,40);h.u32(p.screen+148,p.zone);
-  p.zoneInfo=h.object(5622,60);h.u32(p.zone+8,p.zoneInfo);h.u32(p.zoneInfo+8,17);
-  p.map=h.object(13774,224);h.u32(p.zone+16,p.map);h.u32(p.map+76,2000);h.u32(p.map+80,1500);
-  h.u32(p.zone+24,h.list(5545));h.byte(p.screen+400,1);h.i32(p.screen+452,320);h.i32(p.screen+456,96);
-  p.services=h.object(2733,16);h.u32(p.screen+316,p.services);
-  p.combat=h.object(6104,276);p.drill=h.object(6259,232);p.assist=h.object(6218,60);p.gun=h.object(6632,176);p.attributes=h.object(5813,16);p.skills=h.object(8027,208);
-  const services=[];
-  for(const [id,v] of [[6104,p.combat],[6259,p.drill],[6218,p.assist],[6632,p.gun],[5813,p.attributes],[8027,p.skills]]) {
-    const k=h.object(9158,24);h.u32(k+12,h.type(id));services.push([k,v]);
-  }
-  p.serviceDict=h.dict(9089,9203,services,0x325f98);h.u32(p.services+8,p.serviceDict.p);
-  p.fsm=h.object(5810,24);h.u32(p.drill+24,p.fsm);h.u32(p.combat+112,p.fsm);h.u32(p.assist+8,p.drill);
-  for(const q of [p.combat,p.drill,p.gun])h.u32(q+20,p.session);
-  p.hud=h.object(5357,160);h.u32(p.screen+324,p.hud);
-  p.hotkeys=h.object(6744,28);h.u32(p.hud+80,p.hotkeys);
-  function binding(code){const q=h.object(6895,20);h.u32(q+8,h.string(code));h.byte(q+16,1);return q;}
-  p.digBinding=binding("KeyF");p.runBinding=binding("KeyV");
-  p.bindingDict=h.dict(8917,[10006,[6895]],[[h.string("Dig"),h.list(6895,[p.digBinding])],[h.string("Run"),h.list(6895,[p.runBinding])]],3299016);
-  h.u32(p.hotkeys+20,p.bindingDict.p);
-  p.keyboard=h.root(3250708,10299,320);p.keys=h.array(10591,4,128);h.u32(p.keyboard+304,p.keys);
-  p.buttons=[];
-  for(let i=0;i<128;i++){const q=h.object(10591,256);h.byte(q+241,1);h.u32(p.keys+16+i*4,q);p.buttons.push(q);}
-  for(const off of [272,276,280]){const q=h.object(10583,248);h.byte(q+241,1);h.u32(p.keyboard+off,q);}
-  p.actions=[];
-  for(const off of [16,20]) {
-    const q=h.object(10214,236),map=h.object(10230,168),state=h.object(10248,120),states=h.alloc(68);
-    h.u32(p.input+off,q);h.u32(q+112,map);h.u32(map+48,state);h.u32(state+40,1);h.u32(state+60,states);h.byte(states,1);p.actions.push(states);
-  }
-  p.run=h.object(7918,32);h.u32(p.screen+200,p.run);h.byte(p.run+24,1);
-  p.inv=h.object(12099,44);h.u32(p.gun+16,p.inv);h.u32(p.drill+16,p.inv);
-  p.slots=h.array(9095,8,23);h.u32(p.inv+16,p.slots);
-  p.tool=h.object(12073,40);h.u64(p.tool+8,501);h.u64(p.tool+16,8001);h.u32(p.tool+28,300);h.u64(p.slots+16+7*8,501);
-  p.inventory=h.dict(9095,12073,[[501,p.tool]],3335044,true);h.u32(p.inv+12,p.inventory.p);
-  p.toolInfo=h.object(6759,260);h.u64(p.toolInfo+8,8001);h.u32(p.toolInfo+24,6);
-  p.infos=h.dict(9024,6759,[[8001,p.toolInfo]]);h.u32(p.gun+28,p.infos.p);
-  p.drillData=h.object(6228,36);h.u32(p.drill+12,p.drillData);p.petDict=h.dict(9024,9203,[],3297464);h.u32(p.drillData+32,p.petDict.p);
-  p.drillParam=h.object(6225,64);h.u64(p.drillParam+8,8001);h.u32(p.drillParam+24,30);h.u32(p.drillParam+28,70);h.u32(p.drillParam+32,100);h.u32(p.drillParam+36,1);
-  h.u32(p.drillData+8,h.dict(9024,6225,[[8001,p.drillParam]]).p);
-  p.skins=h.statics(0x31b760,2484);h.u32(p.skins,1);h.byte(p.skins+4,1);
-  p.semi=h.statics(0x318318,3185);h.byte(p.semi,1);h.byte(p.semi+1,0);
-  p.monster=h.object(5467,344);h.u32(p.monster+40,73);h.u32(p.monster+44,3);h.f64(p.monster+56,500);h.f64(p.monster+64,300);
-  [-10,-10,20,20].forEach((n,i)=>h.i32(p.monster+176+i*4,n));
-  p.monsterView=h.object(13743,376);h.u32(p.monsterView+96,p.monster);
-  p.actorDict=h.dict(9023,13743,[[73,p.monsterView]],3334428,true);h.u32(p.screen+244,p.actorDict.p);
-  h.f32(p.screen+440,180);h.f32(p.screen+444,204);h.byte(p.screen+448,1);h.u32(p.screen+272,73);h.byte(p.screen+276,1);
-  h.f32(p.screen+624,233);h.f32(p.screen+628,1065);h.f64(p.screen+632,100);
-  p.ground=h.object(2687,120);h.u32(p.screen+252,p.ground);
-  h.statics(3246444,2375);
-  p.covers=h.dict(9203,[8935,[8962]]);h.u32(h.statics(3248924,5358),p.covers.p);
-  p.eventSystem=h.object(14184,52);h.byte(p.eventSystem+40,1);h.u32(h.statics(3246812,14184),h.list(14184,[p.eventSystem]));
-  p.origins=h.root(3258196,2481,40);
-  p.attackTargets=h.dict(9023,9023);h.u32(p.combat+104,p.attackTargets.p);
-  p.waiting=h.dict(9023,6082);h.u32(p.combat+128,p.waiting.p);
-  p.striking=h.dict(9023,[10015,[8927]]);h.u32(p.combat+124,p.striking.p);
-  p.fading=h.object(11320,32,[9023,6083]);h.u32(p.combat+136,p.fading);
-  p.fadingIndex=h.dict(9023,9023);h.u32(p.fading+8,p.fadingIndex.p);
-  const fadeMethod=h.alloc(40),fadeCtx=h.alloc(112);h.u32(fadeMethod+28,fadeCtx);
-  h.u32(fadeCtx+84,p.fadingIndex.method);h.u32(3334644,fadeMethod);
-  const canvas={isConnected:true,width:1920,height:1350,getBoundingClientRect:()=>({left:27.5,top:41.25,width:960,height:540})};
-  const module={HEAPU32:new Uint32Array(h.buffer),canvas};
-  const messages=[];
-  const context=vm.createContext({ArrayBuffer,DataView,Uint32Array,spinelInstance:{Module:module},devicePixelRatio:2,document:{hasFocus:()=>true,visibilityState:"visible",activeElement:canvas},getComputedStyle:()=>({transform:"none",visibility:"visible",display:"block",opacity:"1",pointerEvents:"auto"}),collect:(kind,fields,ingress)=>messages.push({kind,epoch:"7",rawIngress:ingress,...fields})});
-  const control=vm.runInContext(`(function(){const cfg={build:${JSON.stringify(BUILD)},epoch:"7",guard:"synthetic-guard"};let closing=false,failed=false,ingress=19;const now=()=>100;function post(k,v){collect(k,v,ingress);}${script}\nreturn {sample:()=>globalThis.__opentricksterNetSampleV1("7","synthetic-guard","a","b"),close:()=>{closing=true},fail:()=>{failed=true},call:(...args)=>globalThis.__opentricksterNetSampleV1(...args),cfg,setIngress:n=>{ingress=n}};})()`,context);
-  function sample(){control.sample();assert(messages.length);return messages.at(-1);}
-  if(primePointer){sample();h.f64(p.screen+632,100.125);sample();messages.length=0;}
-  return {h,p,module,canvas,context,control,messages,sample};
+const SCREEN = "Spinel.UI.Pc.Screens.GameplayScreen", ACTOR = "Spinel.Game.World.WorldActor", VIEW = "Spinel.Engine.Unity.World.ActorView", POINT = "Spinel.Game.World.Point";
+const ITEM = "Spinel.Net.Game.InvItem", INFO = "Spinel.Game.Play.ItemInfo", PARAM = "Spinel.Game.Play.DrillParam", BINDING = "Spinel.Game.Play.KeyBinding";
+const KEY = "UnityEngine.InputSystem.Controls.KeyControl", BUTTON = "UnityEngine.InputSystem.Controls.ButtonControl", GROUND = "Spinel.UI.Pc.Screens.GroundItems/Entry";
+const AGING = "Spinel.Game.Play.CombatModel/Aging", EDIT = "Spinel.UI.Pc.EditBox", FUNC = ["System.Func`1", "System.Boolean"];
+const I32 = "System.Int32", I64 = "System.Int64", U64 = "System.UInt64", PAIRS = ["[]", ["System.Collections.Generic.KeyValuePair`2", I32, VIEW]];
+const HEAVY = pins.slots["Spinel.UI.Pc.dll|Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0::<Install>b__2()"];
+const CELL = name => pins.cells[name] ?? assert.fail(name);
+const BASE_PARAM = {Id: 8001n, DigDepth: 30, BarEffArea: 70, BarSpeed: 100, ScoopMass: 1};
+const RECT = {left: 27.5, top: 41.25, width: 960, height: 540};
+
+function fixture(primePointer = true) {
+  const h = new Heap(), p = {};
+  const actor = (id, type, x, y) => h.set(h.object(ACTOR), {Id: id, Type: type, X: x, Y: y, HitLeft: -10, HitTop: -10, HitWidth: 20, HitHeight: 20});
+  p.flow = h.root("Spinel.UI.Pc.Screens.GameFlow", "Current");
+  p.engine = h.root("Spinel.Engine.Unity.SpinelEngine", "Instance");
+  p.screen = h.object(SCREEN);
+  p.stage = h.object("Spinel.Engine.Unity.Stage");
+  p.input = h.object("Spinel.Engine.Unity.GameInput");
+  h.set(p.flow, {Engine: p.engine, Screen: p.screen});
+  h.set(p.engine, {Stage: p.stage, Input: p.input});
+  h.set(p.stage, {initialized: true, hostRect: {m_XMin: 8, m_YMin: 10, m_Width: 1870, m_Height: 1310},
+    Current: {UiScale: 1, WorldZoom: 1.25, PxPerDp: 1, ViewportWidth: 1920, ViewportHeight: 1350, WorldWidth: 1536, WorldHeight: 1080}});
+  p.own = h.set(actor(41, 1, 350, 110), "path", h.list(POINT));
+  p.session = h.set(h.object("Spinel.Net.Game.GameSession"), "sendArmed", true);
+  p.zoneInfo = h.set(h.object("Spinel.Game.World.ZoneInfo"), "Id", 17);
+  p.map = h.set(h.object("Spinel.Engine.Unity.World.MapView"), {Width: 2000, Height: 1500});
+  p.zone = h.set(h.object("Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone"), {Info: p.zoneInfo, Map: p.map, Warps: h.list("Spinel.Game.World.WarpRegion")});
+  h.set(p.screen, {avatar: p.own, play: p.session, zone: p.zone, ready: true, cameraX: 320, cameraY: 96});
+  p.combat = h.object("Spinel.Game.Play.CombatModel");
+  p.drill = h.object("Spinel.Game.Play.DrillFeature");
+  p.assist = h.object("Spinel.Game.Play.DigAssist");
+  p.gun = h.object("Spinel.Game.Play.GunFlowing");
+  p.attributes = h.object("Spinel.Game.Play.AvatarStatusFlags");
+  p.skills = h.object("Spinel.Game.Play.SkillsApi");
+  // PlayServices keys services by RuntimeType; libil2cpp builds Type objects over a class's byval_arg.
+  p.serviceKeys = [p.combat, p.drill, p.assist, p.gun, p.attributes, p.skills].map(service => h.set(h.object("System.RuntimeType"), "_impl.value", h.u32(service) + 16));
+  p.serviceDict = h.dict("System.Type", "System.Object", p.serviceKeys.map((k, i) => [k, [p.combat, p.drill, p.assist, p.gun, p.attributes, p.skills][i]]));
+  h.set(p.screen, "services", h.set(h.object("Spinel.UI.Pc.Screens.PlayServices"), "items", p.serviceDict));
+  p.fsm = h.object("Spinel.Game.Play.AvatarFsm");
+  h.set(p.drill, {fsm: p.fsm, session: p.session});
+  h.set(p.combat, {Fsm: p.fsm, session: p.session});
+  h.set(p.gun, "session", p.session);
+  h.set(p.assist, "drill", p.drill);
+  p.hud = h.object("Spinel.UI.Pc.Hud.Hud");
+  h.set(p.screen, "hud", p.hud);
+  const binding = code => h.set(h.object(BINDING), {Code: h.string(code), Exclusive: true});
+  p.digBinding = binding("KeyF");
+  p.runBinding = binding("KeyV");
+  h.set(p.hud, "Keys", h.set(h.object("Spinel.Game.Play.HotkeyMap"), "Bindings", h.dict("System.String", ["System.Collections.Generic.List`1", BINDING],
+    [[h.string("Dig"), h.list(BINDING, [p.digBinding])], [h.string("Run"), h.list(BINDING, [p.runBinding])]])));
+  p.keyboard = h.root("UnityEngine.InputSystem.Keyboard", "current");
+  p.keys = h.array(KEY, 128);
+  for (let i = 0; i < 128; i++) h.set(p.keys, `[${i}]`, h.set(h.object(KEY), "needsToCheckFramePress", true));
+  h.set(p.keyboard, "m_Keys", p.keys);
+  p.modifiers = ["shiftKey", "ctrlKey", "altKey"].map(name => { const q = h.set(h.object(BUTTON), "needsToCheckFramePress", true); h.set(p.keyboard, name, q); return q; });
+  p.actions = ["Click", "RightClick"].map(name => {
+    const action = h.object("UnityEngine.InputSystem.InputAction"), map = h.object("UnityEngine.InputSystem.InputActionMap"), state = h.object("UnityEngine.InputSystem.InputActionState"), triggers = h.triggers(1);
+    h.set(p.input, name, action);
+    h.set(action, "m_ActionMap", map);
+    h.set(map, "m_State", state);
+    h.set(state, "memory", {actionCount: 1, actionStates: triggers});
+    return h.set(triggers, "[0].m_Phase", 1);
+  });
+  p.run = h.set(h.object("Spinel.Game.Play.RunToggle"), "Ready", true);
+  h.set(p.screen, "run", p.run);
+  p.slots = h.set(h.array(U64, 23), "[7]", 501n);
+  p.tool = h.set(h.object(ITEM), {Uid: 501n, ItemId: 8001n, Count: 300});
+  p.inv = h.set(h.object("Spinel.Net.Game.Inventory"), {slots: p.slots, byUid: h.orderedMap(U64, ITEM, [[501n, p.tool]])});
+  h.set(p.gun, "Inventory", p.inv);
+  h.set(p.drill, "Inventory", p.inv);
+  p.toolInfo = h.set(h.object(INFO), {Id: 8001n, Type: 6});
+  h.set(p.gun, "infos", h.dict(I64, INFO, [[8001n, p.toolInfo]]));
+  p.drillParam = h.set(h.object(PARAM), BASE_PARAM);
+  p.drillData = h.set(h.object("Spinel.Game.Play.DrillData"), {Params: h.dict(I64, PARAM, [[8001n, p.drillParam]]), AutoPets: h.dict(I64, I32)});
+  h.set(p.drill, "Data", p.drillData);
+  p.skins = h.set(h.statics("Spinel.UI.Pc.UiSkins"), {chosen: 1, started: true});
+  p.semi = h.set(h.statics("Spinel.UI.Pc.Play.DigKeySettings"), "semiAuto", {hasValue: true, value: false});
+  p.monster = actor(73, 3, 500, 300);
+  p.monsterView = h.set(h.object(VIEW), "Actor", p.monster);
+  p.actors = h.orderedMap(I32, VIEW, [[73, p.monsterView]]);
+  h.set(p.screen, {actors: p.actors, pointer: {hasValue: true, value: {x: 180, y: 204}}, hoveredId: {hasValue: true, value: 73}, probedAt: {x: 233, y: 1065}, probedTime: 100});
+  p.hover = h.object("Spinel.UI.Pc.Screens.GroundItems/HoverDraw");
+  p.ground = h.set(h.object("Spinel.UI.Pc.Screens.GroundItems"), {hover: p.hover, entries: h.dict(I32, GROUND)});
+  h.set(p.screen, "ground", p.ground);
+  p.edit = h.statics(EDIT);
+  h.set(h.statics("Spinel.UI.Pc.Hud.HudCover"), "covers", h.dict("System.Object", FUNC));
+  p.eventSystem = h.set(h.object("UnityEngine.EventSystems.EventSystem"), "m_HasFocus", true);
+  h.set(h.statics("UnityEngine.EventSystems.EventSystem"), "m_EventSystems", h.list("UnityEngine.EventSystems.EventSystem", [p.eventSystem]));
+  p.origins = h.root("Spinel.UI.Pc.UiPressOrigin", "Current");
+  h.set(p.combat, {attackTargets: h.dict(I32, I32), waitingMoves: h.dict(I32, "Spinel.Game.Play.CombatModel/WaitingMove"),
+    striking: h.dict(I32, ["System.Collections.Generic.Queue`1", "System.Action"]), fading: h.orderedMap(I32, AGING)});
+  const canvas = {isConnected: true, width: 1920, height: 1350, getBoundingClientRect: () => ({...RECT})};
+  const module = {HEAPU32: new Uint32Array(h.buffer), canvas};
+  const messages = [];
+  const context = vm.createContext({ArrayBuffer, DataView: h.recorder(), Uint32Array, spinelInstance: {Module: module}, devicePixelRatio: 2,
+    document: {hasFocus: () => true, visibilityState: "visible", activeElement: canvas},
+    getComputedStyle: () => ({transform: "none", visibility: "visible", display: "block", opacity: "1", pointerEvents: "auto"}),
+    collect: (kind, fields, ingress) => messages.push({kind, epoch: "7", rawIngress: ingress, ...fields})});
+  const control = vm.runInContext(`(function(){const cfg={build:${JSON.stringify(pins.build)},epoch:"7",guard:"synthetic-guard"};let closing=false,failed=false,ingress=19;const now=()=>100;function post(k,v){collect(k,v,ingress);}${script}\nreturn {sample:()=>globalThis.__opentricksterNetSampleV1("7","synthetic-guard","a","b"),close:()=>{closing=true},fail:()=>{failed=true},call:(...args)=>globalThis.__opentricksterNetSampleV1(...args),cfg,setIngress:n=>{ingress=n}};})()`, context);
+  function sample() { control.sample(); h.audit(); assert(messages.length); return messages.at(-1); }
+  if (primePointer) { sample(); h.set(p.screen, "probedTime", 100.125); sample(); messages.length = 0; }
+  return {h, p, actor, module, canvas, context, control, messages, sample};
 }
 
-if(process.argv.some(a=>["--snapshot","--stale-zoom","--fresh-zoom"].includes(a))) {
-  const f=fixture();
-  if(!process.argv.includes("--snapshot")) {
-    f.h.f64(f.p.stage+144,2);f.sample();
-    if(process.argv.includes("--fresh-zoom")){f.h.f32(f.p.screen+624,368);f.h.f32(f.p.screen+628,912);f.h.f64(f.p.screen+632,100.25);}
+// Constants the sampler declares that reads alone cannot prove, such as extents smaller than an object.
+function checkConstants() {
+  const constant = name => {
+    const m = new RegExp(`\\b${name} = (\\{[^}]*\\}|\\[[^\\]]*\\]|"[^"]*")`).exec(script);
+    assert(m, `sampler.js declares ${name}`);
+    return JSON.parse(JSON.stringify(vm.runInNewContext(`(${m[1]})`)));
+  };
+  const names = Object.fromEntries(Object.entries(pins.types).map(([name, id]) => [id, name]));
+  for (const [id, size] of Object.entries(constant("typeSizes"))) assert.equal(size, pins.instanceSizes[names[id]], `typeSizes ${id} is ${names[id]}`);
+  for (const [id, kind] of Object.entries(constant("typeKinds"))) assert.equal(kind, pins.typeKinds[names[id]], `typeKinds ${id} is ${names[id]}`);
+  assert.deepEqual(constant("metadataCells"), [pins.runtime.s_GlobalMetadata, pins.runtime.s_GlobalMetadataHeader]);
+  assert.deepEqual(constant("typeDefinitions"), pins.runtime.typeDefinitions);
+  assert.equal(constant("samplerBuild"), pins.build);
+}
+
+if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includes(a))) {
+  const f = fixture();
+  if (!process.argv.includes("--snapshot")) {
+    f.h.set(f.p.stage, "Current.WorldZoom", 2);
+    f.sample();
+    if (process.argv.includes("--fresh-zoom")) f.h.set(f.p.screen, {probedAt: {x: 368, y: 912}, probedTime: 100.25});
   }
-  const value=f.sample();assert.equal(value.snapshot.status,"ready");
+  const value = f.sample();
+  assert.equal(value.snapshot.status, "ready");
   process.stdout.write(JSON.stringify(value));
 } else {
-  let cases=0;
-  function check(name,change,expected="unavailable") {
-    const f=fixture();change(f);const s=f.sample().snapshot;assert.equal(s.status,expected,name);cases++;return s;
+  checkConstants();
+  let cases = 0;
+  function check(name, change, expected = "unavailable", reason) {
+    const f = fixture();
+    change(f);
+    const s = f.sample().snapshot;
+    assert.equal(s.status, expected, name);
+    if (reason) assert.equal(s.reason, reason, name);
+    cases++;
+    return s;
   }
-  const base=fixture(),hash=()=>crypto.createHash("sha256").update(new Uint8Array(base.h.buffer)).digest("hex"),before=hash();
-  const sample=base.sample();assert.equal(sample.snapshot.status,"ready");assert.equal(hash(),before,"sampler never writes memory");
-  assert.equal(sample.rawIngress,19);assert.equal(sample.snapshot.pointer.picked,73);assert.equal(sample.snapshot.input.mode,1);assert.equal(sample.snapshot.dig.manual,true);assert.equal(sample.snapshot.dig.toolUsable,true);
-  assert.deepEqual(Array.from(sample.snapshot.geometry.camera),[320,96]);assert.equal(sample.snapshot.binding.dig,"KeyF");
-  assert.equal(base.sample().snapshot.revision,1);base.h.i32(base.p.screen+452,321);assert.equal(base.sample().snapshot.revision,2);cases++;
-  check("tagged flow",f=>f.h.u32(0x318d9c,0x200086e7));
-  check("null engine",f=>f.h.u32(0x31b074,0));
-  check("misaligned object",f=>f.h.u32(f.p.flow+84,f.p.screen+1));
-  check("truncated object",f=>f.h.u32(f.p.flow+84,f.h.buffer.byteLength-8));
-  check("type-confused screen",f=>f.h.u32(f.p.screen,f.h.cls(5467,656)));
-  check("wrong class extent",f=>f.h.u32(f.h.u32(f.p.screen)+128,16));
-  check("class cannot use an array type kind",f=>f.h.byte(f.h.u32(f.p.screen)+22,29));
-  check("dictionary entries require the correct element type",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+32,f.h.cls(8917)));
-  check("dictionary entries require matching generic arguments",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+32,f.h.cls(9985,256,[9023,6759],16)));
-  check("reference width must equal the WASM pointer width",f=>f.h.u32(f.h.u32(f.p.monsterView)+132,1));
-  check("array descriptor must be an actual vector",f=>f.h.byte(f.h.u32(f.p.actorDict.a)+22,18));
-  check("cold scene",f=>f.h.byte(f.p.screen+400,0));
-  for(const o of [401,402,403,404,600,601])check("covered/changing scene "+o,f=>f.h.byte(f.p.screen+o,1));
-  check("pan",f=>f.h.i32(f.p.stage+280,1));
-  check("host override with zero first component",f=>f.h.byte(f.p.stage+52,1));
-  check("nonfinite zoom",f=>f.h.f64(f.p.stage+144,NaN));
-  check("unresolved method",f=>f.h.u32(0x325f98,0xa0003fdb));
-  check("unresolved context",f=>f.h.u32(f.h.u32(0x325f98)+28,0));
-  check("wrong specialization",f=>f.h.u32(f.p.actorDict.p,f.p.serviceDict.c));
-  check("invalid entry stride",f=>f.h.u32(f.h.u32(f.p.actorDict.a)+140,4));
-  check("count beyond array",f=>f.h.i32(f.p.actorDict.p+16,2));
-  check("negative count",f=>f.h.i32(f.p.actorDict.p+16,-1));
-  check("oversized dictionary",f=>f.h.i32(f.p.actorDict.p+16,100000));
-  check("deleted count mismatch",f=>f.h.i32(f.p.actorDict.a+16,-1));
-  check("service identity mismatch",f=>{const key=f.h.u32(f.p.serviceDict.a+24);f.h.u32(key+12,f.h.type(5467));});
-  check("root mutation",f=>{f.canvas.getBoundingClientRect=()=>{f.h.u32(f.p.flow+84,f.p.own);return {left:27.5,top:41.25,width:960,height:540};};});
-  check("dictionary version changed",f=>{f.canvas.getBoundingClientRect=()=>{f.h.u32(f.p.actorDict.p+28,2);return {left:27.5,top:41.25,width:960,height:540};};});
-  check("memory growth while reading",f=>{let calls=0;Object.defineProperty(f.module,"HEAPU32",{get:()=>++calls===1?new Uint32Array(f.h.buffer):new Uint32Array(new ArrayBuffer(16*1024*1024))});});
-  const grown=fixture();grown.sample();const bigger=new ArrayBuffer(20*1024*1024);new Uint8Array(bigger).set(new Uint8Array(grown.h.buffer));grown.module.HEAPU32=new Uint32Array(bigger);assert.equal(grown.sample().snapshot.status,"ready");cases++;
-  check("malformed boolean",f=>f.h.byte(f.p.screen+400,2));
-  check("modal UI",f=>f.h.u32(f.p.eventSystem+36,f.p.screen));
-  check("key routing masked",f=>f.h.u32(f.p.hud+68,1));
-  check("unknown binding",f=>f.h.u32(f.p.digBinding+8,f.h.string("Key1")));
-  check("modifier binding",f=>f.h.u32(f.p.digBinding+12,1));
-  check("conflicting run/dig",f=>f.h.u32(f.p.runBinding+8,f.h.string("KeyF")));
-  check("missing nullable metadata",f=>f.h.u32(3332756,0));
-  check("unknown skin startup",f=>f.h.byte(f.p.skins+4,0));
-  check("unknown heavy callback",f=>{f.h.byte(f.p.run+8,1);f.h.u32(f.p.run+20,f.h.object(9180,64));});
-  const running=check("observed running, absent Heavy delegate",f=>f.h.byte(f.p.run+8,1),"ready");assert.equal(running.input.mode,2);
-  for (const [carried,attrs,expected] of [[90,17,1],[89,17,2],[90,0,2],[2147483647,17,2]]) {
-    const heavy=check("source heavy predicate",f=>{
-      const {h,p}=f,delegate=h.object(9180,64),state=h.object(2952,56),stats=h.object(7415,28),values=h.object(7412,96);
-      h.byte(p.run+8,1);h.u32(p.run+20,delegate);h.u32(delegate+8,49699);h.u32(delegate+16,state);h.u64(state+8,carried);
-      h.u32(state+24,p.hud);h.u32(state+28,p.screen);h.u32(state+40,p.run);h.u32(p.hud+76,stats);h.u32(stats+8,values);h.f64(values+56,100);h.u32(p.attributes+8,attrs);
-    },"ready");assert.equal(heavy.input.mode,expected);
+  const base = fixture(), hash = () => crypto.createHash("sha256").update(new Uint8Array(base.h.buffer)).digest("hex"), before = hash();
+  const sample = base.sample();
+  assert.equal(sample.snapshot.status, "ready");
+  assert.equal(hash(), before, "sampler never writes memory");
+  assert.equal(sample.rawIngress, 19);
+  assert.equal(sample.snapshot.pointer.picked, 73);
+  assert.equal(sample.snapshot.pointer.groundHover, false);
+  assert.equal(sample.snapshot.input.mode, 1);
+  assert.equal(sample.snapshot.dig.manual, true);
+  assert.equal(sample.snapshot.dig.toolUsable, true);
+  assert.deepEqual(Array.from(sample.snapshot.geometry.camera), [320, 96]);
+  assert.equal(sample.snapshot.binding.dig, "KeyF");
+  assert.equal(base.sample().snapshot.revision, 1);
+  base.h.set(base.p.screen, "cameraX", 321);
+  assert.equal(base.sample().snapshot.revision, 2);
+  cases++;
+
+  // Fixed reads. Each case fails against the read it replaced.
+  // Il2CppType.data is a metadata handle (libil2cpp f2486), never a typedef index.
+  check("typedef index is not a type handle", ({h}) => h.raw(h.cls(SCREEN) + 16, "ptr", pins.types[SCREEN]), "unavailable", "type");
+  check("type handle off the typedef record stride", ({h}) => h.raw(h.cls(SCREEN) + 16, "ptr", h.handle(SCREEN) + 1), "unavailable", "type");
+  check("metadata header from another build", ({h}) => h.raw(h.metadata + HEADER + 8, "int", pins.runtime.typeDefinitions[2] + 1), "unavailable", "build");
+  // RuntimeType's handle is Type._impl.value at +8. A matching handle one field later must not decide identity.
+  check("service key identity comes from Type._impl", ({h, p}) => {
+    p.serviceKeys.forEach(k => h.raw(k + 12, "ptr", h.u32(k + 8)));
+    h.set(p.serviceKeys[0], "_impl.value", h.cls(ACTOR) + 16);
+  }, "unavailable", "generic");
+  // OrderedMap`2 rows are slots[0, used) minus gone[] tombstones.
+  const tombstoned = check("tombstoned actor row skipped", ({h, p}) => {
+    h.set(p.screen, "actors", h.orderedMap(I32, VIEW, [[73, p.monsterView]], [0]));
+    h.set(p.screen, "hoveredId.hasValue", false);
+  }, "ready");
+  assert.equal(tombstoned.actors.length, 1);
+  check("tombstones must match gaps", ({h, p}) => h.set(h.get(p.actors, "gone"), "[0]", true), "unavailable", "generic");
+  check("gaps need a tombstone array", ({h, p}) => h.set(p.actors, {gone: 0, gaps: 1}), "unavailable", "generic");
+  const unused = check("slots past used are not rows", ({h, p, actor}) => {
+    const stale = h.set(h.object(VIEW), "Actor", actor(74, 3, 600, 300));
+    h.set(p.screen, "actors", h.set(h.orderedMap(I32, VIEW, [[73, p.monsterView], [74, stale]]), "used", 1));
+  }, "ready");
+  assert.deepEqual(Array.from(unused.actors, a => a.raw), [41, 73]);
+  check("tombstoned inventory row", ({h, p}) => h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool]], [0])), "unavailable", "cold");
+  // GameplayScreen.ground is +256. GroundItems.entries maps an item actor id to its view.
+  const groundItem = (f, key, x, view = true) => {
+    const {h, p, actor} = f, item = actor(key, 9, x, 300), entry = h.set(h.object(GROUND), "View", view ? h.set(h.object(VIEW), "Actor", item) : 0);
+    h.set(p.ground, "entries", h.dict(I32, GROUND, [[key, entry]]));
+    return entry;
+  };
+  const underPointer = check("ground item under the pointer", f => groundItem(f, 80, 500), "ready");
+  assert.equal(underPointer.pointer.groundHover, true);
+  assert.equal(underPointer.pointer.picked, 73);
+  assert.equal(check("ground item away from the pointer", f => groundItem(f, 80, 100), "ready").pointer.groundHover, false);
+  assert.equal(check("ground entry without a view", f => groundItem(f, 80, 500, false), "ready").pointer.groundHover, false);
+  check("ground entry key must match its actor id", f => {
+    const entry = groundItem(f, 80, 500);
+    f.h.set(f.p.ground, "entries", f.h.dict(I32, GROUND, [[81, entry]]));
+  }, "unavailable", "generic");
+  assert.equal(check("HoverDraw.Entry still reports a hover", f => f.h.set(f.p.hover, "Entry", groundItem(f, 80, 100)), "ready").pointer.groundHover, true);
+  // EditBox.Focused (static +24) takes keys ahead of the HUD.
+  check("focused EditBox owns the keys", ({h, p}) => h.set(p.edit, "Focused", h.object(EDIT)), "unavailable", "routing");
+  check("EditBox static ahead of Focused is not focus", ({h, p}) => h.raw(p.edit, "ptr", h.string("selected")), "ready");
+  // Hud.installing (+132) sends the next key to WaitForKey.
+  check("installing HUD routes the next key elsewhere", ({h, p}) => h.set(p.hud, "installing", true), "unavailable", "routing");
+  check("Hud.Waiting callback is not routing state", ({h, p}) => h.raw(p.hud + 128, "ptr", h.object("System.Action")), "ready");
+
+  check("tagged flow", ({h}) => h.raw(CELL("TypeInfo Spinel.UI.Pc.Screens.GameFlow"), "ptr", 0x200086e7));
+  check("null engine", ({h}) => h.raw(CELL("TypeInfo Spinel.Engine.Unity.SpinelEngine"), "ptr", 0));
+  check("misaligned object", ({h, p}) => h.raw(h.addr(p.flow, "Screen"), "ptr", p.screen + 1));
+  check("truncated object", ({h, p}) => h.raw(h.addr(p.flow, "Screen"), "ptr", h.buffer.byteLength - 8));
+  // A Dictionary`2 is 48 bytes; one cut short by the end of memory must be refused before any read.
+  check("truncated dictionary", ({h, p}) => {
+    const end = h.buffer.byteLength - 44;
+    new Uint8Array(h.buffer, end, 44).set(new Uint8Array(h.buffer, h.get(p.combat, "attackTargets"), 44));
+    h.set(p.combat, "attackTargets", end);
+  }, "unavailable", "memory");
+  check("type-confused screen", ({h, p}) => h.raw(p.screen, "ptr", h.cls(ACTOR)));
+  check("wrong class extent", ({h}) => h.raw(h.cls(SCREEN) + 128, "int", 16));
+  check("class cannot use an array type kind", ({h}) => h.raw(h.cls(SCREEN) + 22, "byte", 29));
+  check("map slots require the pair element class", ({h}) => h.raw(h.cls(PAIRS) + 32, "ptr", h.cls("System.String")));
+  check("dictionary entries require the entry element class", ({h}) => h.raw(h.cls(["[]", ["System.Collections.Generic.Dictionary`2/Entry", "System.Type", "System.Object"]]) + 32, "ptr", h.cls("System.String")));
+  check("dictionary entries require matching generic arguments", ({h}) => {
+    const entries = h.cls(["[]", ["System.Collections.Generic.Dictionary`2/Entry", "System.Type", "System.Object"]]), other = ["System.Collections.Generic.Dictionary`2/Entry", I32, INFO];
+    h.raw(entries + 16, "ptr", h.type(other));
+    h.raw(entries + 32, "ptr", h.cls(other));
+  }, "unavailable", "generic");
+  check("reference width must equal the WASM pointer width", ({h}) => h.raw(h.cls(VIEW) + 132, "int", 1));
+  check("array descriptor must be an actual vector", ({h}) => h.raw(h.cls(PAIRS) + 22, "byte", 18));
+  check("cold scene", ({h, p}) => h.set(p.screen, "ready", false));
+  for (const field of ["changingZone", "loggingOut", "localScene", "campScene", "worldCovered", "artAwaited"]) check(`covered/changing scene ${field}`, ({h, p}) => h.set(p.screen, field, true));
+  check("pan", ({h, p}) => h.set(p.stage, "panPixels", 1));
+  check("host override with zero first component", ({h, p}) => h.set(p.stage, "hostOverride.hasValue", true));
+  check("nonfinite zoom", ({h, p}) => h.set(p.stage, "Current.WorldZoom", NaN));
+  const services = "MethodRef mscorlib.dll|System.Collections.Generic.Dictionary`2::TryGetValue(!TKey,!TValue&)<System.Type,object>";
+  check("unresolved method", ({h}) => h.raw(CELL(services), "ptr", 0xa0003fdb));
+  check("unresolved context", ({h}) => h.raw(h.u32(CELL(services)) + 28, "ptr", 0));
+  check("wrong specialization", ({h, p}) => h.raw(p.actors, "ptr", h.u32(p.serviceDict)));
+  check("invalid slot stride", ({h}) => h.raw(h.cls(PAIRS) + 140, "int", 4));
+  check("used beyond slots", ({h, p}) => h.set(p.actors, "used", 2));
+  check("negative used", ({h, p}) => h.set(p.actors, "used", -1));
+  check("oversized map", ({h, p}) => h.set(p.actors, "used", 100000));
+  check("dictionary deleted count mismatch", ({h, p}) => h.set(h.get(p.serviceDict, "_entries"), "[0].hashCode", -1));
+  check("service identity mismatch", ({h, p}) => h.set(p.serviceKeys[0], "_impl.value", h.cls(ACTOR) + 16));
+  check("root mutation", f => { f.canvas.getBoundingClientRect = () => { f.h.set(f.p.flow, "Screen", f.p.own); return {...RECT}; }; });
+  check("map version changed", f => { f.canvas.getBoundingClientRect = () => { f.h.set(f.p.actors, "version", 2); return {...RECT}; }; });
+  check("memory growth while reading", f => { let calls = 0; Object.defineProperty(f.module, "HEAPU32", {get: () => ++calls === 1 ? new Uint32Array(f.h.buffer) : new Uint32Array(new ArrayBuffer(16 << 20))}); });
+  const grown = fixture();
+  grown.sample();
+  const bigger = new ArrayBuffer(20 << 20);
+  new Uint8Array(bigger).set(new Uint8Array(grown.h.buffer));
+  grown.module.HEAPU32 = new Uint32Array(bigger);
+  assert.equal(grown.sample().snapshot.status, "ready");
+  cases++;
+  check("malformed boolean", ({h, p}) => h.raw(h.addr(p.screen, "ready"), "byte", 2));
+  check("modal UI", ({h, p}) => h.set(p.eventSystem, "m_CurrentSelected", p.screen));
+  check("key routing masked", ({h, p}) => h.set(p.hud, "keyMask", 1));
+  check("unknown binding", ({h, p}) => h.set(p.digBinding, "Code", h.string("Key1")));
+  check("modifier binding", ({h, p}) => h.set(p.digBinding, "Modifier", 1));
+  check("conflicting run/dig", ({h, p}) => h.set(p.runBinding, "Code", h.string("KeyF")));
+  check("missing nullable metadata", ({h}) => h.raw(CELL("MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<bool>"), "ptr", 0));
+  check("unknown skin startup", ({h, p}) => h.set(p.skins, "started", false));
+  check("unknown heavy callback", ({h, p}) => h.set(p.run, {On: true, Heavy: h.object(FUNC)}));
+  const running = check("observed running, absent Heavy delegate", ({h, p}) => h.set(p.run, "On", true), "ready");
+  assert.equal(running.input.mode, 2);
+  const heavy = (f, slot, carried = 0, attrs = 0) => {
+    const {h, p} = f, state = h.object("Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0");
+    h.set(p.run, {On: true, Heavy: h.set(h.object(FUNC), {method_ptr: slot, m_target: state})});
+    h.set(state, {carried: BigInt(carried), hud: p.hud, ctx: p.screen, run: p.run});
+    h.set(p.hud, "Stats", h.set(h.object("Spinel.Game.Play.PlayerStats"), "current", h.set(h.object("Spinel.Game.Play.StatValues"), "MaxWeight", 100)));
+    h.set(p.attributes, "Value", attrs);
+  };
+  for (const [carried, attrs, expected] of [[90, 17, 1], [89, 17, 2], [90, 0, 2], [2147483647, 17, 2]]) {
+    assert.equal(check("source heavy predicate", f => heavy(f, HEAVY, carried, attrs), "ready").input.mode, expected);
   }
-  const staleHeavy=check("previous build heavy callback slot",f=>{
-    const {h,p}=f,delegate=h.object(9180,64),state=h.object(2952,56);
-    h.byte(p.run+8,1);h.u32(p.run+20,delegate);h.u32(delegate+8,49652);h.u32(delegate+16,state);
-  });assert.equal(staleHeavy.reason,"mode");
-  const cached=check("source cached modifier value",f=>{
-    const {h,p}=f,q=h.u32(p.keyboard+272),method=h.alloc(40),ctx=h.alloc(56),manager=h.object(10330,752);
-    h.byte(q+241,0);h.f32(q+168,0);h.f32(q+244,0.5);h.u32(method+28,ctx);h.u32(method+16,h.cls(10275,256,[9067]));h.u32(ctx+4,h.cls(9067));h.u32(ctx+16,164);h.u32(ctx+28,168);h.u32(3309924,method);
-    h.u32(h.statics(3250132,10206)+4,manager);h.byte(manager+736,1);
-  },"ready");assert.equal(cached.input.modifiers[0],false);
-  const gun=check("actual equipped gun branch",f=>{
-    const {h,p}=f,item=h.object(12073,40),info=h.object(6759,260);h.u64(item+8,502);h.u64(item+16,9000);h.u32(item+28,1);h.u64(p.slots+16+1*8,502);
-    h.u64(info+8,9000);h.u32(info+24,2);h.u32(info+28,54);
-    h.u32(p.inv+12,h.dict(9095,12073,[[501,p.tool],[502,item]],3335044,true).p);h.u32(p.gun+28,h.dict(9024,6759,[[8001,p.toolInfo],[9000,info]]).p);
-    h.byte(p.gun+44,1);h.byte(p.gun+45,1);h.u32(p.gun+48,3);
-  },"ready");assert.equal(gun.combat.gunWorn,true);assert.equal(gun.combat.gunReady,true);
-  check("foreign nullable specialization",f=>f.h.u32(f.h.u32(3334068)+16,f.h.cls(9046,256,[9023],8)));
-  check("nullable field overlap",f=>{const ctx=f.h.u32(f.h.u32(3334072)+28);f.h.u32(ctx+12,1);});
-  check("unknown manual setting",f=>f.h.byte(f.p.semi,0));
-  check("cold drill parameter",f=>{f.h.u32(f.p.fsm+8,5);f.h.byte(f.p.drill+84,1);});
-  check("native page zoom",f=>{f.context.visualViewport={scale:2,offsetLeft:0,offsetTop:0};});
-  check("non-canvas DOM editor",f=>{f.context.document.activeElement={tagName:"INPUT"};});
-  check("canvas changed during capture",f=>{let n=0;f.canvas.getBoundingClientRect=()=>({left:27.5,top:41.25,width:++n===1?960:900,height:540});});
-  const deleted=check("deleted dictionary row skipped",f=>{f.h.i32(f.p.actorDict.a+16,-1);f.h.u32(f.p.actorDict.p+24,1);f.h.byte(f.p.screen+276,0);},"ready");assert.equal(deleted.actors.length,1);
-  const occupied=check("non-own combat work is distinct",f=>{const {h,p}=f;h.u32(p.combat+104,h.dict(9023,9023,[[99,73]]).p);},"ready");assert.equal(occupied.combat.ownAttack,false);
-  const fade=check("actual fading target",f=>{const {h,p}=f,d=h.dict(9023,9023,[[73,0]]);h.u32(p.fading+8,d.p);const ctx=h.u32(h.u32(3334644)+28);h.u32(ctx+84,d.method);},"ready");assert.equal(fade.actors[1].fading,true);
-  check("selected skill consumes world input",f=>f.h.u32(f.p.skills+52,f.p.monster));
-  check("pending held cast",f=>f.h.u32(f.p.skills+188,f.p.monster));
-  const noDig=check("source map dig refusal",f=>f.h.u32(f.p.zoneInfo+24,5),"ready");assert.equal(noDig.dig.mapAllowed,false);
-  for (const option of [0,1]) {
-    const pet=check("source automatic pet and zone gate",f=>{
-      const {h,p}=f,item=h.object(12073,40),info=h.object(6759,260);h.u64(item+8,503);h.u64(item+16,7000);h.u32(item+28,1);h.u64(p.slots+16+8*8,503);
-      h.u64(info+8,7000);h.u32(info+24,19);h.u32(p.zoneInfo+40,option);
-      h.u32(p.inv+12,h.dict(9095,12073,[[501,p.tool],[503,item]],3335044,true).p);h.u32(p.gun+28,h.dict(9024,6759,[[8001,p.toolInfo],[7000,info]]).p);
-      h.u32(p.drillData+32,h.dict(9024,9203,[[7000,p.own]],3297464).p);
-    },"ready");assert.equal(pet.dig.automaticPet,option===0);assert.equal(pet.dig.manual,option===1);
+  assert.equal(check("previous build heavy callback slot", f => heavy(f, 49652)).reason, "mode");
+  const cachedButton = (f, pressPoint, cached) => {
+    const {h, p} = f, manager = h.set(h.object("UnityEngine.InputSystem.InputManager"), "m_ReadValueCachingFeatureEnabled", true);
+    h.set(p.modifiers[0], {needsToCheckFramePress: false, pressPoint, m_CachedValue: cached});
+    h.set(h.statics("UnityEngine.InputSystem.InputSystem"), "s_Manager", manager);
+    h.set(h.statics(BUTTON), "s_GlobalDefaultButtonPressPoint", 0.5);
+  };
+  assert.equal(check("source cached modifier value", f => cachedButton(f, 0.5, 0), "ready").input.modifiers[0], false);
+  assert.equal(check("default press point", f => cachedButton(f, 0, 1), "ready").input.modifiers[0], true);
+  check("stale cached modifier value", f => { cachedButton(f, 0.5, 1); f.h.set(f.p.modifiers[0], "m_CachedValueIsStale", true); }, "unavailable", "input");
+  check("processors evaluated on every read", f => { cachedButton(f, 0.5, 1); f.h.set(f.p.modifiers[0], "evaluateProcessorsEveryRead", true); }, "unavailable", "input");
+  const gun = check("actual equipped gun branch", ({h, p}) => {
+    const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1}), info = h.set(h.object(INFO), {Id: 9000n, Type: 2, SubType: 54});
+    h.set(p.slots, "[1]", 502n);
+    h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [502n, item]]));
+    h.set(p.gun, {infos: h.dict(I64, INFO, [[8001n, p.toolInfo], [9000n, info]]), Armed: true, Ready: true, State: 3});
+  }, "ready");
+  assert.equal(gun.combat.gunWorn, true);
+  assert.equal(gun.combat.gunReady, true);
+  check("foreign nullable specialization", ({h}) => h.raw(h.u32(CELL("MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<vt:UnityEngine.Vector2>")) + 16, "ptr", h.cls(["System.Nullable`1", I32])));
+  check("nullable field overlap", ({h}) => h.raw(h.rgctx(["System.Nullable`1", "UnityEngine.Vector2"]) + 12, "int", 5));
+  check("unknown manual setting", ({h, p}) => h.set(p.semi, "semiAuto.hasValue", false));
+  check("cold drill parameter", ({h, p}) => { h.set(p.fsm, "State", 5); h.set(p.drill, "inDrillState", true); });
+  check("native page zoom", f => { f.context.visualViewport = {scale: 2, offsetLeft: 0, offsetTop: 0}; });
+  check("non-canvas DOM editor", f => { f.context.document.activeElement = {tagName: "INPUT"}; });
+  check("canvas changed during capture", f => { let n = 0; f.canvas.getBoundingClientRect = () => ({...RECT, width: ++n === 1 ? 960 : 900}); });
+  const deleted = check("deleted dictionary row skipped", ({h, p}) => h.set(p.combat, "attackTargets", h.dict(I32, I32, [[41, 73]], [0])), "ready");
+  assert.equal(deleted.combat.ownAttack, false);
+  assert.equal(check("own attack row", ({h, p}) => h.set(p.combat, "attackTargets", h.dict(I32, I32, [[41, 73]])), "ready").combat.ownAttack, true);
+  const occupied = check("non-own combat work is distinct", ({h, p}) => h.set(p.combat, "attackTargets", h.dict(I32, I32, [[99, 73]])), "ready");
+  assert.equal(occupied.combat.ownAttack, false);
+  const fade = check("actual fading target", ({h, p}) => h.set(p.combat, "fading", h.orderedMap(I32, AGING, [[73, h.object(AGING)]])), "ready");
+  assert.equal(fade.actors[1].fading, true);
+  check("duplicate fading key", ({h, p}) => h.set(p.combat, "fading", h.orderedMap(I32, AGING, [[73, h.object(AGING)], [73, h.object(AGING)]])), "unavailable", "generic");
+  check("selected skill consumes world input", ({h, p}) => h.set(p.skills, "target", p.monster));
+  check("pending held cast", ({h, p}) => h.set(p.skills, "heldCast", p.monster));
+  const noDig = check("source map dig refusal", ({h, p}) => h.set(p.zoneInfo, "Type", 5), "ready");
+  assert.equal(noDig.dig.mapAllowed, false);
+  for (const option of [0, 1]) {
+    const pet = check("source automatic pet and zone gate", ({h, p}) => {
+      const item = h.set(h.object(ITEM), {Uid: 503n, ItemId: 7000n, Count: 1}), info = h.set(h.object(INFO), {Id: 7000n, Type: 19});
+      h.set(p.slots, "[8]", 503n);
+      h.set(p.zoneInfo, "Option", option);
+      h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [503n, item]]));
+      h.set(p.gun, "infos", h.dict(I64, INFO, [[8001n, p.toolInfo], [7000n, info]]));
+      h.set(p.drillData, "AutoPets", h.dict(I64, I32, [[7000n, 1]]));
+    }, "ready");
+    assert.equal(pet.dig.automaticPet, option === 0);
+    assert.equal(pet.dig.manual, option === 1);
   }
-  check("wrong visual hover",f=>f.h.u32(f.p.screen+272,41),"ready");
-  const noPick=check("hidden target",f=>f.h.byte(f.p.monster+160,1),"ready");assert.equal(noPick.pointer.picked,null);
-  const shift=check("observed shift retained",f=>f.h.byte(f.h.u32(f.p.keyboard+272)+240,1),"ready");assert.equal(shift.input.modifiers[0],true);
-  const semi=check("semi-auto retained",f=>f.h.byte(f.p.semi+1,1),"ready");assert.equal(semi.dig.manual,false);
-  const assist=check("helper state 2 is busy",f=>f.h.u32(f.p.assist+48,2),"ready");assert.equal(assist.dig.assist,2);
-  const held=check("gauge source held",f=>{f.h.u32(f.p.fsm+8,5);f.h.byte(f.p.drill+84,1);f.h.u32(f.p.drill+100,3);f.h.byte(f.p.drill+152,1);f.h.u32(f.p.drill+96,f.p.drillParam);f.h.u32(f.p.drill+92,f.p.tool);f.h.f32(f.p.drill+104,80);},"ready");assert.equal(held.dig.held,true);assert.equal(held.dig.area,70);
-  for (const [name,id,depth,area] of [["foreign parameter row",9999,30,70],["nonprogressing active row",8001,0,70],["different active area",8001,30,10]]) {
-    check(name,f=>{const {h,p}=f;h.u32(p.fsm+8,5);h.byte(p.drill+84,1);h.u32(p.drill+100,6);h.u32(p.drill+92,p.tool);const q=h.object(6225,64);new Uint8Array(h.buffer,q,64).set(new Uint8Array(h.buffer,p.drillParam,64));h.u64(q+8,id);h.i32(q+24,depth);h.i32(q+28,area);h.u32(p.drill+96,q);});
+  check("wrong visual hover", ({h, p}) => h.set(p.screen, "hoveredId.value", 41), "ready");
+  const noPick = check("hidden target", ({h, p}) => h.set(p.monster, "Unseen", true), "ready");
+  assert.equal(noPick.pointer.picked, null);
+  const shift = check("observed shift retained", ({h, p}) => h.set(p.modifiers[0], "m_LastUpdateWasPress", true), "ready");
+  assert.equal(shift.input.modifiers[0], true);
+  const pressed = check("pressed action", ({h, p}) => h.set(p.actions[0], "[0]", {m_Phase: 3, m_Flags: 64}), "ready");
+  assert.equal(pressed.input.left, true);
+  check("pressed flag on a waiting action", ({h, p}) => h.set(p.actions[0], "[0].m_Flags", 64), "unavailable", "input");
+  const semi = check("semi-auto retained", ({h, p}) => h.set(p.semi, "semiAuto.value", true), "ready");
+  assert.equal(semi.dig.manual, false);
+  const assist = check("helper state 2 is busy", ({h, p}) => h.set(p.assist, "State", 2), "ready");
+  assert.equal(assist.dig.assist, 2);
+  const automatic = check("automatic drill phase", ({h, p}) => h.set(p.drill, "Auto", h.set(h.object("Spinel.Game.Play.AutoDrill"), "State", 2)), "ready");
+  assert.equal(automatic.dig.automatic, true);
+  const portal = check("zone portal", ({h, p}) => h.set(p.zone, "Warps", h.list("Spinel.Game.World.WarpRegion", [h.set(h.object("Spinel.Game.World.WarpRegion"), {X1: 10, Y1: 20, X2: 30, Y2: 40})])), "ready");
+  assert.deepEqual(Array.from(portal.portals, q => Array.from(q)), [[10, 20, 30, 40]]);
+  const route = check("queued route", ({h, p}) => h.set(p.screen, "route", h.list(POINT, [{}, {}])), "ready");
+  assert.equal(route.motion.route, 2);
+  const drilling = ({h, p}, stage, param) => {
+    h.set(p.fsm, "State", 5);
+    h.set(p.drill, {inDrillState: true, State: stage, drill: p.tool, param});
+  };
+  const held = check("gauge source held", f => { drilling(f, 3, f.p.drillParam); f.h.set(f.p.drill, {Held: true, Gauge: 80}); }, "ready");
+  assert.equal(held.dig.held, true);
+  assert.equal(held.dig.area, 70);
+  for (const [name, id, depth, area] of [["foreign parameter row", 9999n, 30, 70], ["nonprogressing active row", 8001n, 0, 70], ["different active area", 8001n, 30, 10]]) {
+    check(name, f => drilling(f, 6, f.h.set(f.h.object(PARAM), {...BASE_PARAM, Id: id, DigDepth: depth, BarEffArea: area})));
   }
-  check("equal validated parameter copy",f=>{const {h,p}=f;h.u32(p.fsm+8,5);h.byte(p.drill+84,1);h.u32(p.drill+100,6);h.u32(p.drill+92,p.tool);const q=h.object(6225,64);new Uint8Array(h.buffer,q,64).set(new Uint8Array(h.buffer,p.drillParam,64));h.u32(p.drill+96,q);},"ready");
-  check("UI cache time must be finite",f=>f.h.f64(f.p.screen+632,NaN));
-  check("UI cache time must be initialized",f=>f.h.f64(f.p.screen+632,-10000));
-  const staleUi=check("UI cache must match mapped pointer",f=>{f.h.f32(f.p.screen+624,999);f.h.f32(f.p.screen+628,999);},"ready");assert.equal(staleUi.pointer.world,null);assert.equal(staleUi.pointer.picked,null);
-  const drivers=check("background-run drivers precede the UI probe",f=>f.h.u32(f.p.screen+620,f.p.own),"ready");assert.equal(drivers.pointer.picked,73);
-  const oldProbe=check("previous build probe offset is stale",f=>{f.h.f32(f.p.screen+620,233);f.h.f32(f.p.screen+624,1065);f.h.f32(f.p.screen+628,999);},"ready");assert.equal(oldProbe.pointer.world,null);
-  const coldPointer=fixture(false);assert.equal(coldPointer.sample().snapshot.pointer.world,null);cases++;
-  const zoomed=fixture();assert.equal(zoomed.sample().snapshot.pointer.picked,73);zoomed.h.f64(zoomed.p.stage+144,2);
-  assert.equal(zoomed.sample().snapshot.pointer.world,null);assert.equal(zoomed.sample().snapshot.pointer.world,null);
-  zoomed.h.f32(zoomed.p.screen+624,368);zoomed.h.f32(zoomed.p.screen+628,912);zoomed.h.f64(zoomed.p.screen+632,100.25);
-  assert.equal(zoomed.sample().snapshot.pointer.picked,73);cases++;
-  const resized=fixture();resized.canvas.getBoundingClientRect=()=>({left:27.5,top:41.25,width:1200,height:540});
-  assert.equal(resized.sample().snapshot.pointer.world,null);assert.equal(resized.sample().snapshot.pointer.world,null);
-  resized.h.f64(resized.p.screen+632,100.25);assert.equal(resized.sample().snapshot.pointer.picked,73);cases++;
-  const queued=check("queued destination retained",f=>f.h.byte(f.p.session+88,1),"ready");assert.equal(queued.motion.targetPending,true);
-  const sending=check("held stop retained",f=>f.h.u32(f.p.session+132,f.p.own),"ready");assert.equal(sending.motion.heldStop,true);
-  const guard=fixture();for(const args of [["8","synthetic-guard","a","b"],["7","bad","a","b"],["7","synthetic-guard","0","b"],["7","synthetic-guard","10000000000000000","b"],["7","synthetic-guard","a","0"]])guard.control.call(...args);assert.equal(guard.messages.length,0);guard.control.close();guard.control.sample();assert.equal(guard.messages.length,0);cases++;
-  const failed=fixture();failed.control.fail();failed.control.sample();assert.equal(failed.messages.length,0);cases++;
-  const unavailable=fixture();unavailable.control.cfg.build="unknown";const fault=unavailable.sample();assert.deepEqual(Object.keys(fault.snapshot).sort(),["reason","status","version"]);assert(!JSON.stringify(fault).includes("pointer"));cases++;
+  check("equal validated parameter copy", f => drilling(f, 6, f.h.set(f.h.object(PARAM), BASE_PARAM)), "ready");
+  check("UI cache time must be finite", ({h, p}) => h.set(p.screen, "probedTime", NaN));
+  check("UI cache time must be initialized", ({h, p}) => h.set(p.screen, "probedTime", -10000));
+  const staleUi = check("UI cache must match mapped pointer", ({h, p}) => h.set(p.screen, "probedAt", {x: 999, y: 999}), "ready");
+  assert.equal(staleUi.pointer.world, null);
+  assert.equal(staleUi.pointer.picked, null);
+  // GameplayScreen+620 is the unpinned field ahead of probedAt.
+  const drivers = check("background-run drivers precede the UI probe", ({h, p}) => h.raw(p.screen + 620, "ptr", p.own), "ready");
+  assert.equal(drivers.pointer.picked, 73);
+  const oldProbe = check("previous build probe offset is stale", ({h, p}) => { h.raw(p.screen + 620, "float", 233); h.set(p.screen, "probedAt", {x: 1065, y: 999}); }, "ready");
+  assert.equal(oldProbe.pointer.world, null);
+  const coldPointer = fixture(false);
+  assert.equal(coldPointer.sample().snapshot.pointer.world, null);
+  cases++;
+  const zoomed = fixture();
+  assert.equal(zoomed.sample().snapshot.pointer.picked, 73);
+  zoomed.h.set(zoomed.p.stage, "Current.WorldZoom", 2);
+  assert.equal(zoomed.sample().snapshot.pointer.world, null);
+  assert.equal(zoomed.sample().snapshot.pointer.world, null);
+  zoomed.h.set(zoomed.p.screen, {probedAt: {x: 368, y: 912}, probedTime: 100.25});
+  assert.equal(zoomed.sample().snapshot.pointer.picked, 73);
+  cases++;
+  const resized = fixture();
+  resized.canvas.getBoundingClientRect = () => ({...RECT, width: 1200});
+  assert.equal(resized.sample().snapshot.pointer.world, null);
+  assert.equal(resized.sample().snapshot.pointer.world, null);
+  resized.h.set(resized.p.screen, "probedTime", 100.25);
+  assert.equal(resized.sample().snapshot.pointer.picked, 73);
+  cases++;
+  const queued = check("queued destination retained", ({h, p}) => h.set(p.session, "targetPending", true), "ready");
+  assert.equal(queued.motion.targetPending, true);
+  const sending = check("held stop retained", ({h, p}) => h.set(p.session, "heldStop", p.own), "ready");
+  assert.equal(sending.motion.heldStop, true);
+  const guard = fixture();
+  for (const args of [["8", "synthetic-guard", "a", "b"], ["7", "bad", "a", "b"], ["7", "synthetic-guard", "0", "b"], ["7", "synthetic-guard", "10000000000000000", "b"], ["7", "synthetic-guard", "a", "0"]]) guard.control.call(...args);
+  assert.equal(guard.messages.length, 0);
+  guard.control.close();
+  guard.control.sample();
+  assert.equal(guard.messages.length, 0);
+  cases++;
+  const failed = fixture();
+  failed.control.fail();
+  failed.control.sample();
+  assert.equal(failed.messages.length, 0);
+  cases++;
+  const unavailable = fixture();
+  unavailable.control.cfg.build = "unknown";
+  const fault = unavailable.sample();
+  assert.deepEqual(Object.keys(fault.snapshot).sort(), ["reason", "status", "version"]);
+  assert(!JSON.stringify(fault).includes("pointer"));
+  cases++;
+
+  // Every pin is read somewhere, so a pin that no read uses cannot hide a moved field.
+  const expected = [...Object.keys(pins.fields), ...Object.keys(pins.cells), "s_GlobalMetadata", "s_GlobalMetadataHeader", "Il2CppGenericInst.type_argv[]",
+    ...Object.entries(RUNTIME).flatMap(([name, fields]) => Object.keys(fields).map(f => `${name}.${f}`)),
+    ...Object.entries(pins.rgctx).flatMap(([owner, slots]) => Object.keys(slots).filter(k => k[0] === "+").map(k => `rgctx ${owner}${k}`))];
+  assert.deepEqual(expected.filter(label => !COVERED.has(label)), [], "pins no sampler read covers");
   process.stdout.write(`PASS sampler ${cases} invented-heap cases\n`);
 }
