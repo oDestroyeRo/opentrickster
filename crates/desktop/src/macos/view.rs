@@ -366,7 +366,7 @@ impl Desktop {
                     ("MP", &vitals.mp),
                     ("Weight", &vitals.weight),
                 ] {
-                    toolbar = toolbar.child(div().w(px(92.)).child(self.gauge(
+                    toolbar = toolbar.child(div().w(px(92.)).child(self.mini_gauge(
                         name,
                         gauge.as_ref(),
                         theme,
