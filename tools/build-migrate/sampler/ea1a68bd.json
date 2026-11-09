@@ -158,6 +158,10 @@
    "UnityEngine.InputSystem.InputControl`1<r4>",
    "UnityEngine.InputSystem.InputControl"
   ],
+  "UnityEngine.InputSystem.Controls.AxisControl": [
+   "UnityEngine.InputSystem.InputControl`1<r4>",
+   "UnityEngine.InputSystem.InputControl"
+  ],
   "UnityEngine.InputSystem.Controls.ButtonControl": [
    "UnityEngine.InputSystem.Controls.AxisControl",
    "UnityEngine.InputSystem.InputControl`1<r4>",
@@ -193,11 +197,26 @@
   "UnityEngine.InputSystem.InputControl`1": [
    "UnityEngine.InputSystem.InputControl"
   ],
+  "UnityEngine.InputSystem.InputDevice": [
+   "UnityEngine.InputSystem.InputControl"
+  ],
   "UnityEngine.InputSystem.InputManager": [],
   "UnityEngine.InputSystem.InputSystem": [],
   "UnityEngine.InputSystem.Keyboard": [
    "UnityEngine.InputSystem.InputDevice",
    "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.Utilities.FourCC": [
+   "System.ValueType"
   ],
   "UnityEngine.Rect": [
    "System.ValueType"
@@ -235,13 +254,15 @@
   "TypeInfo UnityEngine.EventSystems.EventSystem": 3246812,
   "TypeInfo UnityEngine.InputSystem.Controls.ButtonControl": 3243056,
   "TypeInfo UnityEngine.InputSystem.InputSystem": 3250132,
-  "TypeInfo UnityEngine.InputSystem.Keyboard": 3250708
+  "TypeInfo UnityEngine.InputSystem.Keyboard": 3250708,
+  "TypeInfo UnityEngine.InputSystem.LowLevel.InputStateBuffers": 3250128
  },
  "enums": {
   "Spinel.Game.Play.AutoDrill/Phase": "i4",
   "Spinel.Game.Play.DigAssist/Mode": "i4",
   "Spinel.Game.Play.DrillFeature/Stage": "i4",
-  "Spinel.UI.Pc.UiSkin": "i4"
+  "Spinel.UI.Pc.UiSkin": "i4",
+  "UnityEngine.InputSystem.Controls.AxisControl/Clamp": "i4"
  },
  "fields": {
   "Spinel.Engine.StageLayout.PxPerDp": [
@@ -936,6 +957,22 @@
    0,
    "System.Collections.Generic.List`1<UnityEngine.EventSystems.EventSystem>"
   ],
+  "UnityEngine.InputSystem.Controls.AxisControl.clamp": [
+   188,
+   "vt:UnityEngine.InputSystem.Controls.AxisControl/Clamp"
+  ],
+  "UnityEngine.InputSystem.Controls.AxisControl.invert": [
+   204,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.Controls.AxisControl.normalize": [
+   205,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.Controls.AxisControl.scale": [
+   220,
+   "bool"
+  ],
   "UnityEngine.InputSystem.Controls.ButtonControl.m_LastUpdateWasPress": [
    240,
    "bool"
@@ -951,6 +988,14 @@
   "UnityEngine.InputSystem.Controls.ButtonControl::s_GlobalDefaultButtonPressPoint": [
    0,
    "r4"
+  ],
+  "UnityEngine.InputSystem.Controls.DiscreteButtonControl.maxValue": [
+   252,
+   "i4"
+  ],
+  "UnityEngine.InputSystem.Controls.DiscreteButtonControl.minValue": [
+   248,
+   "i4"
   ],
   "UnityEngine.InputSystem.InputAction.m_ActionIndexInState": [
    108,
@@ -996,6 +1041,22 @@
    104,
    "bool"
   ],
+  "UnityEngine.InputSystem.InputControl.m_Device": [
+   68,
+   "UnityEngine.InputSystem.InputDevice"
+  ],
+  "UnityEngine.InputSystem.InputControl.m_OptimizedControlDataType": [
+   160,
+   "vt:UnityEngine.InputSystem.Utilities.FourCC"
+  ],
+  "UnityEngine.InputSystem.InputControl.m_StateBlock": [
+   8,
+   "vt:UnityEngine.InputSystem.LowLevel.InputStateBlock"
+  ],
+  "UnityEngine.InputSystem.InputDevice.m_DeviceIndex": [
+   176,
+   "i4"
+  ],
   "UnityEngine.InputSystem.InputManager.m_ReadValueCachingFeatureEnabled": [
    736,
    "bool"
@@ -1023,6 +1084,38 @@
   "UnityEngine.InputSystem.Keyboard::current": [
    0,
    "UnityEngine.InputSystem.Keyboard"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.bitOffset": [
+   16,
+   "u4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.format": [
+   8,
+   "vt:UnityEngine.InputSystem.Utilities.FourCC"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.m_ByteOffset": [
+   12,
+   "u4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.sizeInBits": [
+   20,
+   "u4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers.deviceCount": [
+   12,
+   "i4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers.deviceToBufferMapping": [
+   8,
+   "void**"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers::s_CurrentBuffers": [
+   12,
+   "vt:UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers"
+  ],
+  "UnityEngine.InputSystem.Utilities.FourCC.m_Code": [
+   8,
+   "i4"
   ],
   "UnityEngine.Rect.m_Height": [
    20,
@@ -1582,6 +1675,23 @@
     ]
    },
    "size": 185
+  },
+  "UnityEngine.InputSystem.Utilities.InlinedArray`1<object>": {
+   "fields": {
+    "additionalValues": [
+     16,
+     "object[]"
+    ],
+    "firstValue": [
+     12,
+     "object"
+    ],
+    "length": [
+     8,
+     "i4"
+    ]
+   },
+   "size": 20
   }
  },
  "instanceSizes": {
@@ -1665,6 +1775,7 @@
   "UnityEngine.InputSystem.InputManager": 752,
   "UnityEngine.InputSystem.InputSystem": 8,
   "UnityEngine.InputSystem.Keyboard": 320,
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": 40,
   "UnityEngine.Vector2": 16,
   "UnityEngine.Vector2Int": 16
  },
@@ -1787,9 +1898,12 @@
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.UiPressOrigin::get_LeftOnUi()": "50bf22c6c1179065b2607ed476cc255981ac6e7f2d1829510e64d835d18bb13c",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.UiPressOrigin::get_RightOnUi()": "cfa081e7263c456661d77beb4ac9701fd5fdafe69031b2cb3d90e64c10804994",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.UiSkins::get_Current()": "c23062ddccd9d174179ad3ba725e2086856071a6473d7eea5a4bfbd1b129db63",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Controls.AxisControl::ReadUnprocessedValueFromState(void*)": "c8856ac52e607abd9e5718256ecaad9006968ab55b8d58aef5b67a3054f04bfa",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Controls.ButtonControl::get_isPressed()": "e9ad7c4afa3722e2e6c181bdb722ad0336ee4eec8a77b09a57f6014a2d7a251f",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Controls.DiscreteButtonControl::ReadUnprocessedValueFromState(void*)": "09de64ac355afd28b2488636af2e9cbd68219a7a90afe05b2d354fb6d4128d6b",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.InputAction::IsPressed()": "74fae1e2c90140b9cfde78546c59b5ea71b2065c26a47c4d7282730829eeb19b",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.InputActionState/TriggerState::get_isPressed()": "0fbed1dd0677e40be493f867f419fce30067cb4ea61b3b2794026b49f2417d65",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl::GetDeviceIndex()": "ab0c6db87591f10f3eddd1c064469e01169f3ac3769de38c845c88a8d5d33fe2",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl::get_currentStatePtr()": "aa4992e672328b8f0148d5b2bf11d264ef77b5ecd9f6259bc7085dc4179fa676",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_Item(vt:UnityEngine.InputSystem.Key)": "d9af049c8667e9b71fcc387ebcf3ca1887c550d1c73626223427b951fd558764",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_aKey()": "440fb79bfde472ca2e6217527e34d046fb376f21d4b539fcbfdbf96ccc5b3654",
@@ -1801,6 +1915,10 @@
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_rightCommandKey()": "b91a0ea6f2cc69cd31a35129d21b5c6279e393c89dbbbda7a1f20c4966e94f33",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_rightMetaKey()": "b91a0ea6f2cc69cd31a35129d21b5c6279e393c89dbbbda7a1f20c4966e94f33",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_rightWindowsKey()": "b91a0ea6f2cc69cd31a35129d21b5c6279e393c89dbbbda7a1f20c4966e94f33",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.LowLevel.InputStateBlock::ReadFloat(void*)": "8d1125d459a3e7d94ac0c0b3f18992bdb8d995b8a3c7e7928ad35a283e9af78b",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.LowLevel.InputStateBuffers::GetFrontBufferForDevice(i4)": "35466436736938c0df1300178e755ed510034d4d0955ff904410f8c7fb209319",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Utilities.MemoryHelpers::ReadMultipleBitsAsUInt(void*,u4,u4)": "1fc088d9994bfb8d7561c0f853c92ed0b481835b1baac6a329da0b92bbe633e2",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Utilities.MemoryHelpers::ReadSingleBit(void*,u4)": "6d197544d21813018278c11c443a2b706bec21df11363f9b414fb134f0cd72dc",
   "mscorlib.dll|System.Object::GetType()": "cfefdc6163274f991f8831ed2a9181e2a4012e5ebe13b037660d54c1d57603de"
  },
  "rgctx": {
@@ -1835,6 +1953,7 @@
    "+16": "field UnityEngine.InputSystem.InputControl`1<!TValue>.evaluateProcessorsEveryRead",
    "+28": "field UnityEngine.InputSystem.InputControl`1<!TValue>.m_CachedValue",
    "+4": "class !TValue",
+   "+56": "field UnityEngine.InputSystem.InputControl`1<!TValue>.m_ProcessorStack",
    "sha256": "626df0bd77908236e3bdeacd946a251f3aa277c7fc8c65636d3c5032c9061eb0"
   }
  },
@@ -1865,6 +1984,7 @@
   "System.String": 14,
   "System.UInt64": 11,
   "UnityEngine.InputSystem.InputActionState/TriggerState": 17,
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": 17,
   "UnityEngine.Vector2": 17,
   "UnityEngine.Vector2Int": 17
  },
@@ -1950,6 +2070,7 @@
   "UnityEngine.InputSystem.InputManager": 10330,
   "UnityEngine.InputSystem.InputSystem": 10206,
   "UnityEngine.InputSystem.Keyboard": 10299,
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": 10529,
   "UnityEngine.Vector2": 13051,
   "UnityEngine.Vector2Int": 13052
  },

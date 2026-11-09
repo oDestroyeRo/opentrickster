@@ -44,7 +44,7 @@ Spinel.Game.Play.AutoDrill Spinel.UI.Pc.Hud.Hud Spinel.UI.Pc.Hud.HudCover Spinel
 Spinel.UI.Pc.Play.DigKeySettings Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0
 Spinel.UI.Pc.Screens.GroundItems Spinel.UI.Pc.Screens.GroundItems/Entry Spinel.UI.Pc.EditBox
 Spinel.UI.Pc.UiPressOrigin Spinel.UI.Pc.Screens.GroundItems/HoverDraw System.Collections.Generic.KeyValuePair`2
-UnityEngine.InputSystem.InputActionState/TriggerState
+UnityEngine.InputSystem.InputActionState/TriggerState UnityEngine.InputSystem.LowLevel.InputStateBuffers
 """.split()
 
 # Fields by name. "s:" marks a static field; <Name>k__BackingField is written Name.
@@ -79,7 +79,14 @@ FIELDS = {
     'UnityEngine.InputSystem.Keyboard': 'shiftKey ctrlKey altKey m_Keys s:current',
     'UnityEngine.InputSystem.Controls.ButtonControl': 'm_LastUpdateWasPress needsToCheckFramePress pressPoint '
                                                       's:s_GlobalDefaultButtonPressPoint',
-    'UnityEngine.InputSystem.InputControl': 'm_CachedValueIsStale',
+    'UnityEngine.InputSystem.InputControl': 'm_StateBlock m_Device m_CachedValueIsStale m_OptimizedControlDataType',
+    'UnityEngine.InputSystem.LowLevel.InputStateBlock': 'format m_ByteOffset bitOffset sizeInBits',
+    'UnityEngine.InputSystem.Utilities.FourCC': 'm_Code',
+    'UnityEngine.InputSystem.InputDevice': 'm_DeviceIndex',
+    'UnityEngine.InputSystem.Controls.AxisControl': 'clamp invert normalize scale',
+    'UnityEngine.InputSystem.Controls.DiscreteButtonControl': 'minValue maxValue',
+    'UnityEngine.InputSystem.LowLevel.InputStateBuffers': 's:s_CurrentBuffers',
+    'UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers': 'deviceToBufferMapping deviceCount',
     'UnityEngine.InputSystem.InputSystem': 's:s_Manager',
     'UnityEngine.InputSystem.InputManager': 'm_ReadValueCachingFeatureEnabled',
     'UnityEngine.InputSystem.InputAction': 'm_ActionIndexInState m_ActionMap',
@@ -123,6 +130,7 @@ CELLS = [
     ('TypeInfo', 'UnityEngine.InputSystem.InputSystem'),
     ('TypeInfo', 'UnityEngine.InputSystem.Controls.ButtonControl'),
     ('TypeInfo', 'UnityEngine.InputSystem.Keyboard'),
+    ('TypeInfo', 'UnityEngine.InputSystem.LowLevel.InputStateBuffers'),
     ('TypeInfo', 'Spinel.UI.Pc.UiSkins'),
     ('TypeInfo', 'Spinel.UI.Pc.Play.DigKeySettings'),
     ('TypeInfo', 'Spinel.UI.Pc.EditBox'),
@@ -154,7 +162,7 @@ SLOTS = ['Spinel.UI.Pc.dll|Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_
 RGCTX = {
     'System.Nullable`1': (0, 8, 12),
     'System.Collections.Generic.Dictionary`2': (36, 40, 44, 48, 52),
-    'UnityEngine.InputSystem.InputControl`1': (4, 16, 28),
+    'UnityEngine.InputSystem.InputControl`1': (4, 16, 28, 56),
     'Spinel.Net.OrderedMap`2': (12, 16),
     'System.Collections.Generic.KeyValuePair`2': (0, 4, 8, 12, 16),
 }
@@ -203,10 +211,15 @@ METHODS = {
                                            'UpdateNameTags get_MoveMode',
     'Spinel.UI.Pc.UiPressOrigin': 'get_LeftOnUi get_RightOnUi',
     'Spinel.UI.Pc.UiSkins': 'get_Current',
+    'UnityEngine.InputSystem.Controls.AxisControl': 'ReadUnprocessedValueFromState',
     'UnityEngine.InputSystem.Controls.ButtonControl': 'get_isPressed',
+    'UnityEngine.InputSystem.Controls.DiscreteButtonControl': 'ReadUnprocessedValueFromState',
     'UnityEngine.InputSystem.InputAction': 'IsPressed',
     'UnityEngine.InputSystem.InputActionState/TriggerState': 'get_isPressed',
-    'UnityEngine.InputSystem.InputControl': 'get_currentStatePtr',
+    'UnityEngine.InputSystem.InputControl': 'GetDeviceIndex get_currentStatePtr',
+    'UnityEngine.InputSystem.LowLevel.InputStateBlock': 'ReadFloat',
+    'UnityEngine.InputSystem.LowLevel.InputStateBuffers': 'GetFrontBufferForDevice',
+    'UnityEngine.InputSystem.Utilities.MemoryHelpers': 'ReadMultipleBitsAsUInt ReadSingleBit',
     'UnityEngine.InputSystem.Keyboard': 'get_Item get_aKey get_leftAppleKey get_leftCommandKey get_leftMetaKey '
                                         'get_leftWindowsKey get_rightAppleKey get_rightCommandKey get_rightMetaKey '
                                         'get_rightWindowsKey',
@@ -784,6 +797,7 @@ GENERICS = [
     ('System.Collections.Generic.List`1', ('vt:Spinel.Game.World.Point',)),
     ('System.Func`1', ('bool',)),
     ('UnityEngine.InputSystem.InputControl`1', ('r4',)),
+    ('UnityEngine.InputSystem.Utilities.InlinedArray`1', ('object',)),
 ]
 
 

@@ -680,6 +680,57 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   };
   check("FastKeyboard is the current keyboard", fastKeyboard, "ready");
   check("current keyboard of another class", ({h}) => h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", h.object(BUTTON)), "unavailable", "type");
+  // With InputManager.m_ReadValueCachingFeatureEnabled off, get_value f69067 reads the device's front buffer on every call.
+  const FOURCC = {BIT: 0x42495420, BYTE: 0x42595445, FLT: 0x464c5420};
+  const uncached = (f, device = f.h.get(f.h.statics("UnityEngine.InputSystem.Keyboard"), "current")) => {
+    const {h} = f, state = h.alloc(16), mapping = h.alloc(8);
+    for (let i = 0; i < 16; i++) h.declare(state + i, `device front buffer[${i}]`, "byte");
+    h.declare(mapping, "deviceToBufferMapping[0]", "ptr");
+    h.write(mapping, "ptr", state);
+    h.set(h.statics("UnityEngine.InputSystem.LowLevel.InputStateBuffers"), "s_CurrentBuffers", {deviceToBufferMapping: mapping, deviceCount: 1});
+    h.set(h.statics("UnityEngine.InputSystem.InputSystem"), "s_Manager", h.object("UnityEngine.InputSystem.InputManager"));
+    h.set(h.statics(BUTTON), "s_GlobalDefaultButtonPressPoint", 0.5);
+    h.set(device, "m_DeviceIndex", 0);
+    const bit = n => h.write(state + (n >> 3), "byte", h.view.getUint8(state + (n >> 3)) | 1 << (n & 7));
+    return {state, mapping, device, bit};
+  };
+  // A FastKeyboard key is one state bit at its Key value; KeyF is Key 20, m_Keys[19].
+  const digKey = f => f.h.get(f.p.keys, "[19]");
+  const stateKey = (f, s, bit = 20) => f.h.set(digKey(f), {needsToCheckFramePress: false, m_Device: s.device, m_StateBlock: {format: {m_Code: FOURCC.BIT}, m_ByteOffset: 0, bitOffset: bit, sizeInBits: 1}});
+  assert.equal(check("uncached dig key held", f => { const s = uncached(f); stateKey(f, s); s.bit(20); }, "ready").input.digHeld, true);
+  assert.equal(check("uncached dig key released", f => { const s = uncached(f); stateKey(f, s); s.bit(19); s.bit(21); }, "ready").input.digHeld, false);
+  assert.equal(check("uncached BYTE fast path", f => {
+    const s = uncached(f); stateKey(f, s);
+    f.h.set(digKey(f), {m_StateBlock: {m_ByteOffset: 3}, m_OptimizedControlDataType: {m_Code: FOURCC.BYTE}});
+    f.h.write(s.state + 3, "byte", 1);
+  }, "ready").input.digHeld, true);
+  assert.equal(check("uncached unaligned FLT fast path", f => {
+    const s = uncached(f); stateKey(f, s);
+    f.h.set(digKey(f), {m_StateBlock: {m_ByteOffset: 5}, m_OptimizedControlDataType: {m_Code: FOURCC.FLT}});
+    f.h.view.setFloat32(s.state + 5, 0.75, true);
+  }, "ready").input.digHeld, true);
+  // FastKeyboard's shift is a DiscreteButtonControl over bits 51 and 52 (left and right shift) with values 1 to 3.
+  const shiftState = (f, bits) => {
+    const k = fastKeyboard(f), s = uncached(f, k), shift = f.h.object("UnityEngine.InputSystem.Controls.DiscreteButtonControl");
+    f.h.set(shift, {m_Device: k, m_StateBlock: {format: {m_Code: FOURCC.BIT}, m_ByteOffset: 0, bitOffset: 51, sizeInBits: 2}, minValue: 1, maxValue: 3});
+    f.h.set(k, "shiftKey", shift);
+    bits.forEach(b => s.bit(b));
+    return shift;
+  };
+  assert.equal(check("uncached left shift", f => shiftState(f, [51]), "ready").input.modifiers[0], true);
+  assert.equal(check("uncached right shift", f => shiftState(f, [52]), "ready").input.modifiers[0], true);
+  assert.equal(check("uncached shift released", f => shiftState(f, [50, 53]), "ready").input.modifiers[0], false);
+  check("uncached wrapping discrete range", f => f.h.set(shiftState(f, [51]), {minValue: 3, maxValue: 1}), "unavailable", "input");
+  check("uncached key with processors", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_ProcessorStack.length", 1); }, "unavailable", "input");
+  check("uncached key with preprocessing", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "invert", true); }, "unavailable", "input");
+  check("uncached key in an unmodelled state format", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_StateBlock.sizeInBits", 8); }, "unavailable", "input");
+  check("uncached key of another device", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_Device", f.h.object("UnityEngine.InputSystem.FastKeyboard")); }, "unavailable", "input");
+  check("uncached device outside the current buffers", f => { const s = uncached(f); stateKey(f, s); f.h.set(s.device, "m_DeviceIndex", 1); }, "unavailable", "input");
+  check("uncached device without a front buffer", f => { const s = uncached(f); stateKey(f, s); f.h.write(s.mapping, "ptr", 0); }, "unavailable", "input");
+  check("uncached AnyKeyControl", f => {
+    const s = uncached(f), any = f.h.set(f.h.object("UnityEngine.InputSystem.Controls.AnyKeyControl"), "m_Device", s.device);
+    f.h.set(f.p.keyboard, "ctrlKey", any);
+  }, "unavailable", "input");
   const gun = check("actual equipped gun branch", ({h, p}) => {
     const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1}), info = h.set(h.object(INFO), {Id: 9000n, Type: 2, SubType: 54});
     h.set(p.slots, "[1]", 502n);

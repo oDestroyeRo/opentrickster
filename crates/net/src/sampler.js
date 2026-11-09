@@ -4,7 +4,7 @@
   const samplerBuild = "ea1a68bd89958fae94179f1e0835ffb5";
   // At runtime Il2CppType.data for classes and primitives is a handle into the loaded metadata, not an index.
   const metadataCells = [4659832,4659828], typeDefinitions = [7487400,1019502,15447];
-  const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
+  const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,10529:17,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
   const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10304:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
   let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
   const sampleHex = value => typeof value === "string" && /^[1-9a-f][0-9a-f]{0,15}$/.test(value);
@@ -238,23 +238,61 @@
       if (!result.dig || !result.run || result.dig === result.run) unavailable("binding");
       return result;
     }
-    function button(p) {
+    // Device state bytes are unmanaged and may be unaligned, so wider reads are composed from bytes.
+    function stateBytes(p, n) { let v = 0; for (let i = 0; i < n; i++) v += byte(p + i) * 2 ** (8 * i); return v; }
+    // AxisControl.Preprocess, inlined in both state readers; only the identity is modelled.
+    function unprocessed(p) { if (i32(p + 188) !== 0 || bool(p + 204) || bool(p + 205) || bool(p + 220)) unavailable("input"); }
+    // get_unprocessedValue f69068: virtual slot 17 on InputControl.currentStatePtr (f33851), the front buffer that
+    // InputStateBuffers.GetFrontBufferForDevice f34662 maps from m_Device.m_DeviceIndex (GetDeviceIndex f33849).
+    function stateValue(p, id, device) {
+      if (id === 10580 || pointer(p + 68) !== device) unavailable("input");
+      const buffers = statics(3250128,10529), index = i32(device + 176);
+      if (index < 0 || index >= i32(buffers + 16)) unavailable("input");
+      const front = u32(pointer(buffers + 12) + index * 8);
+      if (!front) unavailable("input");
+      const at = front + u32(p + 12), bit = u32(p + 16), size = u32(p + 20);
+      if (id === 10586) {
+        // DiscreteButtonControl f34957 over MemoryHelpers.ReadMultipleBitsAsUInt f34958.
+        const min = i32(p + 248), max = i32(p + 252), skip = bit >= 33 ? Math.floor(bit / 32) : 0, shift = bit - 32 * skip;
+        if (min > max || size < 1 || shift + size > 32) unavailable("input");
+        const word = stateBytes(at + 4 * skip, shift + size <= 8 ? 1 : shift + size <= 16 ? 2 : 4);
+        const value = (Math.floor(word / 2 ** shift) % 2 ** size) | 0;
+        unprocessed(p);
+        return value >= min && value <= max ? 1 : 0;
+      }
+      // AxisControl f34935: BYTE and FLT fast paths, otherwise InputStateBlock.ReadFloat f34653 then Preprocess.
+      const fast = u32(p + 160);
+      if (fast === 1113150533) return byte(at) ? 1 : 0;
+      if (fast === 1179407392) return finite(new Float32Array(Uint32Array.of(stateBytes(at, 4)).buffer)[0]);
+      if (u32(p + 8) !== 1112101920 || size !== 1) unavailable("input");
+      const value = Math.floor(byte(at + Math.floor(bit / 8)) / 2 ** (bit % 8)) % 2;
+      unprocessed(p);
+      return value;
+    }
+    // ButtonControl.get_isPressed f34947 over InputControl`1.get_value f69067, which reuses m_CachedValue only while
+    // InputManager's read-value caching is on, the cache is fresh and processors need not run on every read.
+    function button(p, device) {
       extent(p,248);
       const id = type(pointer(p) + 16).id;
       if (![10580,10583,10586,10591].includes(id)) unavailable("type");
       if (bool(p + 241)) return bool(p + 240);
-      // ReadValue's initialized float specialization; stale caches must remain unknown.
-      if (bool(p + 104)) unavailable("input");
-      const method = methodCell(3309924), ctx = context(method), off = integer(u32(ctx + 28),164,224);
+      const method = methodCell(3309924), ctx = context(method);
       klass(pointer(method+16),10275,[9067]);
       if (u32(klass(pointer(ctx+4),9067)+132) !== 4) unavailable("generic");
-      if (bool(p + integer(u32(ctx + 16),164,224))) unavailable("input");
       const manager = object(pointer(statics(3250132,10206) + 4),10330);
-      if (!bool(manager + 736)) unavailable("input");
+      let value;
+      if (bool(manager + 736)) {
+        if (bool(p + 104) || bool(p + integer(u32(ctx + 16),164,224))) unavailable("input");
+        value = f32(p + integer(u32(ctx + 28),164,224));
+      } else {
+        // ProcessValue f69069 runs m_ProcessorStack when its length is positive.
+        if (i32(p + integer(u32(ctx + 56),164,224)) > 0) unavailable("input");
+        value = stateValue(p, id, device);
+      }
       let threshold = f32(p + 244);
       if (threshold <= 0) threshold = f32(statics(3243056,10583));
       finite(threshold,0.000001,1);
-      return f32(p + off) >= threshold;
+      return value >= threshold;
     }
     function actionPressed(p) {
       object(p,10214);
@@ -317,11 +355,11 @@
     if (![10299,10304].includes(keyboardClass)) unavailable("type");
     object(keyboard,keyboardClass);
     const keys = array(pointer(keyboard + 304),4,256,10591);
-    function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4)); }
-    const modifiers = [272,276,280].map(o => button(pointer(keyboard + o)));
+    function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4),keyboard); }
+    const modifiers = [272,276,280].map(o => button(pointer(keyboard + o),keyboard));
     // f34098/f34099 read Key 57/58; get_Item f34042 indexes by Key - 1.
     if (keys.count < 58) unavailable("input");
-    modifiers.push(button(pointer(keys.data + 56 * 4)) || button(pointer(keys.data + 57 * 4)));
+    modifiers.push(button(pointer(keys.data + 56 * 4),keyboard) || button(pointer(keys.data + 57 * 4),keyboard));
     const run = object(pointer(screen + 200),7918);
     let mode = 1;
     if (bool(run + 8)) {
