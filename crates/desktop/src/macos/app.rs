@@ -391,7 +391,9 @@ impl Desktop {
         }
     }
     pub fn can_authenticate(&self) -> bool {
-        self.allowed(Control::Open) || self.allowed(Control::DismissHalt)
+        self.allowed(Control::Open)
+            || self.allowed(Control::Reconnect)
+            || self.allowed(Control::DismissHalt)
     }
     pub fn load_game(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.client_failure = None;
@@ -408,9 +410,14 @@ impl Desktop {
         if self.allowed(Control::DismissHalt) {
             self.command(Command::DismissHalt, window, cx);
         }
-        if !self.allowed(Control::Open) {
+        // A run held after a failed reconnect blocks Open; signing in reconnects it instead.
+        let command = if self.allowed(Control::Open) {
+            Command::Open
+        } else if self.allowed(Control::Reconnect) {
+            Command::Reconnect
+        } else {
             return;
-        }
+        };
         let id = zeroize::Zeroizing::new(self.account.read(cx).value().to_owned());
         let password =
             zeroize::Zeroizing::new(self.password.update(cx, |input, cx| input.take(cx)));
@@ -419,7 +426,7 @@ impl Desktop {
             return;
         };
         self.credentials = Some(credentials);
-        self.command(Command::Open, window, cx);
+        self.command(command, window, cx);
     }
     pub fn tick(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.ticks += 1;

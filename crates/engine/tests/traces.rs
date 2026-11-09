@@ -1146,6 +1146,42 @@ fn reconnect_attempts_are_bounded_and_never_replay_held_actions() {
     let refused = h.command(Command::Reconnect);
     assert!(refused.io.is_empty());
     assert!(!refused.snapshot.allowed.contains(&Control::Reconnect));
+    assert_eq!(refused.snapshot.phase, Phase::Disconnected);
+    assert!(refused.snapshot.allowed.contains(&Control::Stop));
+}
+
+#[test]
+fn failed_clientless_reconnect_with_held_run_offers_reconnect_or_end_run() {
+    let mut h = Harness::new(false);
+    h.start_attack();
+    let run = h.engine.run_key();
+    h.event(Event::Lost);
+    assert_eq!(closes(&h.command(Command::Reconnect)), 1);
+    let opening = h.event(Event::Closed);
+    h.session = opening
+        .io
+        .iter()
+        .find_map(|effect| match effect {
+            Effect::Open { session, mode } => {
+                assert_eq!(*mode, Mode::Clientless);
+                Some(*session)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(opening.snapshot.phase, Phase::Reconnecting(1));
+    assert_eq!(closes(&h.event(Event::Failed(Halt::ConnectFailed))), 1);
+    let failed = h.event(Event::Closed);
+    assert_eq!(failed.snapshot.phase, Phase::Disconnected);
+    assert!(failed.snapshot.allowed.contains(&Control::Reconnect));
+    assert!(failed.snapshot.allowed.contains(&Control::Stop));
+    assert!(!failed.snapshot.allowed.contains(&Control::Open));
+    assert_eq!(h.engine.run_key(), run);
+
+    let ended = h.command(Command::Stop);
+    assert_eq!(ended.snapshot.phase, Phase::Offline);
+    assert!(ended.snapshot.allowed.contains(&Control::Open));
+    assert_eq!(h.engine.run_key(), None);
 }
 
 #[test]

@@ -232,20 +232,23 @@ impl Desktop {
                     }
                 }))
             }));
-            form = form
-                .child(heading("Recovery"))
-                .child(label("Use HP potion below percent", theme))
-                .child(self.form.hp.clone())
-                .child(label(
-                    "The run pauses when HP potions run out. This is always on.",
-                    theme,
-                ));
-            if self.snapshot().mode == Mode::Assisted {
-                form = form.child(label(
-                    "HP potion use is unavailable in client-assisted mode. The run pauses at this HP percent instead.",
-                    theme,
-                ));
-            }
+        }
+        // The engine applies one HP threshold to both activities.
+        form = form
+            .child(heading("Recovery"))
+            .child(label("Use HP potion below percent", theme))
+            .child(self.form.hp.clone());
+        if !self.form.digging {
+            form = form.child(label(
+                "The run pauses when HP potions run out. This is always on.",
+                theme,
+            ));
+        }
+        if self.snapshot().mode == Mode::Assisted {
+            form = form.child(label(
+                "HP potion use is unavailable in client-assisted mode. The run pauses at this HP percent instead.",
+                theme,
+            ));
         }
         form = form
             .child(heading("Limits"))
@@ -343,7 +346,7 @@ impl Desktop {
                 })),
             );
         }
-        view.child(label("Stop after this many confirmed items gained", theme))
+        view.child(label("Pause after this many confirmed items gained", theme))
             .child(self.form.goal_count.clone())
     }
 }

@@ -15,6 +15,7 @@ impl Desktop {
                 };
                 if mode == Mode::Clientless && credentials.is_none() {
                     self.observe(session, Event::Failed(engine::Halt::ConnectFailed));
+                    self.say("Enter the Game ID and password, then click Sign in to reconnect.");
                     return;
                 }
                 let Some(cache) = self.cache.clone() else {
