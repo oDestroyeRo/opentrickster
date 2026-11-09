@@ -683,6 +683,10 @@ impl Decoder {
             }
             6 | 15 | 16 | 21 => {
                 let id = r.u16()?;
+                // Live ea1a68bd removals on 15 carry one trailing byte; the client reads the ID.
+                if p.opcode == 15 && r.remaining() == 1 {
+                    r.u8()?;
+                }
                 r.end()?;
                 if let Some(old) = self.actors.remove(&id)
                     && old.kind == 3
@@ -925,6 +929,11 @@ impl Decoder {
                 let item_id = r.u32()?;
                 r.u64()?;
                 let count = r.u16()?;
+                // ParseGroundItem stops at Count. Live ea1a68bd ground items carry four more bytes
+                // (ItemBody's state, which kinds 2 and 3 have); the client never reads them.
+                if matches!(kind, 2 | 3) && r.remaining() == 4 {
+                    r.take(4)?;
+                }
                 r.end()?;
                 if self.drops.len() >= MAX_ITEMS && !self.drops.contains_key(&id) {
                     return Err(NetError::Capacity);
@@ -1344,7 +1353,13 @@ fn appearance(b: &[u8]) -> Result<Appearance> {
         2 => {
             r.take(6)?;
         }
-        3 => target = Some(r.u16()?),
+        3 => {
+            target = Some(r.u16()?);
+            // Live ea1a68bd monsters carry one trailing byte; the client stops after Target.
+            if r.remaining() == 1 {
+                r.u8()?;
+            }
+        }
         4 | 16 => {
             r.u16()?;
             if kind == 16 && r.remaining() > 0 {
@@ -1690,6 +1705,54 @@ mod tests {
         assert!(!d.baseline());
         d.apply(&packet(230, vec![0; 10])).unwrap();
         assert!(d.baseline());
+    }
+    #[test]
+    fn live_monster_and_removal_tails_allow_exactly_one_trailing_byte() {
+        let mut monster = vec![0; 38];
+        monster[22] = b'S';
+        monster[0..2].copy_from_slice(&321u16.to_le_bytes());
+        monster[2..4].copy_from_slice(&3u16.to_le_bytes());
+        monster[36..38].copy_from_slice(&77u16.to_le_bytes());
+        let mut d = Decoder::new();
+        let mut tail = monster.clone();
+        tail.push(0);
+        d.apply(&packet(8, tail.clone())).unwrap();
+        assert_eq!(d.actors[&321].target, Some(77));
+        tail.push(0);
+        assert!(d.apply(&packet(8, tail)).is_err());
+        let mut owned = monster;
+        owned[2..4].copy_from_slice(&4u16.to_le_bytes());
+        owned.push(0);
+        assert!(d.apply(&packet(8, owned)).is_err());
+        let mut removal = 321u16.to_le_bytes().to_vec();
+        removal.push(1);
+        assert!(d.apply(&packet(6, removal.clone())).is_err());
+        let facts = d.apply(&packet(15, removal.clone())).unwrap();
+        assert!(matches!(facts.as_slice(), [Fact::EntityGone(_)]));
+        assert!(!d.actors.contains_key(&321));
+        removal.push(1);
+        assert!(d.apply(&packet(15, removal)).is_err());
+    }
+    #[test]
+    fn ground_items_allow_item_state_only_for_kinds_two_and_three() {
+        let ground = |kind: u8, extra: usize| {
+            let mut b = vec![0; 26];
+            b[0..2].copy_from_slice(&5u16.to_le_bytes());
+            b[11] = kind;
+            b[12..16].copy_from_slice(&7u32.to_le_bytes());
+            b[24..26].copy_from_slice(&1u16.to_le_bytes());
+            b.extend(vec![0; extra]);
+            packet(10, b)
+        };
+        let mut d = Decoder::new();
+        for kind in [1u8, 2, 3] {
+            assert!(d.apply(&ground(kind, 0)).is_ok(), "kind {kind}");
+        }
+        assert!(d.apply(&ground(2, 4)).is_ok());
+        assert!(d.apply(&ground(3, 4)).is_ok());
+        assert!(d.apply(&ground(1, 4)).is_err());
+        assert!(d.apply(&ground(2, 3)).is_err());
+        assert!(d.apply(&ground(2, 5)).is_err());
     }
     #[test]
     fn raw_incarnations_are_not_reused_and_faint_is_not_kill() {
