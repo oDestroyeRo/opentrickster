@@ -44,8 +44,9 @@ native adapter starts its window at the send, so it closes no later than the
 engine's. When it closes without a correlated outcome, the adapter cancels a dig
 with the normal 48 request, expires the pending action and attributes no later
 evidence to it. `Quiesce` also cancels an active native dig. `Quiescent` is
-reported only when no action is outstanding; otherwise the engine's 2 s
-`DRAIN_MS` closes the session.
+reported only when no action is outstanding. If a window closes while a
+`Quiesce` is pending, idle stays unproven: the adapter reports no further
+`Quiescent`, and the engine's 2 s `DRAIN_MS` closes the session.
 
 `close` waits up to 2.5 seconds and retains its worker on timeout. A finished
 worker can join without a done signal, including after panic. Native `Closed`

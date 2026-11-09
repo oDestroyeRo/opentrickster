@@ -536,6 +536,8 @@ impl Actor {
         let mut dig: Option<PendingDig> = None;
         let mut barrier: Option<e::BarrierKey> = None;
         let mut action_until: Option<Instant> = None;
+        // An action that expired during a drain leaves idle unproven for the rest of this session.
+        let mut lost = false;
         let mut ticks = tokio::time::interval(Duration::from_millis(16));
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
@@ -585,7 +587,7 @@ impl Actor {
                             // Report idle only once nothing is outstanding; otherwise the engine's drain deadline closes the session.
                             barrier=Some(key);
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
-                            if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
+                            if !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                         },
                         _=>return Err(NetError::WrongPhase),
                     }
@@ -598,10 +600,10 @@ impl Actor {
                         let message=if expired {pending.cycle.cancel()}else{pending.cycle.tick(dt)?};
                         if let Some((opcode,payload))=message {g.send(opcode,&payload.0,&mut self.order).await?;}
                         // No cancellation-ack schema exists: after requesting 48, stop the local simulation.
-                        if expired {dig=None;}
+                        if expired {lost|=barrier.is_some();dig=None;}
                     }
-                    if action_until.is_some_and(|until|now>=until) {decoder.expire_action();action_until=None;}
-                    if let Some(key)=barrier && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
+                    if action_until.is_some_and(|until|now>=until) {lost|=barrier.is_some()&&decoder.action_pending();decoder.expire_action();action_until=None;}
+                    if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                 }
                 result=g.receive(&mut self.order)=>{
                     let raw=result?;let proof_at=raw.received;
@@ -625,7 +627,7 @@ impl Actor {
                         for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
                         for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
                         if dig_ended {dig=None;}
-                        if dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
+                        if !lost && dig.is_none() && !decoder.action_pending() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
                         self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|2),ingress:e::IngressMark(mark),facts:vec![e::Fact::InventorySettled(e::IngressMark(mark))]},proof_at)?;
