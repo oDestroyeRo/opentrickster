@@ -1307,9 +1307,12 @@ mod tests {
             (3, 9, 45, 1),
         ];
         fn startup(accepted: bool, rows: &[(u8, u32, u64, u16)]) -> Startup {
+            startup_with(Some(accepted), rows)
+        }
+        fn startup_with(accepted: Option<bool>, rows: &[(u8, u32, u64, u16)]) -> Startup {
             let mut startup = Startup::new(1);
-            if accepted {
-                startup.decoder.accept_inventory_cutoff();
+            if let Some(accepted) = accepted {
+                startup.decoder.set_inventory_cutoff(accepted);
             }
             startup.decoder.set_definitions(Some(definitions(&[
                 (7, Def::Plain { weight: 3 }),
@@ -1356,6 +1359,12 @@ mod tests {
         }
         fn apply(decoder: &mut Decoder, p: Packet) -> Vec<(u32, Option<u32>, u32)> {
             carried(&decoder.apply(&p).unwrap())
+        }
+
+        #[test]
+        fn the_pinned_build_reports_carried_weight_by_default() {
+            let startup = startup_with(None, &ROWS);
+            assert!(!carried(&startup.facts).is_empty());
         }
 
         #[test]
@@ -1432,7 +1441,7 @@ mod tests {
         #[test]
         fn a_late_list_before_settlement_leaves_the_cutoff_unknown() {
             let mut startup = Startup::new(1);
-            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_inventory_cutoff(true);
             startup
                 .decoder
                 .set_definitions(Some(definitions(&[(7, Def::Plain { weight: 3 })])));
@@ -1456,7 +1465,7 @@ mod tests {
         #[test]
         fn delivery_must_settle_through_the_cutoff() {
             let mut startup = Startup::new(1);
-            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_inventory_cutoff(true);
             startup
                 .decoder
                 .set_definitions(Some(definitions(&[(7, Def::Plain { weight: 3 })])));
@@ -1490,7 +1499,7 @@ mod tests {
         #[test]
         fn only_a_settled_cutoff_completes_an_explicit_empty_list() {
             let mut startup = Startup::new(1);
-            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_inventory_cutoff(true);
             startup.decoder.set_definitions(Some(definitions(&[])));
             for (mark, opcode, aux, payload) in [
                 (1, 5, 0, vec![]),
@@ -1510,7 +1519,7 @@ mod tests {
             assert_eq!(carried(&startup.facts), [(0, None, 0)]);
             // Without any list at or before H the bag is missing, not empty.
             let mut startup = Startup::new(1);
-            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_inventory_cutoff(true);
             startup.decoder.set_definitions(Some(definitions(&[])));
             for (mark, opcode, payload) in [
                 (1, 5, vec![]),
@@ -1527,7 +1536,7 @@ mod tests {
         #[test]
         fn a_delta_before_the_cutoff_is_outside_the_replayed_cache() {
             let mut startup = Startup::new(1);
-            startup.decoder.accept_inventory_cutoff();
+            startup.decoder.set_inventory_cutoff(true);
             startup
                 .decoder
                 .set_definitions(Some(definitions(&[(7, Def::Plain { weight: 3 })])));
