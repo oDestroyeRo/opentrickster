@@ -56,6 +56,16 @@ class PublicArtifacts(unittest.TestCase):
         with self.assertRaises(Malformed):
             artifacts.asset_names(page + b" Build/%032x.wasm.gz" % 9)
 
+    def test_page_pin_ignores_the_cdn_analytics_beacon(self):
+        page = b"<body>\n    </script>\n  </body>\n</html>\n"
+        beacon = (b'<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v1"'
+                  b' integrity="sha512-x" data-cf-beacon=\'{"token": "t"}\' crossorigin="anonymous"></script>\n')
+        injected = page.replace(b"  </body>", b"  " + beacon + b"</body>")
+        self.assertEqual(artifacts.public_page(injected), page)
+        self.assertEqual(artifacts.public_page(page), page)
+        with self.assertRaises(Malformed):
+            artifacts.public_page(injected.replace(b"</html>", beacon + b"</html>"))
+
 
 class OpcodeMap(unittest.TestCase):
     def test_synthetic_seed_fixture(self):

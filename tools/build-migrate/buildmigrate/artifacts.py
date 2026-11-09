@@ -15,6 +15,10 @@ METADATA = "Il2CppData/Metadata/global-metadata.dat"
 KINDS = (".loader.js", ".framework.js.gz", ".wasm.gz", ".data.gz")
 LIMITS = {"spinel-config.json": 4096, "version": 4096, "index.public.html": 262144}
 ASSET_LIMIT = 128 * 1024 * 1024
+# Cloudflare Web Analytics injects this element before </body> on some responses only, so the
+# page pin hashes the deployed page without it.
+BEACON = re.compile(rb'<script type="module" src="https://static\.cloudflareinsights\.com/beacon\.min\.js/'
+                    rb'[^"]*"[^>]*></script>\n')
 
 
 def sha256(b):
@@ -29,6 +33,13 @@ def decoded(raw, limit=ASSET_LIMIT):
     out = d.decompress(raw, limit + 1)
     check(len(out) <= limit and d.eof and not d.unused_data, "gzip body is truncated or oversized")
     return out, "gzip"
+
+
+def public_page(page):
+    """The deployed page without the CDN's analytics injection."""
+    page, injected = BEACON.subn(b"", page)
+    check(injected <= 1, "page carries more than one analytics beacon")
+    return page
 
 
 def asset_names(page):
@@ -71,7 +82,7 @@ class Cache:
         self.root = Path(root)
         self.config = self.read("spinel-config.json")
         self.version = self.read("version")
-        self.page = self.read("index.public.html")
+        self.page = public_page(self.read("index.public.html"))
         c = json.loads(self.config)
         v = json.loads(self.version)
         check(c.get("build") == v.get("build") and re.fullmatch(r"[0-9a-f]{32}", c.get("build", "")),

@@ -25,6 +25,9 @@ python3 -I $T compare /tmp/ot-OLD /tmp/ot-NEW --image Spinel.Net.dll  # every me
 crates/net/src`) a Rust literal that does not equal the derived pin. Use `--exclude-source
 assisted-input-control.md` to check only methods cited by other reports.
 
+A fresh `fetch` carries no catalog JSON, so `check` prints `SKIPPED pins.definitions` and
+compares every other pin. Step 4 below supplies the catalog JSON.
+
 ## How it decides
 
 - **Pins** come from build-independent joins, never from old offsets. For example, the gateway
@@ -41,6 +44,9 @@ assisted-input-control.md` to check only methods cited by other reports.
   values (build, seed, marker, client version) are named `volatile` instead of hashed.
   An address into initialized data is described by its first 16 bytes. Longer lookup tables,
   such as `LoginFailure.Of`'s error map, are read in full through `derive.DATA_TABLES`.
+- **Page**: the pin hashes the page without the Cloudflare Web Analytics beacon element, which
+  the CDN injects before `</body>` in some responses only. The `8502ebbf` page pin predates this
+  rule and includes the beacon.
 - **Catalog inputs**: the Unity bundle is decoded (UnityFS, LZ4). The `libconfig_thai` and
   `libconfig_eng` overlays must not define a table that Net's catalog reads.
 
