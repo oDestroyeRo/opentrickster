@@ -4,6 +4,206 @@
   "metadata": "2c7ae9e8bbd0d4e38b2e7be06cb0fabf8c0affa23d9400ea3b4c76aedc248056",
   "wasm": "8780db4414df5357d9595ef233579227a1303753d00ac6318d225036dd1bb277"
  },
+ "bases": {
+  "Spinel.Engine.StageLayout": [
+   "System.ValueType"
+  ],
+  "Spinel.Engine.Unity.GameInput": [],
+  "Spinel.Engine.Unity.SpinelEngine": [
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.Engine.Unity.Stage": [
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.Engine.Unity.World.ActorView": [],
+  "Spinel.Engine.Unity.World.MapView": [],
+  "Spinel.Game.Play.AutoDrill": [],
+  "Spinel.Game.Play.AvatarFsm": [],
+  "Spinel.Game.Play.AvatarStatusFlags": [],
+  "Spinel.Game.Play.CombatModel": [],
+  "Spinel.Game.Play.CombatModel/Aging": [],
+  "Spinel.Game.Play.CombatModel/WaitingMove": [],
+  "Spinel.Game.Play.DigAssist": [],
+  "Spinel.Game.Play.DrillData": [],
+  "Spinel.Game.Play.DrillFeature": [],
+  "Spinel.Game.Play.DrillParam": [],
+  "Spinel.Game.Play.GunFlowing": [],
+  "Spinel.Game.Play.HotkeyMap": [],
+  "Spinel.Game.Play.ItemInfo": [],
+  "Spinel.Game.Play.KeyBinding": [],
+  "Spinel.Game.Play.PlayerStats": [],
+  "Spinel.Game.Play.RunToggle": [],
+  "Spinel.Game.Play.SkillsApi": [],
+  "Spinel.Game.Play.StatValues": [],
+  "Spinel.Game.World.Point": [
+   "System.ValueType"
+  ],
+  "Spinel.Game.World.WarpRegion": [],
+  "Spinel.Game.World.WorldActor": [],
+  "Spinel.Game.World.ZoneInfo": [],
+  "Spinel.Net.Game.GameSession": [],
+  "Spinel.Net.Game.InvItem": [],
+  "Spinel.Net.Game.Inventory": [],
+  "Spinel.Net.OrderedMap`2": [],
+  "Spinel.UI.Pc.EditBox": [
+   "Spinel.UI.Pc.Widget",
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.UI.Pc.Hud.Hud": [
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.UI.Pc.Hud.HudCover": [],
+  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0": [],
+  "Spinel.UI.Pc.Play.DigKeySettings": [],
+  "Spinel.UI.Pc.Screens.GameFlow": [
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen": [
+   "Spinel.UI.Pc.Screens.GameScreen",
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone": [],
+  "Spinel.UI.Pc.Screens.GroundItems": [],
+  "Spinel.UI.Pc.Screens.GroundItems/Entry": [],
+  "Spinel.UI.Pc.Screens.GroundItems/HoverDraw": [],
+  "Spinel.UI.Pc.Screens.PlayServices": [],
+  "Spinel.UI.Pc.UiPressOrigin": [
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "Spinel.UI.Pc.UiSkins": [],
+  "System.Action": [
+   "System.MulticastDelegate",
+   "System.Delegate"
+  ],
+  "System.Boolean": [
+   "System.ValueType"
+  ],
+  "System.Collections.Generic.Dictionary`2": [],
+  "System.Collections.Generic.Dictionary`2/Entry": [
+   "System.ValueType"
+  ],
+  "System.Collections.Generic.IReadOnlyDictionary`2": [],
+  "System.Collections.Generic.KeyValuePair`2": [
+   "System.ValueType"
+  ],
+  "System.Collections.Generic.List`1": [],
+  "System.Collections.Generic.Queue`1": [],
+  "System.Delegate": [],
+  "System.Func`1": [
+   "System.MulticastDelegate",
+   "System.Delegate"
+  ],
+  "System.Int32": [
+   "System.ValueType"
+  ],
+  "System.Int64": [
+   "System.ValueType"
+  ],
+  "System.MulticastDelegate": [
+   "System.Delegate"
+  ],
+  "System.Nullable`1": [
+   "System.ValueType"
+  ],
+  "System.Object": [],
+  "System.RuntimeType": [
+   "System.Reflection.TypeInfo",
+   "System.Type",
+   "System.Reflection.MemberInfo"
+  ],
+  "System.RuntimeTypeHandle": [
+   "System.ValueType"
+  ],
+  "System.Single": [
+   "System.ValueType"
+  ],
+  "System.String": [],
+  "System.Type": [
+   "System.Reflection.MemberInfo"
+  ],
+  "System.UInt64": [
+   "System.ValueType"
+  ],
+  "UnityEngine.EventSystems.EventSystem": [
+   "UnityEngine.EventSystems.UIBehaviour",
+   "UnityEngine.MonoBehaviour",
+   "UnityEngine.Behaviour",
+   "UnityEngine.Component",
+   "UnityEngine.Object"
+  ],
+  "UnityEngine.InputSystem.Controls.AnyKeyControl": [
+   "UnityEngine.InputSystem.Controls.ButtonControl",
+   "UnityEngine.InputSystem.Controls.AxisControl",
+   "UnityEngine.InputSystem.InputControl`1<r4>",
+   "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.Controls.ButtonControl": [
+   "UnityEngine.InputSystem.Controls.AxisControl",
+   "UnityEngine.InputSystem.InputControl`1<r4>",
+   "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.Controls.DiscreteButtonControl": [
+   "UnityEngine.InputSystem.Controls.ButtonControl",
+   "UnityEngine.InputSystem.Controls.AxisControl",
+   "UnityEngine.InputSystem.InputControl`1<r4>",
+   "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.Controls.KeyControl": [
+   "UnityEngine.InputSystem.Controls.ButtonControl",
+   "UnityEngine.InputSystem.Controls.AxisControl",
+   "UnityEngine.InputSystem.InputControl`1<r4>",
+   "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.InputAction": [],
+  "UnityEngine.InputSystem.InputActionMap": [],
+  "UnityEngine.InputSystem.InputActionState": [],
+  "UnityEngine.InputSystem.InputActionState/TriggerState": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.InputActionState/UnmanagedMemory": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.InputControl": [],
+  "UnityEngine.InputSystem.InputControl`1": [
+   "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.InputManager": [],
+  "UnityEngine.InputSystem.InputSystem": [],
+  "UnityEngine.InputSystem.Keyboard": [
+   "UnityEngine.InputSystem.InputDevice",
+   "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.Rect": [
+   "System.ValueType"
+  ],
+  "UnityEngine.Vector2": [
+   "System.ValueType"
+  ],
+  "UnityEngine.Vector2Int": [
+   "System.ValueType"
+  ]
+ },
  "build": "ea1a68bd89958fae94179f1e0835ffb5",
  "cells": {
   "MethodRef Spinel.Net.dll|Spinel.Net.OrderedMap`2::ContainsKey(!TKey)<i4,Spinel.Game.Play.CombatModel/Aging>": 3334644,
@@ -20,7 +220,6 @@
   "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<i4>": 3333192,
   "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<vt:UnityEngine.Vector2>": 3334072,
   "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<vt:UnityEngine.Vector2Int>": 3334088,
-  "MethodRef mscorlib.dll|System.Nullable`1::get_Value()<vt:UnityEngine.Vector2Int>": 3334092,
   "TypeInfo Spinel.Engine.Unity.SpinelEngine": 3256436,
   "TypeInfo Spinel.UI.Pc.EditBox": 3246444,
   "TypeInfo Spinel.UI.Pc.Hud.HudCover": 3248924,
@@ -33,200 +232,1352 @@
   "TypeInfo UnityEngine.InputSystem.InputSystem": 3250132,
   "TypeInfo UnityEngine.InputSystem.Keyboard": 3250708
  },
+ "enums": {
+  "Spinel.Game.Play.AutoDrill/Phase": "i4",
+  "Spinel.Game.Play.DigAssist/Mode": "i4",
+  "Spinel.Game.Play.DrillFeature/Stage": "i4",
+  "Spinel.UI.Pc.UiSkin": "i4"
+ },
  "fields": {
-  "Spinel.Engine.StageLayout.PxPerDp": 24,
-  "Spinel.Engine.StageLayout.UiScale": 8,
-  "Spinel.Engine.StageLayout.ViewportHeight": 52,
-  "Spinel.Engine.StageLayout.ViewportWidth": 48,
-  "Spinel.Engine.StageLayout.WorldHeight": 60,
-  "Spinel.Engine.StageLayout.WorldWidth": 56,
-  "Spinel.Engine.StageLayout.WorldZoom": 16,
-  "Spinel.Engine.Unity.GameInput.Click": 16,
-  "Spinel.Engine.Unity.GameInput.RightClick": 20,
-  "Spinel.Engine.Unity.SpinelEngine.Input": 28,
-  "Spinel.Engine.Unity.SpinelEngine.Stage": 20,
-  "Spinel.Engine.Unity.SpinelEngine::Instance": 0,
-  "Spinel.Engine.Unity.Stage.Current": 136,
-  "Spinel.Engine.Unity.Stage.hostOverride": 44,
-  "Spinel.Engine.Unity.Stage.hostRect": 56,
-  "Spinel.Engine.Unity.Stage.initialized": 332,
-  "Spinel.Engine.Unity.Stage.panPixels": 280,
-  "Spinel.Engine.Unity.World.ActorView.Actor": 96,
-  "Spinel.Engine.Unity.World.MapView.Height": 80,
-  "Spinel.Engine.Unity.World.MapView.Width": 76,
-  "Spinel.Game.Play.AutoDrill.State": 24,
-  "Spinel.Game.Play.AvatarFsm.State": 8,
-  "Spinel.Game.Play.AvatarStatusFlags.Value": 8,
-  "Spinel.Game.Play.CombatModel.Fainted": 68,
-  "Spinel.Game.Play.CombatModel.Fsm": 112,
-  "Spinel.Game.Play.CombatModel.Target": 60,
-  "Spinel.Game.Play.CombatModel.attackTargets": 104,
-  "Spinel.Game.Play.CombatModel.fading": 136,
-  "Spinel.Game.Play.CombatModel.session": 20,
-  "Spinel.Game.Play.CombatModel.striking": 124,
-  "Spinel.Game.Play.CombatModel.waitingMoves": 128,
-  "Spinel.Game.Play.DigAssist.State": 48,
-  "Spinel.Game.Play.DigAssist.drill": 8,
-  "Spinel.Game.Play.DrillData.AutoPets": 32,
-  "Spinel.Game.Play.DrillData.Params": 8,
-  "Spinel.Game.Play.DrillFeature.Auto": 196,
-  "Spinel.Game.Play.DrillFeature.AutoFlagOn": 200,
-  "Spinel.Game.Play.DrillFeature.AutoMode": 192,
-  "Spinel.Game.Play.DrillFeature.Crazy": 154,
-  "Spinel.Game.Play.DrillFeature.Data": 12,
-  "Spinel.Game.Play.DrillFeature.Flags": 60,
-  "Spinel.Game.Play.DrillFeature.Gauge": 104,
-  "Spinel.Game.Play.DrillFeature.Held": 152,
-  "Spinel.Game.Play.DrillFeature.Inventory": 16,
-  "Spinel.Game.Play.DrillFeature.State": 100,
-  "Spinel.Game.Play.DrillFeature.drill": 92,
-  "Spinel.Game.Play.DrillFeature.fsm": 24,
-  "Spinel.Game.Play.DrillFeature.inDrillState": 84,
-  "Spinel.Game.Play.DrillFeature.param": 96,
-  "Spinel.Game.Play.DrillFeature.session": 20,
-  "Spinel.Game.Play.DrillParam.BarEffArea": 28,
-  "Spinel.Game.Play.DrillParam.BarSpeed": 32,
-  "Spinel.Game.Play.DrillParam.DigDepth": 24,
-  "Spinel.Game.Play.DrillParam.DrillLife": 40,
-  "Spinel.Game.Play.DrillParam.Grade": 16,
-  "Spinel.Game.Play.DrillParam.GroundNature": 20,
-  "Spinel.Game.Play.DrillParam.Id": 8,
-  "Spinel.Game.Play.DrillParam.ScoopMass": 36,
-  "Spinel.Game.Play.GunFlowing.Armed": 44,
-  "Spinel.Game.Play.GunFlowing.Inventory": 16,
-  "Spinel.Game.Play.GunFlowing.Ready": 45,
-  "Spinel.Game.Play.GunFlowing.State": 48,
-  "Spinel.Game.Play.GunFlowing.infos": 28,
-  "Spinel.Game.Play.GunFlowing.session": 20,
-  "Spinel.Game.Play.HotkeyMap.Bindings": 20,
-  "Spinel.Game.Play.ItemInfo.Id": 8,
-  "Spinel.Game.Play.ItemInfo.SubType": 28,
-  "Spinel.Game.Play.ItemInfo.Type": 24,
-  "Spinel.Game.Play.KeyBinding.Code": 8,
-  "Spinel.Game.Play.KeyBinding.Exclusive": 16,
-  "Spinel.Game.Play.KeyBinding.Modifier": 12,
-  "Spinel.Game.Play.PlayerStats.current": 8,
-  "Spinel.Game.Play.RunToggle.Heavy": 20,
-  "Spinel.Game.Play.RunToggle.On": 8,
-  "Spinel.Game.Play.RunToggle.Ready": 24,
-  "Spinel.Game.Play.SkillsApi.UiWait": 125,
-  "Spinel.Game.Play.SkillsApi.combatPlaysEsa": 124,
-  "Spinel.Game.Play.SkillsApi.heldCast": 188,
-  "Spinel.Game.Play.SkillsApi.shownTarget": 56,
-  "Spinel.Game.Play.SkillsApi.target": 52,
-  "Spinel.Game.Play.StatValues.MaxWeight": 56,
-  "Spinel.Game.World.WarpRegion.X1": 20,
-  "Spinel.Game.World.WarpRegion.X2": 28,
-  "Spinel.Game.World.WarpRegion.Y1": 24,
-  "Spinel.Game.World.WarpRegion.Y2": 32,
-  "Spinel.Game.World.WorldActor.Hidden": 161,
-  "Spinel.Game.World.WorldActor.HitHeight": 188,
-  "Spinel.Game.World.WorldActor.HitLeft": 176,
-  "Spinel.Game.World.WorldActor.HitTop": 180,
-  "Spinel.Game.World.WorldActor.HitWidth": 184,
-  "Spinel.Game.World.WorldActor.Id": 40,
-  "Spinel.Game.World.WorldActor.Limited": 162,
-  "Spinel.Game.World.WorldActor.Type": 44,
-  "Spinel.Game.World.WorldActor.Unseen": 160,
-  "Spinel.Game.World.WorldActor.X": 56,
-  "Spinel.Game.World.WorldActor.Y": 64,
-  "Spinel.Game.World.WorldActor.path": 12,
-  "Spinel.Game.World.ZoneInfo.Id": 8,
-  "Spinel.Game.World.ZoneInfo.Option": 40,
-  "Spinel.Game.World.ZoneInfo.SubType": 44,
-  "Spinel.Game.World.ZoneInfo.Type": 24,
-  "Spinel.Net.Game.GameSession.heldStop": 132,
-  "Spinel.Net.Game.GameSession.sendArmed": 89,
-  "Spinel.Net.Game.GameSession.targetPending": 88,
-  "Spinel.Net.Game.InvItem.Count": 28,
-  "Spinel.Net.Game.InvItem.ItemId": 16,
-  "Spinel.Net.Game.InvItem.Uid": 8,
-  "Spinel.Net.Game.Inventory.byUid": 12,
-  "Spinel.Net.Game.Inventory.slots": 16,
-  "Spinel.UI.Pc.EditBox::Focused": 24,
-  "Spinel.UI.Pc.EditBox::SelectedText": 0,
-  "Spinel.UI.Pc.Hud.Hud.Keys": 80,
-  "Spinel.UI.Pc.Hud.Hud.Stats": 76,
-  "Spinel.UI.Pc.Hud.Hud.Waiting": 128,
-  "Spinel.UI.Pc.Hud.Hud.keyMask": 68,
-  "Spinel.UI.Pc.Hud.HudCover::covers": 0,
-  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.carried": 8,
-  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.ctx": 28,
-  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.hud": 24,
-  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.run": 40,
-  "Spinel.UI.Pc.Play.DigKeySettings::semiAuto": 0,
-  "Spinel.UI.Pc.Screens.GameFlow.Engine": 16,
-  "Spinel.UI.Pc.Screens.GameFlow.Screen": 84,
-  "Spinel.UI.Pc.Screens.GameFlow::Current": 4,
-  "Spinel.UI.Pc.Screens.GameplayScreen.actors": 244,
-  "Spinel.UI.Pc.Screens.GameplayScreen.artAwaited": 601,
-  "Spinel.UI.Pc.Screens.GameplayScreen.avatar": 236,
-  "Spinel.UI.Pc.Screens.GameplayScreen.cameraX": 452,
-  "Spinel.UI.Pc.Screens.GameplayScreen.cameraY": 456,
-  "Spinel.UI.Pc.Screens.GameplayScreen.campScene": 404,
-  "Spinel.UI.Pc.Screens.GameplayScreen.changingZone": 401,
-  "Spinel.UI.Pc.Screens.GameplayScreen.ground": 256,
-  "Spinel.UI.Pc.Screens.GameplayScreen.groundItems": 252,
-  "Spinel.UI.Pc.Screens.GameplayScreen.held": 416,
-  "Spinel.UI.Pc.Screens.GameplayScreen.hoveredId": 272,
-  "Spinel.UI.Pc.Screens.GameplayScreen.hud": 324,
-  "Spinel.UI.Pc.Screens.GameplayScreen.localScene": 403,
-  "Spinel.UI.Pc.Screens.GameplayScreen.loggingOut": 402,
-  "Spinel.UI.Pc.Screens.GameplayScreen.overUi": 640,
-  "Spinel.UI.Pc.Screens.GameplayScreen.play": 144,
-  "Spinel.UI.Pc.Screens.GameplayScreen.pointer": 440,
-  "Spinel.UI.Pc.Screens.GameplayScreen.probedAt": 624,
-  "Spinel.UI.Pc.Screens.GameplayScreen.probedTime": 632,
-  "Spinel.UI.Pc.Screens.GameplayScreen.ready": 400,
-  "Spinel.UI.Pc.Screens.GameplayScreen.route": 372,
-  "Spinel.UI.Pc.Screens.GameplayScreen.run": 200,
-  "Spinel.UI.Pc.Screens.GameplayScreen.services": 316,
-  "Spinel.UI.Pc.Screens.GameplayScreen.steerWarping": 116,
-  "Spinel.UI.Pc.Screens.GameplayScreen.steering": 108,
-  "Spinel.UI.Pc.Screens.GameplayScreen.worldCovered": 600,
-  "Spinel.UI.Pc.Screens.GameplayScreen.zone": 148,
-  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone.Info": 8,
-  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone.Map": 16,
-  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone.Warps": 24,
-  "Spinel.UI.Pc.Screens.GroundItems.hover": 68,
-  "Spinel.UI.Pc.Screens.GroundItems/HoverDraw.Entry": 12,
-  "Spinel.UI.Pc.Screens.PlayServices.items": 8,
-  "Spinel.UI.Pc.UiPressOrigin.left": 32,
-  "Spinel.UI.Pc.UiPressOrigin.right": 33,
-  "Spinel.UI.Pc.UiPressOrigin::Current": 0,
-  "Spinel.UI.Pc.UiSkins::chosen": 0,
-  "Spinel.UI.Pc.UiSkins::started": 4,
-  "System.Delegate.m_target": 16,
-  "System.Delegate.method_ptr": 8,
-  "System.MulticastDelegate.delegates": 60,
-  "System.RuntimeType.type_info": 12,
-  "System.Type._impl": 8,
-  "UnityEngine.EventSystems.EventSystem.m_CurrentSelected": 36,
-  "UnityEngine.EventSystems.EventSystem.m_HasFocus": 40,
-  "UnityEngine.EventSystems.EventSystem.m_SelectionGuard": 41,
-  "UnityEngine.EventSystems.EventSystem::m_EventSystems": 0,
-  "UnityEngine.InputSystem.Controls.ButtonControl.m_LastUpdateWasPress": 240,
-  "UnityEngine.InputSystem.Controls.ButtonControl.needsToCheckFramePress": 241,
-  "UnityEngine.InputSystem.Controls.ButtonControl.pressPoint": 244,
-  "UnityEngine.InputSystem.Controls.ButtonControl::s_GlobalDefaultButtonPressPoint": 0,
-  "UnityEngine.InputSystem.InputAction.m_ActionIndexInState": 108,
-  "UnityEngine.InputSystem.InputAction.m_ActionMap": 112,
-  "UnityEngine.InputSystem.InputActionMap.m_State": 48,
-  "UnityEngine.InputSystem.InputActionState.m_InProcessControlStateChange": 109,
-  "UnityEngine.InputSystem.InputActionState.m_Suppressed": 110,
-  "UnityEngine.InputSystem.InputActionState.memory": 32,
-  "UnityEngine.InputSystem.InputActionState/TriggerState.m_Flags": 9,
-  "UnityEngine.InputSystem.InputActionState/TriggerState.m_Phase": 8,
-  "UnityEngine.InputSystem.InputActionState/UnmanagedMemory.actionCount": 16,
-  "UnityEngine.InputSystem.InputActionState/UnmanagedMemory.actionStates": 36,
-  "UnityEngine.InputSystem.InputControl.m_CachedValueIsStale": 104,
-  "UnityEngine.InputSystem.InputManager.m_ReadValueCachingFeatureEnabled": 736,
-  "UnityEngine.InputSystem.InputSystem::s_Manager": 4,
-  "UnityEngine.InputSystem.Keyboard.altKey": 280,
-  "UnityEngine.InputSystem.Keyboard.ctrlKey": 276,
-  "UnityEngine.InputSystem.Keyboard.m_Keys": 304,
-  "UnityEngine.InputSystem.Keyboard.shiftKey": 272,
-  "UnityEngine.InputSystem.Keyboard::current": 0
+  "Spinel.Engine.StageLayout.PxPerDp": [
+   24,
+   "r8"
+  ],
+  "Spinel.Engine.StageLayout.UiScale": [
+   8,
+   "r8"
+  ],
+  "Spinel.Engine.StageLayout.ViewportHeight": [
+   52,
+   "i4"
+  ],
+  "Spinel.Engine.StageLayout.ViewportWidth": [
+   48,
+   "i4"
+  ],
+  "Spinel.Engine.StageLayout.WorldHeight": [
+   60,
+   "i4"
+  ],
+  "Spinel.Engine.StageLayout.WorldWidth": [
+   56,
+   "i4"
+  ],
+  "Spinel.Engine.StageLayout.WorldZoom": [
+   16,
+   "r8"
+  ],
+  "Spinel.Engine.Unity.GameInput.Click": [
+   16,
+   "UnityEngine.InputSystem.InputAction"
+  ],
+  "Spinel.Engine.Unity.GameInput.RightClick": [
+   20,
+   "UnityEngine.InputSystem.InputAction"
+  ],
+  "Spinel.Engine.Unity.SpinelEngine.Input": [
+   28,
+   "Spinel.Engine.Unity.GameInput"
+  ],
+  "Spinel.Engine.Unity.SpinelEngine.Stage": [
+   20,
+   "Spinel.Engine.Unity.Stage"
+  ],
+  "Spinel.Engine.Unity.SpinelEngine::Instance": [
+   0,
+   "Spinel.Engine.Unity.SpinelEngine"
+  ],
+  "Spinel.Engine.Unity.Stage.Current": [
+   136,
+   "vt:Spinel.Engine.StageLayout"
+  ],
+  "Spinel.Engine.Unity.Stage.hostOverride": [
+   44,
+   "vt:System.Nullable`1<vt:UnityEngine.Vector2Int>"
+  ],
+  "Spinel.Engine.Unity.Stage.hostRect": [
+   56,
+   "vt:UnityEngine.Rect"
+  ],
+  "Spinel.Engine.Unity.Stage.initialized": [
+   332,
+   "bool"
+  ],
+  "Spinel.Engine.Unity.Stage.panPixels": [
+   280,
+   "i4"
+  ],
+  "Spinel.Engine.Unity.World.ActorView.Actor": [
+   96,
+   "Spinel.Game.World.WorldActor"
+  ],
+  "Spinel.Engine.Unity.World.MapView.Height": [
+   80,
+   "i4"
+  ],
+  "Spinel.Engine.Unity.World.MapView.Width": [
+   76,
+   "i4"
+  ],
+  "Spinel.Game.Play.AutoDrill.State": [
+   24,
+   "vt:Spinel.Game.Play.AutoDrill/Phase"
+  ],
+  "Spinel.Game.Play.AvatarFsm.State": [
+   8,
+   "i4"
+  ],
+  "Spinel.Game.Play.AvatarStatusFlags.Value": [
+   8,
+   "i4"
+  ],
+  "Spinel.Game.Play.CombatModel.Fainted": [
+   68,
+   "bool"
+  ],
+  "Spinel.Game.Play.CombatModel.Fsm": [
+   112,
+   "Spinel.Game.Play.AvatarFsm"
+  ],
+  "Spinel.Game.Play.CombatModel.Target": [
+   60,
+   "vt:System.Nullable`1<i4>"
+  ],
+  "Spinel.Game.Play.CombatModel.attackTargets": [
+   104,
+   "System.Collections.Generic.Dictionary`2<i4,i4>"
+  ],
+  "Spinel.Game.Play.CombatModel.fading": [
+   136,
+   "Spinel.Net.OrderedMap`2<i4,Spinel.Game.Play.CombatModel/Aging>"
+  ],
+  "Spinel.Game.Play.CombatModel.session": [
+   20,
+   "Spinel.Net.Game.IGameSession"
+  ],
+  "Spinel.Game.Play.CombatModel.striking": [
+   124,
+   "System.Collections.Generic.Dictionary`2<i4,System.Collections.Generic.Queue`1<System.Action>>"
+  ],
+  "Spinel.Game.Play.CombatModel.waitingMoves": [
+   128,
+   "System.Collections.Generic.Dictionary`2<i4,Spinel.Game.Play.CombatModel/WaitingMove>"
+  ],
+  "Spinel.Game.Play.DigAssist.State": [
+   48,
+   "vt:Spinel.Game.Play.DigAssist/Mode"
+  ],
+  "Spinel.Game.Play.DigAssist.drill": [
+   8,
+   "Spinel.Game.Play.DrillFeature"
+  ],
+  "Spinel.Game.Play.DrillData.AutoPets": [
+   32,
+   "System.Collections.Generic.Dictionary`2<i8,i4>"
+  ],
+  "Spinel.Game.Play.DrillData.Params": [
+   8,
+   "System.Collections.Generic.Dictionary`2<i8,Spinel.Game.Play.DrillParam>"
+  ],
+  "Spinel.Game.Play.DrillFeature.Auto": [
+   196,
+   "Spinel.Game.Play.AutoDrill"
+  ],
+  "Spinel.Game.Play.DrillFeature.AutoFlagOn": [
+   200,
+   "bool"
+  ],
+  "Spinel.Game.Play.DrillFeature.AutoMode": [
+   192,
+   "bool"
+  ],
+  "Spinel.Game.Play.DrillFeature.Crazy": [
+   154,
+   "bool"
+  ],
+  "Spinel.Game.Play.DrillFeature.Data": [
+   12,
+   "Spinel.Game.Play.DrillData"
+  ],
+  "Spinel.Game.Play.DrillFeature.Flags": [
+   60,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillFeature.Gauge": [
+   104,
+   "r4"
+  ],
+  "Spinel.Game.Play.DrillFeature.Held": [
+   152,
+   "bool"
+  ],
+  "Spinel.Game.Play.DrillFeature.Inventory": [
+   16,
+   "Spinel.Net.Game.Inventory"
+  ],
+  "Spinel.Game.Play.DrillFeature.State": [
+   100,
+   "vt:Spinel.Game.Play.DrillFeature/Stage"
+  ],
+  "Spinel.Game.Play.DrillFeature.drill": [
+   92,
+   "Spinel.Net.Game.InvItem"
+  ],
+  "Spinel.Game.Play.DrillFeature.fsm": [
+   24,
+   "Spinel.Game.Play.AvatarFsm"
+  ],
+  "Spinel.Game.Play.DrillFeature.inDrillState": [
+   84,
+   "bool"
+  ],
+  "Spinel.Game.Play.DrillFeature.param": [
+   96,
+   "Spinel.Game.Play.DrillParam"
+  ],
+  "Spinel.Game.Play.DrillFeature.session": [
+   20,
+   "Spinel.Net.Game.IGameSession"
+  ],
+  "Spinel.Game.Play.DrillParam.BarEffArea": [
+   28,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillParam.BarSpeed": [
+   32,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillParam.DigDepth": [
+   24,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillParam.DrillLife": [
+   40,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillParam.Grade": [
+   16,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillParam.GroundNature": [
+   20,
+   "i4"
+  ],
+  "Spinel.Game.Play.DrillParam.Id": [
+   8,
+   "i8"
+  ],
+  "Spinel.Game.Play.DrillParam.ScoopMass": [
+   36,
+   "i4"
+  ],
+  "Spinel.Game.Play.GunFlowing.Armed": [
+   44,
+   "bool"
+  ],
+  "Spinel.Game.Play.GunFlowing.Inventory": [
+   16,
+   "Spinel.Net.Game.Inventory"
+  ],
+  "Spinel.Game.Play.GunFlowing.Ready": [
+   45,
+   "bool"
+  ],
+  "Spinel.Game.Play.GunFlowing.State": [
+   48,
+   "i4"
+  ],
+  "Spinel.Game.Play.GunFlowing.infos": [
+   28,
+   "System.Collections.Generic.IReadOnlyDictionary`2<i8,Spinel.Game.Play.ItemInfo>"
+  ],
+  "Spinel.Game.Play.GunFlowing.session": [
+   20,
+   "Spinel.Net.Game.IGameSession"
+  ],
+  "Spinel.Game.Play.HotkeyMap.Bindings": [
+   20,
+   "System.Collections.Generic.Dictionary`2<string,System.Collections.Generic.List`1<Spinel.Game.Play.KeyBinding>>"
+  ],
+  "Spinel.Game.Play.ItemInfo.Id": [
+   8,
+   "i8"
+  ],
+  "Spinel.Game.Play.ItemInfo.SubType": [
+   28,
+   "i4"
+  ],
+  "Spinel.Game.Play.ItemInfo.Type": [
+   24,
+   "i4"
+  ],
+  "Spinel.Game.Play.KeyBinding.Code": [
+   8,
+   "string"
+  ],
+  "Spinel.Game.Play.KeyBinding.Exclusive": [
+   16,
+   "bool"
+  ],
+  "Spinel.Game.Play.KeyBinding.Modifier": [
+   12,
+   "i4"
+  ],
+  "Spinel.Game.Play.PlayerStats.current": [
+   8,
+   "Spinel.Game.Play.StatValues"
+  ],
+  "Spinel.Game.Play.RunToggle.Heavy": [
+   20,
+   "System.Func`1<bool>"
+  ],
+  "Spinel.Game.Play.RunToggle.On": [
+   8,
+   "bool"
+  ],
+  "Spinel.Game.Play.RunToggle.Ready": [
+   24,
+   "bool"
+  ],
+  "Spinel.Game.Play.SkillsApi.UiWait": [
+   125,
+   "bool"
+  ],
+  "Spinel.Game.Play.SkillsApi.combatPlaysEsa": [
+   124,
+   "bool"
+  ],
+  "Spinel.Game.Play.SkillsApi.heldCast": [
+   188,
+   "Spinel.Net.Game.SkillCast"
+  ],
+  "Spinel.Game.Play.SkillsApi.shownTarget": [
+   56,
+   "Spinel.Game.Play.SkillTargetPick"
+  ],
+  "Spinel.Game.Play.SkillsApi.target": [
+   52,
+   "Spinel.Game.Play.SkillTargetPick"
+  ],
+  "Spinel.Game.Play.StatValues.MaxWeight": [
+   56,
+   "r8"
+  ],
+  "Spinel.Game.World.WarpRegion.X1": [
+   20,
+   "i4"
+  ],
+  "Spinel.Game.World.WarpRegion.X2": [
+   28,
+   "i4"
+  ],
+  "Spinel.Game.World.WarpRegion.Y1": [
+   24,
+   "i4"
+  ],
+  "Spinel.Game.World.WarpRegion.Y2": [
+   32,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.Hidden": [
+   161,
+   "bool"
+  ],
+  "Spinel.Game.World.WorldActor.HitHeight": [
+   188,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.HitLeft": [
+   176,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.HitTop": [
+   180,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.HitWidth": [
+   184,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.Id": [
+   40,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.Limited": [
+   162,
+   "bool"
+  ],
+  "Spinel.Game.World.WorldActor.Type": [
+   44,
+   "i4"
+  ],
+  "Spinel.Game.World.WorldActor.Unseen": [
+   160,
+   "bool"
+  ],
+  "Spinel.Game.World.WorldActor.X": [
+   56,
+   "r8"
+  ],
+  "Spinel.Game.World.WorldActor.Y": [
+   64,
+   "r8"
+  ],
+  "Spinel.Game.World.WorldActor.path": [
+   12,
+   "System.Collections.Generic.List`1<vt:Spinel.Game.World.Point>"
+  ],
+  "Spinel.Game.World.ZoneInfo.Id": [
+   8,
+   "i4"
+  ],
+  "Spinel.Game.World.ZoneInfo.Option": [
+   40,
+   "i4"
+  ],
+  "Spinel.Game.World.ZoneInfo.SubType": [
+   44,
+   "i4"
+  ],
+  "Spinel.Game.World.ZoneInfo.Type": [
+   24,
+   "i4"
+  ],
+  "Spinel.Net.Game.GameSession.heldStop": [
+   132,
+   "Spinel.Net.Game.MoveMessage"
+  ],
+  "Spinel.Net.Game.GameSession.sendArmed": [
+   89,
+   "bool"
+  ],
+  "Spinel.Net.Game.GameSession.targetPending": [
+   88,
+   "bool"
+  ],
+  "Spinel.Net.Game.InvItem.Count": [
+   28,
+   "i4"
+  ],
+  "Spinel.Net.Game.InvItem.ItemId": [
+   16,
+   "i8"
+  ],
+  "Spinel.Net.Game.InvItem.Uid": [
+   8,
+   "u8"
+  ],
+  "Spinel.Net.Game.Inventory.byUid": [
+   12,
+   "Spinel.Net.OrderedMap`2<u8,Spinel.Net.Game.InvItem>"
+  ],
+  "Spinel.Net.Game.Inventory.slots": [
+   16,
+   "u8[]"
+  ],
+  "Spinel.UI.Pc.EditBox::Focused": [
+   24,
+   "Spinel.UI.Pc.EditBox"
+  ],
+  "Spinel.UI.Pc.Hud.Hud.Keys": [
+   80,
+   "Spinel.Game.Play.HotkeyMap"
+  ],
+  "Spinel.UI.Pc.Hud.Hud.Stats": [
+   76,
+   "Spinel.Game.Play.PlayerStats"
+  ],
+  "Spinel.UI.Pc.Hud.Hud.installing": [
+   132,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Hud.Hud.keyMask": [
+   68,
+   "i4"
+  ],
+  "Spinel.UI.Pc.Hud.HudCover::covers": [
+   0,
+   "System.Collections.Generic.Dictionary`2<object,System.Func`1<bool>>"
+  ],
+  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.carried": [
+   8,
+   "i8"
+  ],
+  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.ctx": [
+   28,
+   "Spinel.UI.Pc.Screens.IPlayContext"
+  ],
+  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.hud": [
+   24,
+   "Spinel.UI.Pc.Hud.Hud"
+  ],
+  "Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0.run": [
+   40,
+   "Spinel.Game.Play.RunToggle"
+  ],
+  "Spinel.UI.Pc.Play.DigKeySettings::semiAuto": [
+   0,
+   "vt:System.Nullable`1<bool>"
+  ],
+  "Spinel.UI.Pc.Screens.GameFlow.Engine": [
+   16,
+   "Spinel.Engine.Unity.SpinelEngine"
+  ],
+  "Spinel.UI.Pc.Screens.GameFlow.Screen": [
+   84,
+   "Spinel.UI.Pc.Screens.GameScreen"
+  ],
+  "Spinel.UI.Pc.Screens.GameFlow::Current": [
+   4,
+   "Spinel.UI.Pc.Screens.GameFlow"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.actors": [
+   244,
+   "Spinel.Net.OrderedMap`2<i4,Spinel.Engine.Unity.World.ActorView>"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.artAwaited": [
+   601,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.avatar": [
+   236,
+   "Spinel.Game.World.WorldActor"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.cameraX": [
+   452,
+   "i4"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.cameraY": [
+   456,
+   "i4"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.campScene": [
+   404,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.changingZone": [
+   401,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.ground": [
+   256,
+   "Spinel.UI.Pc.Screens.GroundItems"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.held": [
+   416,
+   "vt:System.Nullable`1<vt:UnityEngine.Vector2>"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.hoveredId": [
+   272,
+   "vt:System.Nullable`1<i4>"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.hud": [
+   324,
+   "Spinel.UI.Pc.Hud.Hud"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.localScene": [
+   403,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.loggingOut": [
+   402,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.overUi": [
+   640,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.play": [
+   144,
+   "Spinel.Net.Game.GameSession"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.pointer": [
+   440,
+   "vt:System.Nullable`1<vt:UnityEngine.Vector2>"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.probedAt": [
+   624,
+   "vt:UnityEngine.Vector2"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.probedTime": [
+   632,
+   "r8"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.ready": [
+   400,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.route": [
+   372,
+   "System.Collections.Generic.List`1<vt:Spinel.Game.World.Point>"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.run": [
+   200,
+   "Spinel.Game.Play.RunToggle"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.services": [
+   316,
+   "Spinel.UI.Pc.Screens.PlayServices"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.steerWarping": [
+   116,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.steering": [
+   108,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.worldCovered": [
+   600,
+   "bool"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen.zone": [
+   148,
+   "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone.Info": [
+   8,
+   "Spinel.Game.World.ZoneInfo"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone.Map": [
+   16,
+   "Spinel.Engine.Unity.World.MapView"
+  ],
+  "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone.Warps": [
+   24,
+   "System.Collections.Generic.List`1<Spinel.Game.World.WarpRegion>"
+  ],
+  "Spinel.UI.Pc.Screens.GroundItems.entries": [
+   36,
+   "System.Collections.Generic.Dictionary`2<i4,Spinel.UI.Pc.Screens.GroundItems/Entry>"
+  ],
+  "Spinel.UI.Pc.Screens.GroundItems.hover": [
+   68,
+   "Spinel.UI.Pc.Screens.GroundItems/HoverDraw"
+  ],
+  "Spinel.UI.Pc.Screens.GroundItems/Entry.View": [
+   12,
+   "Spinel.Engine.Unity.World.ActorView"
+  ],
+  "Spinel.UI.Pc.Screens.GroundItems/HoverDraw.Entry": [
+   12,
+   "Spinel.UI.Pc.Screens.GroundItems/Entry"
+  ],
+  "Spinel.UI.Pc.Screens.PlayServices.items": [
+   8,
+   "System.Collections.Generic.Dictionary`2<System.Type,object>"
+  ],
+  "Spinel.UI.Pc.UiPressOrigin.left": [
+   32,
+   "bool"
+  ],
+  "Spinel.UI.Pc.UiPressOrigin.right": [
+   33,
+   "bool"
+  ],
+  "Spinel.UI.Pc.UiPressOrigin::Current": [
+   0,
+   "Spinel.UI.Pc.UiPressOrigin"
+  ],
+  "Spinel.UI.Pc.UiSkins::chosen": [
+   0,
+   "vt:Spinel.UI.Pc.UiSkin"
+  ],
+  "Spinel.UI.Pc.UiSkins::started": [
+   4,
+   "bool"
+  ],
+  "System.Delegate.m_target": [
+   16,
+   "object"
+  ],
+  "System.Delegate.method_ptr": [
+   8,
+   "iptr"
+  ],
+  "System.MulticastDelegate.delegates": [
+   60,
+   "System.Delegate[]"
+  ],
+  "System.RuntimeTypeHandle.value": [
+   8,
+   "iptr"
+  ],
+  "System.String._firstChar": [
+   12,
+   "char"
+  ],
+  "System.String._stringLength": [
+   8,
+   "i4"
+  ],
+  "System.Type._impl": [
+   8,
+   "vt:System.RuntimeTypeHandle"
+  ],
+  "UnityEngine.EventSystems.EventSystem.m_CurrentSelected": [
+   36,
+   "UnityEngine.GameObject"
+  ],
+  "UnityEngine.EventSystems.EventSystem.m_HasFocus": [
+   40,
+   "bool"
+  ],
+  "UnityEngine.EventSystems.EventSystem.m_SelectionGuard": [
+   41,
+   "bool"
+  ],
+  "UnityEngine.EventSystems.EventSystem::m_EventSystems": [
+   0,
+   "System.Collections.Generic.List`1<UnityEngine.EventSystems.EventSystem>"
+  ],
+  "UnityEngine.InputSystem.Controls.ButtonControl.m_LastUpdateWasPress": [
+   240,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.Controls.ButtonControl.needsToCheckFramePress": [
+   241,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.Controls.ButtonControl.pressPoint": [
+   244,
+   "r4"
+  ],
+  "UnityEngine.InputSystem.Controls.ButtonControl::s_GlobalDefaultButtonPressPoint": [
+   0,
+   "r4"
+  ],
+  "UnityEngine.InputSystem.InputAction.m_ActionIndexInState": [
+   108,
+   "i4"
+  ],
+  "UnityEngine.InputSystem.InputAction.m_ActionMap": [
+   112,
+   "UnityEngine.InputSystem.InputActionMap"
+  ],
+  "UnityEngine.InputSystem.InputActionMap.m_State": [
+   48,
+   "UnityEngine.InputSystem.InputActionState"
+  ],
+  "UnityEngine.InputSystem.InputActionState.m_InProcessControlStateChange": [
+   109,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.InputActionState.m_Suppressed": [
+   110,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.InputActionState.memory": [
+   32,
+   "vt:UnityEngine.InputSystem.InputActionState/UnmanagedMemory"
+  ],
+  "UnityEngine.InputSystem.InputActionState/TriggerState.m_Flags": [
+   9,
+   "u1"
+  ],
+  "UnityEngine.InputSystem.InputActionState/TriggerState.m_Phase": [
+   8,
+   "u1"
+  ],
+  "UnityEngine.InputSystem.InputActionState/UnmanagedMemory.actionCount": [
+   16,
+   "i4"
+  ],
+  "UnityEngine.InputSystem.InputActionState/UnmanagedMemory.actionStates": [
+   36,
+   "vt:UnityEngine.InputSystem.InputActionState/TriggerState*"
+  ],
+  "UnityEngine.InputSystem.InputControl.m_CachedValueIsStale": [
+   104,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.InputManager.m_ReadValueCachingFeatureEnabled": [
+   736,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.InputSystem::s_Manager": [
+   4,
+   "UnityEngine.InputSystem.InputManager"
+  ],
+  "UnityEngine.InputSystem.Keyboard.altKey": [
+   280,
+   "UnityEngine.InputSystem.Controls.ButtonControl"
+  ],
+  "UnityEngine.InputSystem.Keyboard.ctrlKey": [
+   276,
+   "UnityEngine.InputSystem.Controls.ButtonControl"
+  ],
+  "UnityEngine.InputSystem.Keyboard.m_Keys": [
+   304,
+   "UnityEngine.InputSystem.Controls.KeyControl[]"
+  ],
+  "UnityEngine.InputSystem.Keyboard.shiftKey": [
+   272,
+   "UnityEngine.InputSystem.Controls.ButtonControl"
+  ],
+  "UnityEngine.InputSystem.Keyboard::current": [
+   0,
+   "UnityEngine.InputSystem.Keyboard"
+  ],
+  "UnityEngine.Rect.m_Height": [
+   20,
+   "r4"
+  ],
+  "UnityEngine.Rect.m_Width": [
+   16,
+   "r4"
+  ],
+  "UnityEngine.Rect.m_XMin": [
+   8,
+   "r4"
+  ],
+  "UnityEngine.Rect.m_YMin": [
+   12,
+   "r4"
+  ],
+  "UnityEngine.Vector2.x": [
+   8,
+   "r4"
+  ],
+  "UnityEngine.Vector2.y": [
+   12,
+   "r4"
+  ]
+ },
+ "generics": {
+  "Spinel.Net.OrderedMap`2<i4,object>": {
+   "fields": {
+    "gaps": [
+     24,
+     "i4"
+    ],
+    "gone": [
+     16,
+     "bool[]"
+    ],
+    "index": [
+     8,
+     "System.Collections.Generic.Dictionary`2<i4,i4>"
+    ],
+    "slots": [
+     12,
+     "vt:System.Collections.Generic.KeyValuePair`2<i4,object>[]"
+    ],
+    "used": [
+     20,
+     "i4"
+    ],
+    "version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 32
+  },
+  "Spinel.Net.OrderedMap`2<u8,object>": {
+   "fields": {
+    "gaps": [
+     24,
+     "i4"
+    ],
+    "gone": [
+     16,
+     "bool[]"
+    ],
+    "index": [
+     8,
+     "System.Collections.Generic.Dictionary`2<u8,i4>"
+    ],
+    "slots": [
+     12,
+     "vt:System.Collections.Generic.KeyValuePair`2<u8,object>[]"
+    ],
+    "used": [
+     20,
+     "i4"
+    ],
+    "version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 32
+  },
+  "System.Collections.Generic.Dictionary`2/Entry<i4,i4>": {
+   "fields": {
+    "hashCode": [
+     8,
+     "i4"
+    ],
+    "key": [
+     16,
+     "i4"
+    ],
+    "next": [
+     12,
+     "i4"
+    ],
+    "value": [
+     20,
+     "i4"
+    ]
+   },
+   "size": 24
+  },
+  "System.Collections.Generic.Dictionary`2/Entry<i4,object>": {
+   "fields": {
+    "hashCode": [
+     8,
+     "i4"
+    ],
+    "key": [
+     16,
+     "i4"
+    ],
+    "next": [
+     12,
+     "i4"
+    ],
+    "value": [
+     20,
+     "object"
+    ]
+   },
+   "size": 24
+  },
+  "System.Collections.Generic.Dictionary`2/Entry<i8,i4>": {
+   "fields": {
+    "hashCode": [
+     8,
+     "i4"
+    ],
+    "key": [
+     16,
+     "i8"
+    ],
+    "next": [
+     12,
+     "i4"
+    ],
+    "value": [
+     24,
+     "i4"
+    ]
+   },
+   "size": 32
+  },
+  "System.Collections.Generic.Dictionary`2/Entry<i8,object>": {
+   "fields": {
+    "hashCode": [
+     8,
+     "i4"
+    ],
+    "key": [
+     16,
+     "i8"
+    ],
+    "next": [
+     12,
+     "i4"
+    ],
+    "value": [
+     24,
+     "object"
+    ]
+   },
+   "size": 32
+  },
+  "System.Collections.Generic.Dictionary`2/Entry<object,object>": {
+   "fields": {
+    "hashCode": [
+     8,
+     "i4"
+    ],
+    "key": [
+     16,
+     "object"
+    ],
+    "next": [
+     12,
+     "i4"
+    ],
+    "value": [
+     20,
+     "object"
+    ]
+   },
+   "size": 24
+  },
+  "System.Collections.Generic.Dictionary`2<i4,i4>": {
+   "fields": {
+    "_buckets": [
+     8,
+     "i4[]"
+    ],
+    "_comparer": [
+     32,
+     "System.Collections.Generic.IEqualityComparer`1<i4>"
+    ],
+    "_count": [
+     16,
+     "i4"
+    ],
+    "_entries": [
+     12,
+     "vt:System.Collections.Generic.Dictionary`2/Entry<i4,i4>[]"
+    ],
+    "_freeCount": [
+     24,
+     "i4"
+    ],
+    "_freeList": [
+     20,
+     "i4"
+    ],
+    "_keys": [
+     36,
+     "System.Collections.Generic.Dictionary`2/KeyCollection<i4,i4>"
+    ],
+    "_syncRoot": [
+     44,
+     "object"
+    ],
+    "_values": [
+     40,
+     "System.Collections.Generic.Dictionary`2/ValueCollection<i4,i4>"
+    ],
+    "_version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 48
+  },
+  "System.Collections.Generic.Dictionary`2<i4,object>": {
+   "fields": {
+    "_buckets": [
+     8,
+     "i4[]"
+    ],
+    "_comparer": [
+     32,
+     "System.Collections.Generic.IEqualityComparer`1<i4>"
+    ],
+    "_count": [
+     16,
+     "i4"
+    ],
+    "_entries": [
+     12,
+     "vt:System.Collections.Generic.Dictionary`2/Entry<i4,object>[]"
+    ],
+    "_freeCount": [
+     24,
+     "i4"
+    ],
+    "_freeList": [
+     20,
+     "i4"
+    ],
+    "_keys": [
+     36,
+     "System.Collections.Generic.Dictionary`2/KeyCollection<i4,object>"
+    ],
+    "_syncRoot": [
+     44,
+     "object"
+    ],
+    "_values": [
+     40,
+     "System.Collections.Generic.Dictionary`2/ValueCollection<i4,object>"
+    ],
+    "_version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 48
+  },
+  "System.Collections.Generic.Dictionary`2<i8,i4>": {
+   "fields": {
+    "_buckets": [
+     8,
+     "i4[]"
+    ],
+    "_comparer": [
+     32,
+     "System.Collections.Generic.IEqualityComparer`1<i8>"
+    ],
+    "_count": [
+     16,
+     "i4"
+    ],
+    "_entries": [
+     12,
+     "vt:System.Collections.Generic.Dictionary`2/Entry<i8,i4>[]"
+    ],
+    "_freeCount": [
+     24,
+     "i4"
+    ],
+    "_freeList": [
+     20,
+     "i4"
+    ],
+    "_keys": [
+     36,
+     "System.Collections.Generic.Dictionary`2/KeyCollection<i8,i4>"
+    ],
+    "_syncRoot": [
+     44,
+     "object"
+    ],
+    "_values": [
+     40,
+     "System.Collections.Generic.Dictionary`2/ValueCollection<i8,i4>"
+    ],
+    "_version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 48
+  },
+  "System.Collections.Generic.Dictionary`2<i8,object>": {
+   "fields": {
+    "_buckets": [
+     8,
+     "i4[]"
+    ],
+    "_comparer": [
+     32,
+     "System.Collections.Generic.IEqualityComparer`1<i8>"
+    ],
+    "_count": [
+     16,
+     "i4"
+    ],
+    "_entries": [
+     12,
+     "vt:System.Collections.Generic.Dictionary`2/Entry<i8,object>[]"
+    ],
+    "_freeCount": [
+     24,
+     "i4"
+    ],
+    "_freeList": [
+     20,
+     "i4"
+    ],
+    "_keys": [
+     36,
+     "System.Collections.Generic.Dictionary`2/KeyCollection<i8,object>"
+    ],
+    "_syncRoot": [
+     44,
+     "object"
+    ],
+    "_values": [
+     40,
+     "System.Collections.Generic.Dictionary`2/ValueCollection<i8,object>"
+    ],
+    "_version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 48
+  },
+  "System.Collections.Generic.Dictionary`2<object,object>": {
+   "fields": {
+    "_buckets": [
+     8,
+     "i4[]"
+    ],
+    "_comparer": [
+     32,
+     "System.Collections.Generic.IEqualityComparer`1<object>"
+    ],
+    "_count": [
+     16,
+     "i4"
+    ],
+    "_entries": [
+     12,
+     "vt:System.Collections.Generic.Dictionary`2/Entry<object,object>[]"
+    ],
+    "_freeCount": [
+     24,
+     "i4"
+    ],
+    "_freeList": [
+     20,
+     "i4"
+    ],
+    "_keys": [
+     36,
+     "System.Collections.Generic.Dictionary`2/KeyCollection<object,object>"
+    ],
+    "_syncRoot": [
+     44,
+     "object"
+    ],
+    "_values": [
+     40,
+     "System.Collections.Generic.Dictionary`2/ValueCollection<object,object>"
+    ],
+    "_version": [
+     28,
+     "i4"
+    ]
+   },
+   "size": 48
+  },
+  "System.Collections.Generic.KeyValuePair`2<i4,object>": {
+   "fields": {
+    "key": [
+     8,
+     "i4"
+    ],
+    "value": [
+     12,
+     "object"
+    ]
+   },
+   "size": 16
+  },
+  "System.Collections.Generic.KeyValuePair`2<u8,object>": {
+   "fields": {
+    "key": [
+     8,
+     "u8"
+    ],
+    "value": [
+     16,
+     "object"
+    ]
+   },
+   "size": 24
+  },
+  "System.Collections.Generic.List`1<object>": {
+   "fields": {
+    "_items": [
+     8,
+     "object[]"
+    ],
+    "_size": [
+     12,
+     "i4"
+    ],
+    "_syncRoot": [
+     20,
+     "object"
+    ],
+    "_version": [
+     16,
+     "i4"
+    ]
+   },
+   "size": 24
+  },
+  "System.Collections.Generic.List`1<vt:Spinel.Game.World.Point>": {
+   "fields": {
+    "_items": [
+     8,
+     "vt:Spinel.Game.World.Point[]"
+    ],
+    "_size": [
+     12,
+     "i4"
+    ],
+    "_syncRoot": [
+     20,
+     "object"
+    ],
+    "_version": [
+     16,
+     "i4"
+    ]
+   },
+   "size": 24
+  },
+  "System.Func`1<bool>": {
+   "fields": {},
+   "size": 64
+  },
+  "System.Nullable`1<bool>": {
+   "fields": {
+    "hasValue": [
+     8,
+     "bool"
+    ],
+    "value": [
+     9,
+     "bool"
+    ]
+   },
+   "size": 10
+  },
+  "System.Nullable`1<i4>": {
+   "fields": {
+    "hasValue": [
+     8,
+     "bool"
+    ],
+    "value": [
+     12,
+     "i4"
+    ]
+   },
+   "size": 16
+  },
+  "System.Nullable`1<vt:UnityEngine.Vector2>": {
+   "fields": {
+    "hasValue": [
+     8,
+     "bool"
+    ],
+    "value": [
+     12,
+     "vt:UnityEngine.Vector2"
+    ]
+   },
+   "size": 20
+  },
+  "System.Nullable`1<vt:UnityEngine.Vector2Int>": {
+   "fields": {
+    "hasValue": [
+     8,
+     "bool"
+    ],
+    "value": [
+     12,
+     "vt:UnityEngine.Vector2Int"
+    ]
+   },
+   "size": 20
+  },
+  "UnityEngine.InputSystem.InputControl`1<r4>": {
+   "fields": {
+    "evaluateProcessorsEveryRead": [
+     184,
+     "bool"
+    ],
+    "m_CachedValue": [
+     176,
+     "r4"
+    ],
+    "m_ProcessorStack": [
+     164,
+     "vt:UnityEngine.InputSystem.Utilities.InlinedArray`1<UnityEngine.InputSystem.InputProcessor`1<r4>>"
+    ],
+    "m_UnprocessedCachedValue": [
+     180,
+     "r4"
+    ]
+   },
+   "size": 185
+  }
  },
  "instanceSizes": {
   "Spinel.Engine.StageLayout": 88,
@@ -271,6 +1622,7 @@
   "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone": 40,
   "Spinel.UI.Pc.Screens.GroundItems": 120,
   "Spinel.UI.Pc.Screens.GroundItems/Entry": 72,
+  "Spinel.UI.Pc.Screens.GroundItems/HoverDraw": 16,
   "Spinel.UI.Pc.Screens.PlayServices": 16,
   "Spinel.UI.Pc.UiPressOrigin": 40,
   "Spinel.UI.Pc.UiSkins": 8,
@@ -279,6 +1631,7 @@
   "System.Collections.Generic.Dictionary`2": 0,
   "System.Collections.Generic.Dictionary`2/Entry": 0,
   "System.Collections.Generic.IReadOnlyDictionary`2": 0,
+  "System.Collections.Generic.KeyValuePair`2": 0,
   "System.Collections.Generic.List`1": 0,
   "System.Collections.Generic.Queue`1": 0,
   "System.Delegate": 60,
@@ -301,6 +1654,7 @@
   "UnityEngine.InputSystem.InputAction": 236,
   "UnityEngine.InputSystem.InputActionMap": 168,
   "UnityEngine.InputSystem.InputActionState": 120,
+  "UnityEngine.InputSystem.InputActionState/TriggerState": 76,
   "UnityEngine.InputSystem.InputControl`1": 0,
   "UnityEngine.InputSystem.InputManager": 752,
   "UnityEngine.InputSystem.InputSystem": 8,
@@ -424,8 +1778,8 @@
  },
  "rgctx": {
   "Spinel.Net.OrderedMap`2": {
-   "+52": "method mscorlib.dll|System.Collections.Generic.Dictionary`2::TryGetValue(!TKey,!TValue&)<!TKey,i4>",
-   "+84": "method mscorlib.dll|System.Collections.Generic.Dictionary`2::ContainsKey(!TKey)<!TKey,i4>",
+   "+12": "class vt:System.Collections.Generic.KeyValuePair`2<!TKey,!TValue>",
+   "+16": "method mscorlib.dll|System.Collections.Generic.KeyValuePair`2::get_Value()<!TKey,!TValue>",
    "sha256": "fc6cf17328ad4b755e8c04bcc2bd8c5e41e16e577b0285339f714f0edfbf3b99"
   },
   "System.Collections.Generic.Dictionary`2": {
@@ -435,6 +1789,14 @@
    "+48": "class !TValue",
    "+52": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.value",
    "sha256": "b5dcfc9108950b5f8571e8b197783fb0012c3c784263e3082dcd999472d06cc8"
+  },
+  "System.Collections.Generic.KeyValuePair`2": {
+   "+0": "class !TKey",
+   "+12": "class !TValue",
+   "+16": "field vt:System.Collections.Generic.KeyValuePair`2<!TKey,!TValue>.value",
+   "+4": "class vt:System.Collections.Generic.KeyValuePair`2<!TKey,!TValue>",
+   "+8": "field vt:System.Collections.Generic.KeyValuePair`2<!TKey,!TValue>.key",
+   "sha256": "d023d5d98e9bbb7c3a941fb29871304fb3a9a4bd91aff2d36e124bc24c11f720"
   },
   "System.Nullable`1": {
    "+0": "class !T",
@@ -449,6 +1811,16 @@
    "sha256": "626df0bd77908236e3bdeacd946a251f3aa277c7fc8c65636d3c5032c9061eb0"
   }
  },
+ "runtime": {
+  "s_GlobalMetadata": 4659832,
+  "s_GlobalMetadataHeader": 4659828,
+  "typeDefinitions": [
+   7487400,
+   1019502,
+   15447
+  ],
+  "typeDefinitionsAt": 236
+ },
  "slots": {
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0::<Install>b__2()": 49699
  },
@@ -457,6 +1829,7 @@
   "Spinel.Game.World.Point": 17,
   "System.Boolean": 2,
   "System.Collections.Generic.Dictionary`2/Entry": 17,
+  "System.Collections.Generic.KeyValuePair`2": 17,
   "System.Int32": 8,
   "System.Int64": 10,
   "System.Nullable`1": 17,
@@ -464,6 +1837,7 @@
   "System.Single": 12,
   "System.String": 14,
   "System.UInt64": 11,
+  "UnityEngine.InputSystem.InputActionState/TriggerState": 17,
   "UnityEngine.Vector2": 17,
   "UnityEngine.Vector2Int": 17
  },
@@ -511,6 +1885,7 @@
   "Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone": 2622,
   "Spinel.UI.Pc.Screens.GroundItems": 2687,
   "Spinel.UI.Pc.Screens.GroundItems/Entry": 2670,
+  "Spinel.UI.Pc.Screens.GroundItems/HoverDraw": 2673,
   "Spinel.UI.Pc.Screens.PlayServices": 2733,
   "Spinel.UI.Pc.UiPressOrigin": 2481,
   "Spinel.UI.Pc.UiSkins": 2484,
@@ -519,6 +1894,7 @@
   "System.Collections.Generic.Dictionary`2": 9991,
   "System.Collections.Generic.Dictionary`2/Entry": 9985,
   "System.Collections.Generic.IReadOnlyDictionary`2": 10000,
+  "System.Collections.Generic.KeyValuePair`2": 10004,
   "System.Collections.Generic.List`1": 10006,
   "System.Collections.Generic.Queue`1": 10015,
   "System.Delegate": 9180,
@@ -541,6 +1917,7 @@
   "UnityEngine.InputSystem.InputAction": 10214,
   "UnityEngine.InputSystem.InputActionMap": 10230,
   "UnityEngine.InputSystem.InputActionState": 10248,
+  "UnityEngine.InputSystem.InputActionState/TriggerState": 10244,
   "UnityEngine.InputSystem.InputControl`1": 10275,
   "UnityEngine.InputSystem.InputManager": 10330,
   "UnityEngine.InputSystem.InputSystem": 10206,

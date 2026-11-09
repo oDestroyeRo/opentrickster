@@ -1,7 +1,11 @@
 {
   // Build ea1a68bd, source joins in issues 25, 27, 28 and 29, re-derived for issue 37. No target calls.
+  // Pins come from tools/build-migrate/sampler/ea1a68bd.json; tests/sampler.cjs checks every read against it.
   const samplerBuild = "ea1a68bd89958fae94179f1e0835ffb5";
-  const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,13051:17,13052:17};
+  // At runtime Il2CppType.data for classes and primitives is a handle into the loaded metadata, not an index.
+  const metadataCells = [4659832,4659828], typeDefinitions = [7487400,1019502,15447];
+  const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
+  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
   let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
   const sampleHex = value => typeof value === "string" && /^[1-9a-f][0-9a-f]{0,15}$/.test(value);
   const unavailable = code => { throw code; };
@@ -55,7 +59,9 @@
         if (base.args.length || ![17,18].includes(base.kind)) unavailable("generic");
         return {id: base.id, kind:base.kind, args: Array.from({length: count}, (_, i) => type(pointer(args + i * 4),depth+1))};
       }
-      const id = integer(data, 0, 15446);
+      const offset = data - typeBase;
+      if (offset < 0 || offset % typeStride) unavailable("type");
+      const id = integer(offset / typeStride, 0, typeDefinitions[2] - 1);
       if (code !== typeKind(id)) unavailable("type");
       return {id, kind:code, args: []};
     }
@@ -66,25 +72,23 @@
       if (t.id !== id || (args && (args.length !== t.args.length || !args.every((v, i) => sameType({id:v,kind:typeKind(v),args:[]}, t.args[i]))))) unavailable("type");
       return p;
     }
-    function object(p, id, size) {
+    function object(p, id) {
+      const size = typeSizes[id] ?? unavailable("type");
       extent(p, size);
       const c = klass(pointer(p), id);
       if (u32(c + 128) < size || u32(c + 128) > 65536) unavailable("type");
       return p;
     }
-    function root(cell, id, offset, size) {
+    function root(cell, id, offset) {
       const c = klass(pointer(cell), id), statics = pointer(c + 76);
-      return object(pointer(statics + offset), id, size);
+      return object(pointer(statics + offset), id);
     }
     function statics(cell, id) { return pointer(klass(pointer(cell), id) + 76); }
     function context(method) {
       extent(method, 40);
       return extent(pointer(method + 28), 56);
     }
-    function methodCell(cell, wrapper = false) {
-      const m = pointer(cell);
-      return wrapper ? pointer(context(m) + 52) : m;
-    }
+    const methodCell = pointer;
     function array(p, stride, limit, element) {
       extent(p, 16);
       const c = pointer(p), count = integer(i32(p + 12), 0, limit);
@@ -93,7 +97,7 @@
       if (byte(c + 22) !== 29 || !sameType(type(pointer(c + 16)),type(pointer(c + 32) + 16))) unavailable("generic");
       if (element !== undefined) klass(pointer(c + 32), element);
       extent(p, 16 + count * stride);
-      return {p, count, data:p + 16};
+      return {p, c, count, data:p + 16};
     }
     function list(p, element, stride = 4, limit = 512) {
       extent(p, 24);
@@ -119,19 +123,19 @@
       if (!found) unavailable("generic");
       return found;
     }
+    function width(t) {
+      if ([14,18,28].includes(t.kind)) return 4;
+      const n = {8962:1,9023:4,9024:8,9067:4,9095:8}[t.id];
+      if (!n || t.args.length) unavailable("generic");
+      return n;
+    }
     function dictionary(p, keyType, valueType, limit = 512, method = null) {
-      extent(p, 40);
+      extent(p, 48);
       const c = klass(pointer(p), 9991), t = type(c + 16);
       if (t.args.length !== 2 || t.args[0].id !== keyType || (valueType !== null && t.args[1].id !== valueType)) unavailable("generic");
       const m = method || virtualTry(p), ctx = context(m);
       if (pointer(m + 16) !== c || !sameType(type(pointer(ctx + 40) + 16), t.args[0]) || !sameType(type(pointer(ctx + 48) + 16), t.args[1])) unavailable("generic");
       const hash = integer(u32(ctx + 36), 0, 120), key = integer(u32(ctx + 44), 0, 120), value = integer(u32(ctx + 52), 0, 120);
-      const width = t => {
-        if ([14,18,28].includes(t.kind)) return 4;
-        const n = {8962:1,9023:4,9024:8,9067:4,9095:8}[t.id];
-        if (!n || t.args.length) unavailable("generic");
-        return n;
-      };
       const kw = width(t.args[0]), vw = width(t.args[1]);
       if (u32(pointer(ctx + 40) + 132) !== kw || u32(pointer(ctx + 48) + 132) !== vw) unavailable("generic");
       if (hash % 4 || key % Math.min(kw,4) || value % Math.min(vw,4) || key < hash + 8 || value < key + kw) unavailable("generic");
@@ -157,6 +161,32 @@
       if (deleted !== free) unavailable("generic");
       return rows;
     }
+    // OrderedMap`2 rows, as its Enumerator.MoveNext walks them: slots[0, used) minus gone[] tombstones.
+    function orderedMap(p, keyType, valueType, limit, cell) {
+      extent(p, 32);
+      const c = klass(pointer(p), 11320, [keyType, valueType]), m = methodCell(cell), ctx = context(m);
+      if (pointer(m + 16) !== c) unavailable("generic");
+      const pair = klass(pointer(ctx + 12), 10004, [keyType, valueType]), getValue = pointer(ctx + 16), pctx = context(getValue);
+      if (pointer(getValue + 16) !== pair || pointer(pctx + 4) !== pair) unavailable("generic");
+      const kw = width(type(pair + 16).args[0]), stride = integer(u32(pair + 132), kw + 4, 64);
+      if (u32(klass(pointer(pctx), keyType) + 132) !== kw || u32(klass(pointer(pctx + 12), valueType) + 132) !== 4) unavailable("generic");
+      const key = integer(u32(pctx + 8), 0, stride - kw), value = integer(u32(pctx + 16), 0, stride - 4);
+      if (stride % 4 || key % Math.min(kw, 4) || value % 4 || (value < key + kw && key < value + 4)) unavailable("generic");
+      const slots = array(pointer(p + 12), stride, limit);
+      if (pointer(slots.c + 32) !== pair) unavailable("generic");
+      const used = integer(i32(p + 20), 0, slots.count), gaps = integer(i32(p + 24), 0, used), gone = u32(p + 16);
+      i32(p + 28);
+      const marks = gone ? array(gone, 1, 65535, 8962) : null;
+      if (marks ? marks.count < used : gaps) unavailable("generic");
+      const rows = [];
+      let holes = 0;
+      for (let i = 0; i < used; i++) {
+        if (marks && bool(marks.data + i)) { holes++; continue; }
+        rows.push({key:slots.data + stride * i + key, value:slots.data + stride * i + value});
+      }
+      if (holes !== gaps) unavailable("generic");
+      return rows;
+    }
     function nullable(p, valueCell, hasCell, size, valueType, width, readValue) {
       const vm = methodCell(valueCell), hm = methodCell(hasCell), vc = context(vm), hc = context(hm);
       const owner = klass(pointer(vm+16),9046,[valueType]);
@@ -175,14 +205,14 @@
     const nullablePoint = p => nullable(p, 3334068, 3334072, 12, 13051, 8, vec);
     const nullableId = p => nullable(p, 3333184, 3333192, 8, 9023, 4, q => integer(i32(q), 1, 65535));
     function text(p, max = 16) {
-      object(p, 8917, 12);
+      object(p, 8917);
       const n = integer(i32(p + 8), 0, max);
       extent(p, 12 + n * 2 + 2);
       if (u16(p + 12 + n * 2) !== 0) unavailable("shape");
       return String.fromCharCode(...Array.from({length:n}, (_, i) => u16(p + 12 + i * 2)));
     }
     function selectedText(p, allowed) {
-      object(p, 8917, 12);
+      object(p, 8917);
       const n = integer(i32(p + 8), 0, 128);
       return allowed.filter(s => s.length === n).some(s => {
         extent(p, 12 + n * 2 + 2);
@@ -190,7 +220,7 @@
       });
     }
     function bindings(p) {
-      object(p, 6744, 28);
+      object(p, 6744);
       const rows = dictionary(pointer(p + 20), 8917, 10006, 256, methodCell(3299016));
       const result = {dig:null,run:null};
       for (const row of rows) {
@@ -200,7 +230,7 @@
         if (result[name]) unavailable("binding");
         const a = list(pointer(row.value),6895,4,8);
         if (a.count !== 1) unavailable("binding");
-        const b = object(pointer(a.data),6895,20), code = text(pointer(b + 8));
+        const b = object(pointer(a.data),6895), code = text(pointer(b + 8));
         bool(b+16);
         if (i32(b + 12) !== 0 || !/^Key[A-Z]$/.test(code)) unavailable("binding");
         result[name] = code;
@@ -219,7 +249,7 @@
       klass(pointer(method+16),10275,[9067]);
       if (u32(klass(pointer(ctx+4),9067)+132) !== 4) unavailable("generic");
       if (bool(p + integer(u32(ctx + 16),164,224))) unavailable("input");
-      const manager = object(pointer(statics(3250132,10206) + 4),10330,752);
+      const manager = object(pointer(statics(3250132,10206) + 4),10330);
       if (!bool(manager + 736)) unavailable("input");
       let threshold = f32(p + 244);
       if (threshold <= 0) threshold = f32(statics(3243056,10583));
@@ -227,8 +257,8 @@
       return f32(p + off) >= threshold;
     }
     function actionPressed(p) {
-      object(p,10214,236);
-      const map = object(pointer(p + 112),10230,168), state = object(pointer(map + 48),10248,120);
+      object(p,10214);
+      const map = object(pointer(p + 112),10230), state = object(pointer(map + 48),10248);
       if (bool(state + 109) || bool(state + 110)) unavailable("input");
       const n = integer(i32(state + 40),1,256), i = integer(i32(p + 108),0,n-1), a = pointer(state + 60);
       extent(a,n * 68);
@@ -245,39 +275,44 @@
       }
       return out;
     }
-    const flow = root(0x318d9c,2621,4,132), engine = root(0x31b074,13665,0,44);
+    // Same arithmetic as libil2cpp f2486: s_GlobalMetadata plus the s_GlobalMetadataHeader typeDefinitions triple.
+    const metadata = pointer(metadataCells[0]), header = extent(pointer(metadataCells[1]), 248);
+    if (u32(header) !== 0xfab11baf || typeDefinitions.some((v, i) => u32(header + 236 + 4 * i) !== v)) unavailable("build");
+    const typeBase = metadata + typeDefinitions[0], typeStride = typeDefinitions[1] / typeDefinitions[2];
+    const flow = root(0x318d9c,2621,4), engine = root(0x31b074,13665,0);
     if (pointer(flow + 16) !== engine) unavailable("changing");
-    const screen = object(pointer(flow + 84),2669,656), stage = object(pointer(engine + 20),13686,392);
-    const input = object(pointer(engine + 28),13644,128), own = object(pointer(screen + 236),5467,344);
+    const screen = object(pointer(flow + 84),2669), stage = object(pointer(engine + 20),13686);
+    const input = object(pointer(engine + 28),13644), own = object(pointer(screen + 236),5467);
     const ownId = integer(i32(own + 40),1,65535);
-    const session = object(pointer(screen + 144),11820,140);
-    const zone = object(pointer(screen + 148),2622,40), zoneInfo = object(pointer(zone + 8),5622,60), map = object(pointer(zone + 16),13774,224);
+    const session = object(pointer(screen + 144),11820);
+    const zone = object(pointer(screen + 148),2622), zoneInfo = object(pointer(zone + 8),5622), map = object(pointer(zone + 16),13774);
     if (!bool(screen + 400) || [401,402,403,404,600,601].some(o => bool(screen + o))) unavailable("scene");
     if (hostOverride(stage+44) || i32(stage + 280) !== 0 || !bool(stage + 332)) unavailable("layout");
-    const services = object(pointer(screen + 316),2733,16), serviceRows = dictionary(pointer(services + 8),9089,9203,256,methodCell(0x325f98));
+    const services = object(pointer(screen + 316),2733), serviceRows = dictionary(pointer(services + 8),9089,9203,256,methodCell(0x325f98));
     const wanted = new Map([[6104,null],[6259,null],[6218,null],[6632,null],[5813,null],[8027,null]]);
     for (const row of serviceRows) {
       const p = pointer(row.value), id = type(pointer(p) + 16).id;
       if (!wanted.has(id)) continue;
       if (wanted.get(id)) unavailable("generic");
-      const key = object(pointer(row.key),9158,24);
-      if (!sameType(type(pointer(key + 12)),type(pointer(p) + 16))) unavailable("generic");
+      // RuntimeType inherits Type._impl, a RuntimeTypeHandle whose value is the Il2CppType*.
+      const key = object(pointer(row.key),9158);
+      if (!sameType(type(pointer(key + 8)),type(pointer(p) + 16))) unavailable("generic");
       wanted.set(id,p);
     }
     if ([...wanted.values()].some(p => !p)) unavailable("cold");
-    const skills = object(wanted.get(8027),8027,208);
+    const skills = object(wanted.get(8027),8027);
     if (u32(skills+52) || u32(skills+56) || u32(skills+188) || bool(skills+124) || bool(skills+125)) unavailable("routing");
-    const combat = object(wanted.get(6104),6104,276), drill = object(wanted.get(6259),6259,232), assist = object(wanted.get(6218),6218,60), gun = object(wanted.get(6632),6632,176);
-    const fsm = object(pointer(drill + 24),5810,24), fsmState = integer(i32(fsm + 8),0,64);
+    const combat = object(wanted.get(6104),6104), drill = object(wanted.get(6259),6259), assist = object(wanted.get(6218),6218), gun = object(wanted.get(6632),6632);
+    const fsm = object(pointer(drill + 24),5810), fsmState = integer(i32(fsm + 8),0,64);
     if (pointer(combat + 112) !== fsm || pointer(assist + 8) !== drill || pointer(combat + 20) !== session || pointer(drill + 20) !== session || pointer(gun + 20) !== session) unavailable("changing");
-    const hud = object(pointer(screen + 324),5357,160), binding = bindings(pointer(hud + 80));
-    const keyboard = object(pointer(statics(3250708,10299)),10299,320), keys = array(pointer(keyboard + 304),4,256,10591);
+    const hud = object(pointer(screen + 324),5357), binding = bindings(pointer(hud + 80));
+    const keyboard = object(pointer(statics(3250708,10299)),10299), keys = array(pointer(keyboard + 304),4,256,10591);
     function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4)); }
     const modifiers = [272,276,280].map(o => button(pointer(keyboard + o)));
     // f34098/f34099 read Key 57/58; get_Item f34042 indexes by Key - 1.
     if (keys.count < 58) unavailable("input");
     modifiers.push(button(pointer(keys.data + 56 * 4)) || button(pointer(keys.data + 57 * 4)));
-    const run = object(pointer(screen + 200),7918,32);
+    const run = object(pointer(screen + 200),7918);
     let mode = 1;
     if (bool(run + 8)) {
       const heavy = u32(run + 20);
@@ -285,27 +320,27 @@
       else {
         extent(heavy,64);
         if (u32(heavy + 8) !== 49699 || u32(heavy + 60) !== 0) unavailable("mode");
-        const state = object(pointer(heavy + 16),2952,56);
+        const state = object(pointer(heavy + 16),2952);
         if (pointer(state + 24) !== hud || pointer(state + 28) !== screen || pointer(state + 40) !== run) unavailable("mode");
-        const stats = object(pointer(hud + 76),7415,28), values = object(pointer(stats + 8),7412,96);
-        const max = Math.trunc(f64(values + 56)), attrs = u32(object(wanted.get(5813),5813,16) + 8);
+        const stats = object(pointer(hud + 76),7415), values = object(pointer(stats + 8),7412);
+        const max = Math.trunc(f64(values + 56)), attrs = u32(object(wanted.get(5813),5813) + 8);
         if (max <= 0 || max > 2147483647) unavailable("mode");
         const carried = Number(BigInt.asIntN(32,u64(state + 8))), ratio = Math.trunc(Math.imul(carried,100) / max);
         mode = (attrs & 17) && ratio > 89 ? 1 : 2;
       }
     }
     if (!bool(run + 24)) unavailable("mode");
-    const inv = object(pointer(gun + 16),12099,44);
+    const inv = object(pointer(gun + 16),12099);
     if (pointer(drill + 16) !== inv) unavailable("changing");
     const slots = array(pointer(inv + 16),8,64,9095);
     if (slots.count < 23) unavailable("cold");
     const needed = new Map();
     for (const slot of [1,4,7,8,9,22]) { const uid = u64(slots.data + slot * 8); if (uid !== 0n) needed.set(uid,null); }
-    for (const row of dictionary(pointer(inv + 12),9095,12073,4096,methodCell(3335044,true))) {
+    for (const row of orderedMap(pointer(inv + 12),9095,12073,4096,3335044)) {
       const uid = u64(row.key);
       if (!needed.has(uid)) continue;
       if (needed.get(uid)) unavailable("generic");
-      const item = object(pointer(row.value),12073,40);
+      const item = object(pointer(row.value),12073);
       if (u64(item + 8) !== uid) unavailable("generic");
       needed.set(uid,{id:u64(item + 16),count:i32(item + 28),p:item});
     }
@@ -316,25 +351,25 @@
       const id = u64(row.key);
       if (!itemIds.has(id)) continue;
       if (infos.has(id)) unavailable("generic");
-      const info = object(pointer(row.value),6759,260);
+      const info = object(pointer(row.value),6759);
       if (u64(info + 8) !== id) unavailable("generic");
       infos.set(id,{type:i32(info + 24),subtype:i32(info + 28)});
     }
     if ([...itemIds].some(id => !infos.has(id))) unavailable("cold");
     const itemAt = slot => needed.get(u64(slots.data + slot * 8)) || null;
     const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id).subtype === 54; });
-    const pet = itemAt(8), data = object(pointer(drill + 12),6228,36);
+    const pet = itemAt(8), data = object(pointer(drill + 12),6228);
     const wornTool = itemAt(7);
     let usableTool = false, equippedParam = null;
     const drillParameters = p => {
-      object(p,6225,64);
+      object(p,6225);
       return {id:u64(p+8),grade:i32(p+16),nature:i32(p+20),depth:i32(p+24),area:i32(p+28),speed:i32(p+32),mass:i32(p+36),life:i32(p+40)};
     };
     if (wornTool && infos.get(wornTool.id).type === 6 && wornTool.count > 0) {
       const rows = dictionary(pointer(data+8),9024,6225,512);
       const matching = rows.filter(row => u64(row.key) === wornTool.id);
       if (matching.length !== 1) unavailable("cold");
-      const p = object(pointer(matching[0].value),6225,64);
+      const p = object(pointer(matching[0].value),6225);
       equippedParam = drillParameters(p);
       if (equippedParam.id!==wornTool.id) unavailable("generic");
       usableTool = equippedParam.depth>0 && equippedParam.area>0 && equippedParam.area<=200 && equippedParam.speed>0 && equippedParam.mass>0;
@@ -349,12 +384,12 @@
     const manual = !(skin === 1 && semiAuto) && !automaticPet;
     const actors = [], actorIds = new Set([ownId]);
     function actor(p) {
-      object(p,5467,344);
+      object(p,5467);
       return {raw:integer(i32(p + 40),1,65535),type:integer(i32(p + 44),0,64),x:f64(p + 56),y:f64(p + 64),hit:[i32(p + 176),i32(p + 180),integer(i32(p + 184),0,65535),integer(i32(p + 188),0,65535)],hidden:bool(p + 160) || bool(p + 161) || bool(p + 162)};
     }
     actors.push(actor(own));
-    for (const row of dictionary(pointer(screen + 244),9023,13743,512,methodCell(3334428,true))) {
-      const a = actor(pointer(object(pointer(row.value),13743,376) + 96));
+    for (const row of orderedMap(pointer(screen + 244),9023,13743,512,3334428)) {
+      const a = actor(pointer(object(pointer(row.value),13743) + 96));
       if (integer(i32(row.key),1,65535) !== a.raw || actorIds.has(a.raw)) unavailable("generic");
       actorIds.add(a.raw); actors.push(a);
     }
@@ -374,31 +409,44 @@
     const hits = pointerWorld ? actors.filter(a => intersects(a,pointerWorld)) : [];
     const picked = hits.length === 1 && hits[0].raw !== ownId && hits[0].raw === hovered ? hovered : null;
     const warps = list(pointer(zone + 24),5545,4,256), portals = [];
-    for (let i = 0; i < warps.count; i++) { const p = object(pointer(warps.data + i*4),5545,40); portals.push([i32(p+20),i32(p+24),i32(p+28),i32(p+32)]); }
-    const ground = object(pointer(screen + 252),2687,120), groundHover = u32(ground + 68) !== 0;
-    if (groundHover) object(pointer(ground+68),2670,72);
+    for (let i = 0; i < warps.count; i++) { const p = object(pointer(warps.data + i*4),5545); portals.push([i32(p+20),i32(p+24),i32(p+28),i32(p+32)]); }
+    const ground = object(pointer(screen + 256),2687), hover = object(pointer(ground + 68),2673);
+    let groundHover = u32(hover + 12) !== 0;
+    if (groundHover) object(pointer(hover + 12),2670);
+    // No compiled code writes HoverDraw.Entry. GroundItems.Click finds a picked item actor through entries.
+    for (const row of dictionary(pointer(ground + 36),9023,2670,512)) {
+      const view = u32(object(pointer(row.value),2670) + 12);
+      if (!view) continue;
+      const item = actor(pointer(object(view,13743) + 96));
+      if (integer(i32(row.key),1,65535) !== item.raw) unavailable("generic");
+      if (pointerWorld && intersects(item,pointerWorld)) groundHover = true;
+    }
+    // EditBox.Focused takes keys before the HUD; installing sends the next key to WaitForKey.
     const edit = statics(3246444,2375);
-    if (u32(edit) !== 0 || i32(hud + 68) !== 0 || bool(hud + 128)) unavailable("routing");
+    if (u32(edit + 24) !== 0 || i32(hud + 68) !== 0 || bool(hud + 132)) unavailable("routing");
     const covers = pointer(statics(3248924,5358));
     if (dictionary(covers,9203,8935,256).length) unavailable("routing");
     const eventSystems = list(pointer(statics(3246812,14184)),14184,4,8);
     if (eventSystems.count !== 1) unavailable("routing");
-    const es = object(pointer(eventSystems.data),14184,52);
+    const es = object(pointer(eventSystems.data),14184);
     if (u32(es + 36) || !bool(es + 40) || bool(es + 41)) unavailable("routing");
-    const origins = root(3258196,2481,0,40);
+    const origins = root(3258196,2481,0);
     if (bool(origins + 32) || bool(origins + 33)) unavailable("routing");
     const attackTargets = idSet(pointer(combat + 104),9023,9023), waiting = idSet(pointer(combat + 128)), striking = idSet(pointer(combat + 124));
-    const fadingMap = pointer(combat + 136);
-    klass(pointer(fadingMap),11320,[9023,6083]);
-    const fading = idSet(pointer(fadingMap+8),9023,9023,pointer(context(methodCell(3334644))+84));
+    const fading = new Set();
+    for (const row of orderedMap(pointer(combat + 136),9023,6083,512,3334644)) {
+      const k = integer(i32(row.key),1,65535);
+      if (fading.has(k)) unavailable("generic");
+      fading.add(k);
+    }
     for (const a of actors) a.fading = fading.has(a.raw);
     const param = u32(drill + 96), tool = u32(drill + 92);
     if (fsmState === 5 && (!param || !tool)) unavailable("cold");
     const automatic = u32(drill+196);
-    if (tool && (!wornTool || object(tool,12073,40) !== wornTool.p)) unavailable("changing");
+    if (tool && (!wornTool || object(tool,12073) !== wornTool.p)) unavailable("changing");
     const activeParam = param ? drillParameters(param) : null;
     if (fsmState === 5 && (!usableTool || !equippedParam || Object.keys(equippedParam).some(key => activeParam[key] !== equippedParam[key]))) unavailable("changing");
-    const dig = {fsm:fsmState,flags:u32(drill+60),stage:integer(i32(drill+100),0,7),held:bool(drill+152),inState:bool(drill+84),gauge:f32(drill+104),area:activeParam?.area ?? null,assist:integer(i32(assist+48),0,4),autoMode:bool(drill+192),autoFlag:bool(drill+200),automatic:automatic ? integer(i32(object(automatic,5782,56)+24),0,16)!==0 : false,crazy:bool(drill+154),manual,automaticPet,mapAllowed:![1,5,6].includes(i32(zoneInfo+24)) && i32(zoneInfo+44)!==14,toolUsable:usableTool};
+    const dig = {fsm:fsmState,flags:u32(drill+60),stage:integer(i32(drill+100),0,7),held:bool(drill+152),inState:bool(drill+84),gauge:f32(drill+104),area:activeParam?.area ?? null,assist:integer(i32(assist+48),0,4),autoMode:bool(drill+192),autoFlag:bool(drill+200),automatic:automatic ? integer(i32(object(automatic,5782)+24),0,16)!==0 : false,crazy:bool(drill+154),manual,automaticPet,mapAllowed:![1,5,6].includes(i32(zoneInfo+24)) && i32(zoneInfo+44)!==14,toolUsable:usableTool};
     const zoneId = integer(i32(zoneInfo+8),1,65535);
     const equipment = [1,4,7,8,9,22].map(slot => u64(slots.data+slot*8).toString());
     const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,skin,semiAuto,equipment])];
