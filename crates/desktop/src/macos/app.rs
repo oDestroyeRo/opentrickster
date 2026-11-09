@@ -438,7 +438,7 @@ impl Desktop {
             self.say(if self.quit_requested {
                 "Waiting for the game connections to close. The app stays open until cleanup is confirmed."
             } else {
-                "Waiting for the game connections to close. The next mode remains locked."
+                "Waiting for the game connections to close. No new session can open until they do."
             });
         }
         if let Some(controller) = self.controller_mut() {

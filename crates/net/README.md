@@ -85,7 +85,12 @@ The same wrapper owns the guarded sampler and close request. It refuses new
 sockets during closure and closes every owned socket, including unknown roles.
 An ACK requires their actual close events. CLOSED state, an error, a timeout or
 an unupgraded preconnect does not manufacture an ACK. Desktop additionally
-neutralizes the document and detaches WK before forwarding engine Closed.
+neutralizes the document and detaches WK before forwarding engine Closed. The
+one exception is a terminated WebContent process: no page script remains to
+send an ACK, so Desktop reports `ClientFailed`, releases owned input, detaches
+the view and then forwards Closed. WebKit's networking process closes that
+page's sockets shortly afterwards, so a quick switch to clientless mode can
+still see the character as in use (`Occupied`) and must be retried.
 Observer-local `close` proves only decoder cleanup.
 
 The sampler reads only pinned heap classes/fields with extent, RGCTX, version

@@ -395,6 +395,8 @@ The mode switch is a two-segment control with **Client-assisted** and **Clientle
 
 While a run exists, a click does not switch. The refused-action message says "Mode switch is off during a run. Stop the run first." While a run is held during a disconnect, the message ends with "End the run first." With no run, a click opens the system sheet. In the `client-absent` and `offline` phases, a click switches at once, because no game or session is open.
 
+Closing a session waits for its game connections to close before another session can open. If that takes more than 5 seconds, the refused-action message reads "Waiting for the game connections to close. No new session can open until they do." During quit it reads "Waiting for the game connections to close. The app stays open until cleanup is confirmed."
+
 ### Status pill
 
 The status pill shows an icon, a phase label, and an optional detail in `text.secondary`, such as "Paused, Out of HP potions". Its background is the tone's subtle color, and the icon takes the tone color. [Session states](#session-states) lists the label for each phase.
