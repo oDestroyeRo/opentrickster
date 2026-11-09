@@ -133,7 +133,7 @@ Every pause has a reason, and the alert names what unlocks Resume.
 | Reason | Status detail | What lets the run resume |
 | --- | --- | --- |
 | `user` | By you | Resume. |
-| `hp-potions` | Out of HP potions | Restock in the game. Resume stays locked while the bag has no HP potions. |
+| `hp-potions` | Out of HP potions | Restock in the game. Resume stays locked while the bag has no HP potions. When the session cannot use HP potions, as in client-assisted mode, the run pauses at the HP potion threshold instead, and the alert says to recover HP in the game. |
 | `weight` | Bag weight limit | Free space in the game. |
 | `drill` | Drill durability | Repair or replace the drill in the game. |
 | `depth` | Drill too shallow | Equip a deeper drill or choose another area. |
@@ -395,6 +395,8 @@ The mode switch is a two-segment control with **Client-assisted** and **Clientle
 
 While a run exists, a click does not switch. The refused-action message says "Mode switch is off during a run. Stop the run first." While a run is held during a disconnect, the message ends with "End the run first." With no run, a click opens the system sheet. In the `client-absent` and `offline` phases, a click switches at once, because no game or session is open.
 
+Closing a session waits for its game connections to close before another session can open. If that takes more than 5 seconds, the refused-action message reads "Waiting for the game connections to close. No new session can open until they do." During quit it reads "Waiting for the game connections to close. The app stays open until cleanup is confirmed."
+
 ### Status pill
 
 The status pill shows an icon, a phase label, and an optional detail in `text.secondary`, such as "Paused, Out of HP potions". Its background is the tone's subtle color, and the icon takes the tone color. [Session states](#session-states) lists the label for each phase.
@@ -583,7 +585,7 @@ The setup form fills the side panel in one column. It starts with the activity c
 | Digging | Limits | Goal, bag weight limit |
 | Both | Alerts | Pause with a reason, lost connection, goal reached, Dock badge |
 
-The Attacks and recovery section says "The run pauses when HP potions run out. This is always on." While a run is starting or running, a lock bar says "Pause the run to change setup. Changes apply when you resume.", and the fields are disabled.
+The Attacks and recovery section says "The run pauses when HP potions run out. This is always on." In client-assisted mode, it also says "HP potion use is unavailable in client-assisted mode. The run pauses at this HP percent instead." While a run is starting or running, a lock bar says "Pause the run to change setup. Changes apply when you resume.", and the fields are disabled.
 
 ### Keyboard badge
 
@@ -621,7 +623,7 @@ In clientless mode, the board takes the place of the game pane and the strip.
 
 The connect panel replaces the board before a character is in the world.
 
-- When offline, it shows "Connect without the game client", a short explanation, **Game ID** and **Password** fields, a "Store the password in macOS Keychain" checkbox, and **Sign in**. When the service rejects the ID or password, a "Sign-in failed" alert appears above the fields.
+- When offline, it shows "Connect without the game client", a short explanation, **Game ID** and **Password** fields, the note "The password is used for this session only.", and **Sign in**. When the service rejects the ID or password, a "Sign-in failed" alert appears above the fields. The app never stores the password; it asks for it again after disconnect, mode change or quit.
 - While connecting, it shows four steps: Signing in, Choose a world, Choose a character, and Entering the world. The world list appears at the second step and the character list at the third. The first and fourth steps show a spinner. **Cancel** returns to the offline form.
 
 ### System sheet

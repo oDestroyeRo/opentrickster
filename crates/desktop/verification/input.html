@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Offline native input fixture</title>
+<style>html,body{margin:0;background:#0b0c0e;color:#e3e7eb;font:18px sans-serif}canvas{width:100vw;height:100vh;display:block}p{position:absolute;left:24px;top:16px;pointer-events:none}</style>
+<canvas id="canvas" tabindex="0"></canvas>
+<p>Offline native input verification. No account or game code.</p>
+<script>
+'use strict';
+const canvas = document.querySelector('canvas');
+let order = 0;
+for (const kind of ['pointermove','pointerdown','pointerup','keydown','keyup']) {
+  addEventListener(kind, event => {
+    ipc.postMessage(JSON.stringify({kind:'native-input',order:++order,event:kind,
+      code:event.code||null,button:event.button??null,x:event.clientX??null,
+      y:event.clientY??null,trusted:event.isTrusted}));
+    event.preventDefault();
+  }, {capture:true});
+}
+canvas.addEventListener('contextmenu', event => event.preventDefault());
+ipc.postMessage(JSON.stringify({kind:'input-ready',width:innerWidth,height:innerHeight}));
+</script>

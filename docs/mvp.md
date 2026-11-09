@@ -53,8 +53,8 @@ PRs, and a runnable packaged macOS app. Runtime acceptance must establish:
    relevant server state and inventory outcomes distinguished from local sends.
 4. Start, Pause, Resume, Stop, setup locking, stale-state handling, rejection
    limits, reconnect pause and mode/session ownership work through the app.
-5. Credentials remain outside Git, logs and verification artifacts. Optional
-   persistence uses macOS Keychain; game values remain in the local session.
+5. Credentials remain in memory for the current session only, outside Git,
+   logs, verification artifacts and disk; game values remain in the local session.
 
 Synthetic traces prove engine/parser behavior only. An attractive dashboard,
 successful compilation or a logged-in visual game alone does not prove the MVP.
