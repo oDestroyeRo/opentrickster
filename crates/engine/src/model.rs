@@ -317,6 +317,10 @@ pub enum Fact {
     /// All inventory frames through this original ingress have already been delivered.
     /// Hold this frontier behind partial frames, raw queues and buffered Aux groups.
     InventorySettled(IngressMark),
+    /// The game link delivered a frame, and every frame through this event's ingress has been
+    /// applied after Baseline. Own state already reported is current as of this observation.
+    /// It adds and changes no value, so missing or unknown state stays missing or unknown.
+    StateCurrent,
     DigAccepted,
     DigSpot(Point),
     Outcome(Outcome),

@@ -72,6 +72,15 @@ A latest observed mark is never a complete-through frontier. S282 resource
 composites retain the older current HP/MP timestamp. A new maximum cannot
 freshen or fabricate a change to an older current value.
 
+A settlement alone never refreshes state. It also carries `StateCurrent` when
+its release applied a received game frame after the baseline. Every frame
+through its mark has then been applied, so the state already reported is
+current. `StateCurrent` adds no value. On the page path the frontier also
+advances on sends, other sockets and frames the page does not forward, so only
+an applied forwarded frame counts. The bridge forwards season-pass progress
+32572 header-only for this; see
+[pass-progress liveness](../../docs/research/pass-progress-liveness.md).
+
 Retention includes frame headers and partial ACK boundaries. Stale ordinary
 ACKs are ignored; ACKs beyond sent bytes fail. Native liveness uses the current
 visible-client policy. No gateway resume or uncertain outbound replay occurs.

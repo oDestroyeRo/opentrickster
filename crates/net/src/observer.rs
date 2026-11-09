@@ -766,6 +766,7 @@ impl GameObserver {
             }
         } else if let Some(decoder) = &mut self.decoder {
             let (ready, settled) = self.ordered.release(through, self.aux.oldest_mark())?;
+            let applied = !ready.is_empty();
             let mut events = Vec::new();
             for packet in ready {
                 let facts = decoder.apply(&packet)?;
@@ -807,6 +808,11 @@ impl GameObserver {
             if let Some(mark) = settled {
                 let mut facts = vec![e::Fact::InventorySettled(e::IngressMark(mark))];
                 facts.extend(decoder.settle_carried(mark));
+                // The page frontier also passes sends, other sockets and unforwarded frames.
+                // Only an applied forwarded game frame shows the game link is live.
+                if applied {
+                    facts.push(e::Fact::StateCurrent);
+                }
                 events.push((
                     proof_at,
                     Event::Facts {
@@ -1403,6 +1409,120 @@ mod tests {
                 ..
             }
         ));
+    }
+    #[test]
+    fn only_an_applied_inbound_game_frame_marks_assisted_state_current() {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        use serde_json::json;
+        use zeroize::Zeroizing;
+        let profile = VerifiedProfile {
+            first_host: "127.0.0.1".into(),
+            first_port: 1234,
+            marker: Zeroizing::new("fixture".into()),
+            client_version: Zeroizing::new(vec![0; 4]),
+            definitions: None,
+        };
+        let mut engine = e::Engine::new(e::Mode::Assisted);
+        let opened = engine.handle(e::Input::User {
+            at: e::At(0),
+            request: e::RequestKey(1),
+            command: e::Command::Open,
+        });
+        let session = opened
+            .io
+            .iter()
+            .find_map(|effect| match effect {
+                e::Effect::Open { session, .. } => Some(*session),
+                _ => None,
+            })
+            .unwrap();
+        let mut observer = GameObserver::new(session, profile);
+        observer
+            .bind_page(crate::PageBinding::new(7, "a".repeat(32)).unwrap())
+            .unwrap();
+        let mut sequence = 0;
+        let mut raw_ingress = 0;
+        let mut ingest = |observer: &mut GameObserver, kind: &str, fields: serde_json::Value| {
+            sequence += 1;
+            raw_ingress = raw_ingress.max(fields["ingress"].as_u64().unwrap_or(0));
+            let mut value = json!({"channel":"opentrickster.net.v1","epoch":"7","guard":"a".repeat(32),"sequence":sequence,"rawIngress":raw_ingress,"kind":kind});
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            observer
+                .ingest_page(ORIGIN, &value.to_string(), std::time::Instant::now())
+                .unwrap();
+        };
+        let frame = |connection: u64, direction: &str, ingress: u64, bytes: &[u8]| json!({"connection":connection,"direction":direction,"ingress":ingress,"ageMs":0,"data":STANDARD.encode(bytes)});
+        // Facts of the last frontier settlement (revision namespace 2) queued so far.
+        let settled = |observer: &mut GameObserver| {
+            let mut last = None;
+            while let Some(observation) = observer.try_next().unwrap() {
+                if let Event::Facts {
+                    revision, facts, ..
+                } = observation.event
+                    && revision.0 & 3 == 2
+                {
+                    last = Some(facts);
+                }
+            }
+            last.unwrap()
+        };
+        let outgoing = crate::codec::OpcodeMap::current(b"c2s");
+        let incoming = crate::codec::OpcodeMap::current(b"s2c");
+        ingest(&mut observer, "socket", json!({"connection":1}));
+        let login = outgoing.encode(4, 0, &[0; 14]).unwrap();
+        ingest(
+            &mut observer,
+            "game-login",
+            json!({"connection":1,"ingress":1,"header":login[..6]}),
+        );
+        let mut profile = vec![0; 69];
+        profile[17] = b'S';
+        for ((opcode, payload), ingress) in [
+            (5, vec![]),
+            (679, profile),
+            (230, vec![0; 10]),
+            (233, vec![0; 251]),
+        ]
+        .into_iter()
+        .zip(2..)
+        {
+            let bytes = incoming.encode(opcode, 0, &payload).unwrap();
+            ingest(&mut observer, "frame", frame(1, "inbound", ingress, &bytes));
+        }
+        ingest(&mut observer, "frontier", json!({"ingress":5,"ageMs":0}));
+        assert!(matches!(
+            observer.try_next().unwrap().unwrap().event,
+            Event::Baseline { .. }
+        ));
+        // The page frontier also passes our own sends and other sockets' frames. Neither shows
+        // that the selected game link is delivering.
+        ingest(&mut observer, "socket", json!({"connection":2}));
+        let send = outgoing.encode(24, 0, &[0; 9]).unwrap();
+        ingest(&mut observer, "frame", frame(1, "outbound", 6, &send));
+        let other = incoming.encode(36, 0, &[0; 4]).unwrap();
+        ingest(&mut observer, "frame", frame(2, "inbound", 7, &other));
+        ingest(&mut observer, "frontier", json!({"ingress":7,"ageMs":0}));
+        let facts = settled(&mut observer);
+        assert!(
+            facts
+                .iter()
+                .any(|f| matches!(f, e::Fact::InventorySettled(e::IngressMark(7))))
+        );
+        assert!(!facts.iter().any(|f| matches!(f, e::Fact::StateCurrent)));
+        // Season-pass progress crosses the page as its bare header and is applied in order.
+        let pass = incoming.encode(32572, 0, &[]).unwrap();
+        ingest(&mut observer, "frame", frame(1, "inbound", 8, &pass));
+        ingest(&mut observer, "frontier", json!({"ingress":8,"ageMs":0}));
+        let facts = settled(&mut observer);
+        assert!(
+            facts
+                .iter()
+                .any(|f| matches!(f, e::Fact::InventorySettled(e::IngressMark(8))))
+        );
+        assert!(facts.iter().any(|f| matches!(f, e::Fact::StateCurrent)));
     }
     #[test]
     fn assisted_dig_cycle_waits_for_a_sample_that_reads_the_client_dig_feature() {

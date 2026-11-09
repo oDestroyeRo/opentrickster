@@ -69,11 +69,17 @@ requires source and runtime proof before replacing that backend.
   `Fact::InventorySettled` proves that every inventory frame through its mark
   has been delivered, including partial/raw/Aux queues. Only settled deltas after
   the run's send boundary earn credit. A goal waits for unsettled inventory;
-  metadata alone cannot refresh state. Late mutations behind a proven frontier
+  a settlement alone cannot refresh state. Late mutations behind a proven frontier
   or journal overflow invalidate inventory until the session is reconstructed.
   Ordinary mutations in one source event net by item kind before crediting a
   gain. Potion verification follows a stack's identity generation; a replacement
   needs a fresh adapter proof even when its key and item kind are reused.
+- `Fact::StateCurrent` reports that a release applied a received game frame
+  after Baseline, so every frame through its ingress mark has been applied. It
+  refreshes state freshness and adds or changes no value: missing and unknown
+  state stay missing and unknown, and per-field ingress stamps are untouched.
+  Adapters send it with the settlement of that release, never for a frontier that
+  passed only their own sends, another socket or frames the page does not forward.
 - Pause and Stop drain only the current action. A tagged quiescence barrier
   establishes idle state; an old barrier cannot clear a later action. If idle
   cannot be established within the drain deadline, close the adapter.

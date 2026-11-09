@@ -30,7 +30,7 @@ const INVENTORY_CUTOFF_BUILD: Option<&str> = Some("ea1a68bd89958fae94179f1e0835f
 const INVENTORY_DELTAS: [u16; 8] = [561, 160, 770, 262, 246, 260, 843, 68];
 /// Inventory subscribes to these after replay, but this decoder has no grammar for them.
 /// 518/521 (slot 20), 82/85 (slots), 83 (refusal) and 41 (Galder) leave carried weight alone.
-const UNDECODED_INVENTORY: &[u16] = crate::page::HEADER_ONLY;
+const UNDECODED_INVENTORY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151];
 
 pub(crate) fn text(s: String) -> Result<e::DisplayText> {
     if s.len() > 256 || s.chars().any(char::is_control) {
