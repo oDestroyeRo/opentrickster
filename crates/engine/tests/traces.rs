@@ -1379,6 +1379,62 @@ fn reconnect_attempts_are_bounded_and_never_replay_held_actions() {
 }
 
 #[test]
+fn an_assisted_reconnect_reports_its_wait_for_the_game_login() {
+    let opened = |effects: &Effects| {
+        effects
+            .io
+            .iter()
+            .find_map(|effect| match effect {
+                Effect::Open { session, .. } => Some(*session),
+                _ => None,
+            })
+            .unwrap()
+    };
+    let mut h = Harness::new(false);
+    h.command(Command::SwitchMode(Mode::Assisted));
+    h.event(Event::Closed);
+    h.session = opened(&h.command(Command::Open));
+    h.event(Event::Progress(ConnectStep::AwaitingGameLogin));
+    let online = h.event(Event::Baseline {
+        support: support(),
+        revision: EvidenceKey(1),
+        facts: baseline(),
+        resumed: false,
+    });
+    assert_eq!(online.snapshot.connect_step, None);
+    if let Some(key) = barrier(&online) {
+        h.event(Event::Quiescent(key));
+    }
+    h.start_attack();
+    h.event(Event::Lost);
+    let reconnect = h.command(Command::Reconnect);
+    let opening = if closes(&reconnect) > 0 {
+        h.event(Event::Closed)
+    } else {
+        reconnect
+    };
+    h.session = opened(&opening);
+    assert_eq!(opening.snapshot.phase, Phase::Reconnecting(1));
+    assert_eq!(
+        opening.snapshot.connect_step,
+        Some(ConnectStep::LoadingGame(0))
+    );
+    let waiting = h.event(Event::Progress(ConnectStep::AwaitingGameLogin));
+    assert_eq!(waiting.snapshot.phase, Phase::Reconnecting(1));
+    assert_eq!(
+        waiting.snapshot.connect_step,
+        Some(ConnectStep::AwaitingGameLogin)
+    );
+    let recovered = h.event(Event::Baseline {
+        support: support(),
+        revision: EvidenceKey(1),
+        facts: baseline(),
+        resumed: false,
+    });
+    assert_eq!(recovered.snapshot.connect_step, None);
+}
+
+#[test]
 fn failed_clientless_reconnect_with_held_run_offers_reconnect_or_end_run() {
     let mut h = Harness::new(false);
     h.start_attack();

@@ -510,6 +510,8 @@ impl DisplayText {
 pub struct Snapshot {
     pub mode: Mode,
     pub phase: Phase,
+    /// The step of a connect or reconnect in progress. `Phase::Reconnecting` does not show it.
+    pub connect_step: Option<ConnectStep>,
     pub allowed: Vec<Control>,
     pub blocked: Option<Refusal>,
     /// Each blocker names the observable condition required before Start or Resume.

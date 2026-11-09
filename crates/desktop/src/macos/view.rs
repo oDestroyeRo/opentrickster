@@ -557,6 +557,14 @@ impl Desktop {
     fn alert_view(&self, theme: Theme, cx: &mut Context<Self>) -> Option<Div> {
         let (title, body) = match self.snapshot().phase {
             Phase::Paused(reason) => ("Run paused", pause_text(&reason, &self.snapshot().blockers)),
+            Phase::Reconnecting(_)
+                if self.snapshot().connect_step == Some(e::ConnectStep::AwaitingGameLogin) =>
+            {
+                (
+                    "Connection lost",
+                    "Log in inside the embedded game and choose a character. A recovered run stays paused until you check the character.",
+                )
+            }
             Phase::Reconnecting(_) => (
                 "Connection lost",
                 "Reconnecting. A recovered run stays paused until you check the character.",
@@ -646,6 +654,11 @@ impl Desktop {
                 return "Load the game, sign in, then choose an activity in Setup.";
             }
             Phase::AwaitingLogin => {
+                return "Log in inside the embedded game and choose a character.";
+            }
+            Phase::Reconnecting(_)
+                if self.snapshot().connect_step == Some(e::ConnectStep::AwaitingGameLogin) =>
+            {
                 return "Log in inside the embedded game and choose a character.";
             }
             Phase::Offline => return "Sign in to connect without the game client.",

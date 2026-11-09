@@ -176,6 +176,10 @@ impl Engine {
         Snapshot {
             mode: self.mode,
             phase: self.phase(),
+            connect_step: match self.connection {
+                Connection::Opening { step, .. } => Some(step),
+                _ => None,
+            },
             allowed,
             blocked,
             blockers: self.preflight(),

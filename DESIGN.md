@@ -125,7 +125,7 @@ stateDiagram-v2
 | `pausing` | Pausing | Stop (⌘.). The current action finishes first. |
 | `paused` | Paused | Resume (⌘R) once nothing blocks it, or Stop (⌘.). |
 | `stopping` | Stopping | Wait. The current action finishes first. |
-| `reconnecting` | Reconnecting | End the run (⌘.). |
+| `reconnecting` | Reconnecting | End the run (⌘.). In client-assisted mode, log in inside the game when the alert asks. |
 | `disconnected` | Disconnected | Reconnect, or end the run (⌘.). In clientless mode, **Sign in** on the connect panel also reconnects a held run. |
 | `closing` | Closing session | Wait. The app closes the game or session before anything else opens. |
 | `error` | The halt's short name | The halt's recovery action. |
@@ -462,6 +462,7 @@ An alert banner has a title, a body, an optional unlock line, and at most one ac
 | --- | --- | --- | --- |
 | `paused` | Run paused | The banner text from the [pause table](#session-states) | None |
 | `reconnecting` | Connection lost | "Reconnecting. A recovered run stays paused until you check the character." | None |
+| `reconnecting`, waiting for the game login | Connection lost | "Log in inside the embedded game and choose a character. A recovered run stays paused until you check the character." | None |
 | `disconnected` | Disconnected | "Reconnect when the connection is available. Check the character before resuming." | **Reconnect**, while attempts remain |
 | `error` | The halt's status pill text | The halt's cause, such as "The game rejected repeated actions. Check the character and Setup." | **Dismiss** |
 
