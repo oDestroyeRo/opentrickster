@@ -4,8 +4,10 @@
   const samplerBuild = "ea1a68bd89958fae94179f1e0835ffb5";
   // At runtime Il2CppType.data for classes and primitives is a handle into the loaded metadata, not an index.
   const metadataCells = [4659832,4659828], typeDefinitions = [7487400,1019502,15447];
-  const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
-  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
+  // Metadata-usage cells hold (kind << 29) | (index << 1) | 1 until the first method that uses them runs.
+  const cellWords = {3243056:536899443,3244824:536902459,3246444:536903493,3246812:536904109,3247516:536905459,3248924:536907653,3250128:536909255,3250132:536909263,3250708:536910259,3256436:536919877,3258196:536923117,3258208:536923129,3297464:2684369017,3299016:2684369793,3301272:2684370921,3309924:2684375243,3332756:2684386627,3332764:2684386631,3333184:2684386841,3333192:2684386845,3334068:2684387283,3334072:2684387285,3334088:2684387293,3334428:2684387463,3334644:2684387571,3335044:2684387771};
+  const typeKinds = {8917:14,8962:2,9023:8,9024:10,9067:12,9095:11,9203:28,10529:17,5592:17,9046:17,9985:17,10004:17,13051:17,13052:17};
+  const typeSizes = {2481:40,2621:132,2622:40,2669:656,2670:72,2673:16,2687:120,2733:16,2952:56,5357:160,5467:344,5545:40,5622:60,5782:56,5810:24,5813:16,6104:280,6218:60,6225:64,6228:36,6259:232,6632:176,6744:28,6759:264,6764:24,6895:20,7412:96,7415:28,7918:32,8027:208,8917:16,9158:24,10214:236,10230:168,10248:120,10299:320,10304:320,10330:752,11820:144,12073:40,12099:48,13644:128,13665:44,13686:392,13743:376,13774:224,14184:52};
   let sampleRevision = 0, previousGeometry = null, previousProbeTime = null, probeFloor = null, pointerGeometryReady = false;
   const sampleHex = value => typeof value === "string" && /^[1-9a-f][0-9a-f]{0,15}$/.test(value);
   const unavailable = code => { throw code; };
@@ -79,16 +81,33 @@
       if (u32(c + 128) < size || u32(c + 128) > 65536) unavailable("type");
       return p;
     }
-    function root(cell, id, offset) {
-      const c = klass(pointer(cell), id), statics = pointer(c + 76);
-      return object(pointer(statics + offset), id);
+    // f2690 replaces a cell's usage word with its class or method when a method that uses the cell first runs, so the
+    // pinned word means the client has not run such a method yet. Any other odd word means the pin is wrong.
+    function cell(p) {
+      const v = u32(p);
+      if (v === cellWords[p]) return null;
+      if (!v || v % 2) unavailable("build");
+      return extent(v, 4);
     }
-    function statics(cell, id) { return pointer(klass(pointer(cell), id) + 76); }
+    const methodCell = p => cell(p) ?? unavailable("cold");
+    // A class's static fields, or null while no method has touched them: its TypeInfo cell is unresolved or the class is
+    // uninitialized, so every static still holds its default.
+    function statics(p, id) {
+      const c = cell(p);
+      if (c === null) return null;
+      const s = u32(klass(c, id) + 76);
+      return s ? extent(s, 4) : null;
+    }
+    function root(p, id, offset) {
+      const s = statics(p, id), o = s && u32(s + offset);
+      return o ? object(o, id) : null;
+    }
     function context(method) {
       extent(method, 40);
-      return extent(pointer(method + 28), 56);
+      const ctx = u32(method + 28);
+      if (!ctx) unavailable("cold");
+      return extent(ctx, 56);
     }
-    const methodCell = pointer;
     function array(p, stride, limit, element) {
       extent(p, 16);
       const c = pointer(p), count = integer(i32(p + 12), 0, limit);
@@ -129,7 +148,8 @@
       if (!n || t.args.length) unavailable("generic");
       return n;
     }
-    function dictionary(p, keyType, valueType, limit = 512, method = null) {
+    // A Dictionary`2's entry layout from its class RGCTX, read through any of its methods; TryGetValue by default.
+    function dictionaryLayout(p, keyType, valueType, limit, method) {
       extent(p, 48);
       const c = klass(pointer(p), 9991), t = type(c + 16);
       if (t.args.length !== 2 || t.args[0].id !== keyType || (valueType !== null && t.args[1].id !== valueType)) unavailable("generic");
@@ -142,24 +162,51 @@
       const count = integer(i32(p + 16), 0, limit), free = integer(i32(p + 24), 0, count);
       i32(p + 28);
       const ep = u32(p + 12);
-      if (!ep) { if (count || free || u32(p + 8)) unavailable("generic"); return []; }
+      if (!ep) { if (count || free || u32(p + 8)) unavailable("generic"); return {entries:null}; }
       extent(ep, 16);
       const stride = integer(u32(pointer(ep) + 140), value + vw, 128);
       if (stride % 4) unavailable("generic");
       const entry = klass(pointer(pointer(ep) + 32),9985), entryType = type(entry + 16);
       if (entryType.args.length !== 2 || !entryType.args.every((arg,i) => sameType(arg,t.args[i])) || u32(entry + 132) !== stride) unavailable("generic");
-      const a = array(ep, stride, limit);
-      if (count > a.count) unavailable("generic");
+      const entries = array(ep, stride, limit);
+      if (count > entries.count) unavailable("generic");
+      return {ctx, count, free, entries, stride, hash, key, value};
+    }
+    function dictionary(p, keyType, valueType, limit = 512, method = null) {
+      const d = dictionaryLayout(p, keyType, valueType, limit, method);
+      if (!d.entries) return [];
       const rows = [];
       let deleted = 0;
-      for (let i = 0; i < count; i++) {
-        const row = a.data + stride * i, h = i32(row + hash);
+      for (let i = 0; i < d.count; i++) {
+        const row = d.entries.data + d.stride * i, h = i32(row + d.hash);
         if (h === -1) { deleted++; continue; }
         if (h < 0) unavailable("generic");
-        rows.push({key:row + key, value:row + value});
+        rows.push({key:row + d.key, value:row + d.value});
       }
-      if (deleted !== free) unavailable("generic");
+      if (deleted !== d.free) unavailable("generic");
       return rows;
+    }
+    // Dictionary`2.FindEntry f64786 for long keys and no _comparer (+32), as Dictionary`2(int) leaves it. The hash is
+    // Int64.GetHashCode f71422, the low word of key ^ (key >>> 32), masked to 31 bits. _buckets (+8) holds an entry
+    // index plus one; entries chain through Entry.next (RGCTX +160). FindEntry throws after entries.Length steps.
+    // Returns each found key's value address, reading only the probed entries.
+    function findLongs(p, valueType, limit, method, keys) {
+      const d = dictionaryLayout(p, 9024, valueType, limit, method), found = new Map();
+      if (!d.entries) return found;
+      if (u32(p + 32)) unavailable("generic");
+      const next = integer(u32(d.ctx + 160), 0, 120), buckets = array(pointer(p + 8), 4, limit, 9023);
+      if (next % 4 || next < d.hash + 4 || next + 4 > d.key || !buckets.count) unavailable("generic");
+      for (const key of keys) {
+        const hash = Number(BigInt.asUintN(32, key ^ (key >> 32n))) & 0x7fffffff;
+        let i = i32(buckets.data + 4 * (hash % buckets.count)) - 1;
+        for (let steps = 0; i >= 0 && i < d.entries.count; steps++) {
+          if (steps === d.entries.count || i >= d.count) unavailable("generic");
+          const row = d.entries.data + d.stride * i;
+          if (i32(row + d.hash) === hash && u64(row + d.key) === key) { found.set(key, row + d.value); break; }
+          i = i32(row + next);
+        }
+      }
+      return found;
     }
     // OrderedMap`2 rows, as its Enumerator.MoveNext walks them: slots[0, used) minus gone[] tombstones.
     function orderedMap(p, keyType, valueType, limit, cell) {
@@ -238,23 +285,63 @@
       if (!result.dig || !result.run || result.dig === result.run) unavailable("binding");
       return result;
     }
-    function button(p) {
+    // Device state bytes are unmanaged and may be unaligned, so wider reads are composed from bytes.
+    function stateBytes(p, n) { let v = 0; for (let i = 0; i < n; i++) v += byte(p + i) * 2 ** (8 * i); return v; }
+    // AxisControl.Preprocess, inlined in both state readers; only the identity is modelled.
+    function unprocessed(p) { if (i32(p + 188) !== 0 || bool(p + 204) || bool(p + 205) || bool(p + 220)) unavailable("input"); }
+    // get_unprocessedValue f69068: virtual slot 17 on InputControl.currentStatePtr (f33851), the front buffer that
+    // InputStateBuffers.GetFrontBufferForDevice f34662 maps from m_Device.m_DeviceIndex (GetDeviceIndex f33849).
+    function stateValue(p, id, device) {
+      if (id === 10580 || pointer(p + 68) !== device) unavailable("input");
+      const buffers = statics(3250128,10529) ?? unavailable("cold"), index = i32(device + 176);
+      if (index < 0 || index >= i32(buffers + 16)) unavailable("input");
+      const front = u32(pointer(buffers + 12) + index * 8);
+      if (!front) unavailable("input");
+      const at = front + u32(p + 12), bit = u32(p + 16), size = u32(p + 20);
+      if (id === 10586) {
+        // DiscreteButtonControl f34957 over MemoryHelpers.ReadMultipleBitsAsUInt f34958.
+        const min = i32(p + 248), max = i32(p + 252), skip = bit >= 33 ? Math.floor(bit / 32) : 0, shift = bit - 32 * skip;
+        if (min > max || size < 1 || shift + size > 32) unavailable("input");
+        const word = stateBytes(at + 4 * skip, shift + size <= 8 ? 1 : shift + size <= 16 ? 2 : 4);
+        const value = (Math.floor(word / 2 ** shift) % 2 ** size) | 0;
+        unprocessed(p);
+        return value >= min && value <= max ? 1 : 0;
+      }
+      // AxisControl f34935: BYTE and FLT fast paths, otherwise InputStateBlock.ReadFloat f34653 then Preprocess.
+      const fast = u32(p + 160);
+      if (fast === 1113150533) return byte(at) ? 1 : 0;
+      if (fast === 1179407392) return finite(new Float32Array(Uint32Array.of(stateBytes(at, 4)).buffer)[0]);
+      if (u32(p + 8) !== 1112101920 || size !== 1) unavailable("input");
+      const value = Math.floor(byte(at + Math.floor(bit / 8)) / 2 ** (bit % 8)) % 2;
+      unprocessed(p);
+      return value;
+    }
+    // ButtonControl.get_isPressed f34947 over InputControl`1.get_value f69067, which reuses m_CachedValue only while
+    // InputManager's read-value caching is on, the cache is fresh and processors need not run on every read.
+    function button(p, device) {
       extent(p,248);
       const id = type(pointer(p) + 16).id;
       if (![10580,10583,10586,10591].includes(id)) unavailable("type");
       if (bool(p + 241)) return bool(p + 240);
-      // ReadValue's initialized float specialization; stale caches must remain unknown.
-      if (bool(p + 104)) unavailable("input");
-      const method = methodCell(3309924), ctx = context(method), off = integer(u32(ctx + 28),164,224);
+      const method = methodCell(3309924), ctx = context(method);
       klass(pointer(method+16),10275,[9067]);
       if (u32(klass(pointer(ctx+4),9067)+132) !== 4) unavailable("generic");
-      if (bool(p + integer(u32(ctx + 16),164,224))) unavailable("input");
-      const manager = object(pointer(statics(3250132,10206) + 4),10330);
-      if (!bool(manager + 736)) unavailable("input");
+      const system = statics(3250132,10206), managerAt = system && u32(system + 4);
+      if (!managerAt) unavailable("cold");
+      const manager = object(managerAt,10330);
+      let value;
+      if (bool(manager + 736)) {
+        if (bool(p + 104) || bool(p + integer(u32(ctx + 16),164,224))) unavailable("input");
+        value = f32(p + integer(u32(ctx + 28),164,224));
+      } else {
+        // ProcessValue f69069 runs m_ProcessorStack when its length is positive.
+        if (i32(p + integer(u32(ctx + 56),164,224)) > 0) unavailable("input");
+        value = stateValue(p, id, device);
+      }
       let threshold = f32(p + 244);
-      if (threshold <= 0) threshold = f32(statics(3243056,10583));
+      if (threshold <= 0) threshold = f32(statics(3243056,10583) ?? unavailable("cold"));
       finite(threshold,0.000001,1);
-      return f32(p + off) >= threshold;
+      return value >= threshold;
     }
     function actionPressed(p) {
       object(p,10214);
@@ -280,6 +367,7 @@
     if (u32(header) !== 0xfab11baf || typeDefinitions.some((v, i) => u32(header + 236 + 4 * i) !== v)) unavailable("build");
     const typeBase = metadata + typeDefinitions[0], typeStride = typeDefinitions[1] / typeDefinitions[2];
     const flow = root(0x318d9c,2621,4), engine = root(0x31b074,13665,0);
+    if (!flow || !engine) unavailable("cold");
     if (pointer(flow + 16) !== engine) unavailable("changing");
     const screen = object(pointer(flow + 84),2669), stage = object(pointer(engine + 20),13686);
     const input = object(pointer(engine + 28),13644), own = object(pointer(screen + 236),5467);
@@ -305,19 +393,25 @@
     if (drillAt && !assistAt) unavailable("cold");
     if (assistAt && !drillAt) unavailable("changing");
     const skills = object(wanted.get(8027),8027);
-    if (u32(skills+52) || u32(skills+56) || u32(skills+188) || bool(skills+124) || bool(skills+125)) unavailable("routing");
+    if (u32(skills+52) || u32(skills+56) || u32(skills+188) || bool(skills+125)) unavailable("routing");
     const combat = object(wanted.get(6104),6104), gun = object(wanted.get(6632),6632);
     const drill = drillAt ? object(drillAt,6259) : null, assist = assistAt ? object(assistAt,6218) : null;
     const fsm = object(pointer(combat + 112),5810), fsmState = integer(i32(fsm + 8),0,64);
     if (pointer(combat + 20) !== session || pointer(gun + 20) !== session) unavailable("changing");
     if (drill && (pointer(drill + 24) !== fsm || pointer(assist + 8) !== drill || pointer(drill + 20) !== session)) unavailable("changing");
     const hud = object(pointer(screen + 324),5357), binding = bindings(pointer(hud + 80));
-    const keyboard = object(pointer(statics(3250708,10299)),10299), keys = array(pointer(keyboard + 304),4,256,10591);
-    function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4)); }
-    const modifiers = [272,276,280].map(o => button(pointer(keyboard + o)));
+    // Keyboard.MakeCurrent f34170 stores any Keyboard. FastKeyboard, the only subclass, declares no fields.
+    const keyboardStatics = statics(3250708,10299), keyboard = keyboardStatics && u32(keyboardStatics);
+    if (!keyboard) unavailable("cold");
+    const keyboardClass = type(pointer(keyboard) + 16).id;
+    if (![10299,10304].includes(keyboardClass)) unavailable("type");
+    object(keyboard,keyboardClass);
+    const keys = array(pointer(keyboard + 304),4,256,10591);
+    function keyButton(code) { const index = 14 + code.charCodeAt(3) - 65; if (index >= keys.count) unavailable("input"); return button(pointer(keys.data + index * 4),keyboard); }
+    const modifiers = [272,276,280].map(o => button(pointer(keyboard + o),keyboard));
     // f34098/f34099 read Key 57/58; get_Item f34042 indexes by Key - 1.
     if (keys.count < 58) unavailable("input");
-    modifiers.push(button(pointer(keys.data + 56 * 4)) || button(pointer(keys.data + 57 * 4)));
+    modifiers.push(button(pointer(keys.data + 56 * 4),keyboard) || button(pointer(keys.data + 57 * 4),keyboard));
     const run = object(pointer(screen + 200),7918);
     let mode = 1;
     if (bool(run + 8)) {
@@ -351,19 +445,24 @@
       needed.set(uid,{id:u64(item + 16),count:i32(item + 28),p:item});
     }
     if ([...needed.values()].some(v => !v)) unavailable("cold");
-    const infoRows = dictionary(pointer(gun + 28),9024,6759,32768), infos = new Map();
-    const itemIds = new Set([...needed.values()].map(v => v.id));
-    for (const row of infoRows) {
-      const id = u64(row.key);
-      if (!itemIds.has(id)) continue;
-      if (infos.has(id)) unavailable("generic");
-      const info = object(pointer(row.value),6759);
+    // GunFlowing.infos (+28) is an ItemMap, the only IReadOnlyDictionary<long,ItemInfo> in the build. ItemMap.TryGetValue
+    // f24927 looks an id up in slots and returns rows[index]. ItemMap.Add f24922 is the only writer: it stores
+    // slots[id] = count and rows[count++], and its prologue resolves the ContainsKey<long,int> cell read here.
+    const items = object(pointer(gun + 28),6764), itemCount = integer(i32(items + 12),0,1048576), rows = array(pointer(items + 8),4,1048576,6759);
+    if (itemCount > rows.count) unavailable("generic");
+    const itemIds = new Set([...needed.values()].map(v => v.id)), infos = new Map();
+    // The map is complete before GunFlowing exists. GunFlowing.HoldsGun f24383 and DrillFeature.get_WornDrill f20238
+    // treat an id it lacks as no gun and no drill.
+    const found = findLongs(pointer(items + 16),9023,1048576,methodCell(3297464),itemIds);
+    for (const [id, slot] of found) {
+      const index = i32(slot);
+      if (index < 0 || index >= itemCount) unavailable("generic");
+      const info = object(pointer(rows.data + 4 * index),6759);
       if (u64(info + 8) !== id) unavailable("generic");
       infos.set(id,{type:i32(info + 24),subtype:i32(info + 28)});
     }
-    if ([...itemIds].some(id => !infos.has(id))) unavailable("cold");
     const itemAt = slot => needed.get(u64(slots.data + slot * 8)) || null;
-    const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id).subtype === 54; });
+    const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id)?.subtype === 54; });
     const pet = itemAt(8), data = drill && object(pointer(drill + 12),6228);
     const wornTool = itemAt(7);
     let usableTool = false, equippedParam = null;
@@ -371,7 +470,7 @@
       object(p,6225);
       return {id:u64(p+8),grade:i32(p+16),nature:i32(p+20),depth:i32(p+24),area:i32(p+28),speed:i32(p+32),mass:i32(p+36),life:i32(p+40)};
     };
-    if (drill && wornTool && infos.get(wornTool.id).type === 6 && wornTool.count > 0) {
+    if (drill && wornTool && infos.get(wornTool.id)?.type === 6 && wornTool.count > 0) {
       const rows = dictionary(pointer(data+8),9024,6225,512);
       const matching = rows.filter(row => u64(row.key) === wornTool.id);
       if (matching.length !== 1) unavailable("cold");
@@ -382,12 +481,20 @@
     }
     let automaticPet = false;
     if (drill && pet) automaticPet = dictionary(pointer(data + 32),9024,null,512,methodCell(3297464)).some(row => u64(row.key) === pet.id) && (u32(zoneInfo+40)&1)===0;
-    const skins = statics(0x31b760,2484);
-    if (!bool(skins+4)) unavailable("cold");
-    const skin = integer(i32(skins),0,1);
-    const semiAuto = nullable(statics(0x318318,3185),3332756,3332764,2,8962,1,bool);
-    if (semiAuto === null) unavailable("binding");
-    const manual = !(skin === 1 && semiAuto) && !automaticPet;
+    // DigAssist.DigKey f20166 sends the Custom skin's dig key to the helper while DigKeySettings.SemiAuto is set.
+    let manual = false;
+    if (drill && !automaticPet) {
+      const skins = statics(0x31b760,2484);
+      if (!skins || !bool(skins+4)) unavailable("cold");
+      manual = true;
+      if (integer(i32(skins),0,1) === 1) {
+        // get_SemiAuto f44679 caches PlayerPrefs "spinel.custom.digKeySemiAuto" in a static bool? on its first call.
+        // Before that the setting exists only in native storage, so manual is unknown.
+        const settings = statics(0x318318,3185);
+        const semiAuto = settings && cell(3332756) && cell(3332764) ? nullable(settings,3332756,3332764,2,8962,1,bool) : null;
+        manual = semiAuto === null ? null : !semiAuto;
+      }
+    }
     const actors = [], actorIds = new Set([ownId]);
     function actor(p) {
       object(p,5467);
@@ -429,16 +536,21 @@
     }
     // EditBox.Focused takes keys before the HUD. While features install, a key or menu without a registered action
     // waits in waitMenu/waitAction, then in due until Hud.Update replays it at a time the caller does not choose.
+    // Hud.keyMask is not read: GameUiMode.KeyBit f21420 gives Dig and Run no bit, so KeyOn passes them under every mask.
+    // Statics no method has touched hold their defaults: no focused EditBox, no HudCover covers and no EventSystem.
     const edit = statics(3246444,2375);
-    if (u32(edit + 24) !== 0 || i32(hud + 68) !== 0 || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
-    const covers = pointer(statics(3248924,5358));
-    if (dictionary(covers,9203,8935,256).length) unavailable("routing");
-    const eventSystems = list(pointer(statics(3246812,14184)),14184,4,8);
+    if ((edit && u32(edit + 24) !== 0) || u32(hud + 136) || u32(hud + 140) || u32(hud + 148)) unavailable("routing");
+    const coverStatics = statics(3248924,5358), covers = coverStatics ? u32(coverStatics) : 0;
+    if (covers && dictionary(covers,9203,8935,256).length) unavailable("routing");
+    const systemStatics = statics(3246812,14184), systems = systemStatics ? u32(systemStatics) : 0;
+    if (!systems) unavailable("routing");
+    const eventSystems = list(systems,14184,4,8);
     if (eventSystems.count !== 1) unavailable("routing");
     const es = object(pointer(eventSystems.data),14184);
     if (u32(es + 36) || !bool(es + 40) || bool(es + 41)) unavailable("routing");
+    // UiPressOrigin.get_LeftOnUi f50216 and get_RightOnUi f50217 are false while Current is null.
     const origins = root(3258196,2481,0);
-    if (bool(origins + 32) || bool(origins + 33)) unavailable("routing");
+    if (origins && (bool(origins + 32) || bool(origins + 33))) unavailable("routing");
     const attackTargets = idSet(pointer(combat + 104),9023,9023), waiting = idSet(pointer(combat + 128)), striking = idSet(pointer(combat + 124));
     const fading = new Set();
     for (const row of orderedMap(pointer(combat + 136),9023,6083,512,3334644)) {
@@ -459,7 +571,7 @@
     }
     const zoneId = integer(i32(zoneInfo+8),1,65535);
     const equipment = [1,4,7,8,9,22].map(slot => u64(slots.data+slot*8).toString());
-    const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,skin,semiAuto,equipment])];
+    const geometryKey = [buffer,flow,engine,screen,session,zone,zoneId,own,ownId,fsm,JSON.stringify([geometry,binding,mode,manual,equipment])];
     const geometryChanged = !previousGeometry || geometryKey.some((v,i) => v !== previousGeometry[i]);
     // Cached world/pick facts need a later MapPoint probe under the new geometry.
     const probePosition = vec(screen+624), probeTime = f64(screen+632);

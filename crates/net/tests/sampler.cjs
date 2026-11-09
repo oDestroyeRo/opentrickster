@@ -314,14 +314,28 @@ class Heap {
       this.write(slot + 4, "ptr", this.method(t, "TryGetValue"));
     });
   }
-  // A Dictionary`2; deleted rows carry hashCode -1. An unused dictionary has no entries array.
+  // A Dictionary`2; deleted rows carry hashCode -1. An unused dictionary has no entries array. Long keys are also chained
+  // as Dictionary`2.TryInsert links them: hashCode is (int)key ^ (int)(key >> 32) masked to 31 bits, and each bucket
+  // holds its newest entry's index plus one.
   dict(k, v, rows = [], deleted = []) {
     const t = ["System.Collections.Generic.Dictionary`2", k, v], p = this.object(t);
     this.virtual(t);
     if (!rows.length) return p;
-    const a = this.array(["System.Collections.Generic.Dictionary`2/Entry", k, v], rows.length);
-    rows.forEach(([key, value], i) => this.set(a, `[${i}]`, {hashCode: deleted.includes(i) ? -1 : i, next: -1, key, value}));
+    const a = this.array(["System.Collections.Generic.Dictionary`2/Entry", k, v], rows.length), heads = new Array(rows.length).fill(0);
+    rows.forEach(([key, value], i) => {
+      const live = !deleted.includes(i), hashCode = !live ? -1 : k === I64 ? (Number(BigInt.asIntN(32, key)) ^ Number(BigInt.asIntN(32, key >> 32n))) & 0x7fffffff : i;
+      let next = -1;
+      if (live && k === I64) { next = heads[hashCode % heads.length] - 1; heads[hashCode % heads.length] = i + 1; }
+      this.set(a, `[${i}]`, {hashCode, next, key, value});
+    });
+    if (k === I64) this.set(p, "_buckets", heads.reduce((b, head, i) => head ? this.set(b, `[${i}]`, head) : b, this.array(I32, heads.length)));
     return this.set(p, {_entries: a, _count: rows.length, _freeCount: deleted.length, _version: 1});
+  }
+  // An ItemMap as ItemMap.Add f24922 fills it: slots maps each Id to its index in rows[0, count).
+  itemMap(infos) {
+    const rows = this.array(INFO, infos.length);
+    infos.forEach((info, i) => this.set(rows, `[${i}]`, info));
+    return this.set(this.object("Spinel.Game.Play.ItemMap"), {rows, count: infos.length, slots: this.dict(I64, I32, infos.map((info, i) => [this.get(info, "Id"), i]))});
   }
   // An OrderedMap`2: KeyValuePair slots in insertion order, tombstoned by gone[] and counted in gaps.
   orderedMap(k, v, rows = [], gone = []) {
@@ -425,7 +439,7 @@ function fixture(primePointer = true) {
   h.set(p.gun, "Inventory", p.inv);
   h.set(p.drill, "Inventory", p.inv);
   p.toolInfo = h.set(h.object(INFO), {Id: 8001n, Type: 6});
-  h.set(p.gun, "infos", h.dict(I64, INFO, [[8001n, p.toolInfo]]));
+  h.set(p.gun, "infos", h.itemMap([p.toolInfo]));
   p.drillParam = h.set(h.object(PARAM), BASE_PARAM);
   p.drillData = h.set(h.object("Spinel.Game.Play.DrillData"), {Params: h.dict(I64, PARAM, [[8001n, p.drillParam]]), AutoPets: h.dict(I64, I32)});
   h.set(p.drill, "Data", p.drillData);
@@ -469,6 +483,7 @@ function checkConstants() {
   for (const [id, size] of Object.entries(constant("typeSizes"))) assert.equal(size, pins.instanceSizes[names[id]], `typeSizes ${id} is ${names[id]}`);
   for (const [id, kind] of Object.entries(constant("typeKinds"))) assert.equal(kind, pins.typeKinds[names[id]], `typeKinds ${id} is ${names[id]}`);
   assert.deepEqual(constant("metadataCells"), [pins.runtime.s_GlobalMetadata, pins.runtime.s_GlobalMetadataHeader]);
+  assert.deepEqual(constant("cellWords"), Object.fromEntries(Object.entries(pins.cells).map(([label, cell]) => [cell, pins.cellWords[label]])));
   assert.deepEqual(constant("typeDefinitions"), pins.runtime.typeDefinitions);
   assert.equal(constant("samplerBuild"), pins.build);
 }
@@ -591,8 +606,34 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   assert.equal(arrived.dig.toolUsable, true);
   cases++;
 
-  check("tagged flow", ({h}) => h.raw(CELL("TypeInfo Spinel.UI.Pc.Screens.GameFlow"), "ptr", 0x200086e7));
-  check("null engine", ({h}) => h.raw(CELL("TypeInfo Spinel.Engine.Unity.SpinelEngine"), "ptr", 0));
+  check("tagged flow", ({h}) => h.raw(CELL("TypeInfo Spinel.UI.Pc.Screens.GameFlow"), "ptr", 0x200086e7), "unavailable", "build");
+  check("null engine", ({h}) => h.raw(CELL("TypeInfo Spinel.Engine.Unity.SpinelEngine"), "ptr", 0), "unavailable", "build");
+  // A cell holds its pinned usage word until a method that uses it first runs. Statics then keep their defaults: no
+  // focused EditBox, no HudCover cover, no UiPressOrigin press, no EventSystem, and no cached semi-auto setting.
+  const unusedCell = label => ({h}) => h.raw(CELL(label), "ptr", pins.cellWords[label]);
+  const outcomeOf = (name, change, outcome) => check(name, change, outcome === "ready" ? "ready" : "unavailable", outcome === "ready" ? undefined : outcome);
+  const unusedOutcome = {
+    "TypeInfo Spinel.UI.Pc.Play.DigKeySettings": "ready", "MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<bool>": "ready",
+    "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<bool>": "ready", "TypeInfo Spinel.UI.Pc.EditBox": "ready",
+    "TypeInfo Spinel.UI.Pc.Hud.HudCover": "ready", "TypeInfo Spinel.UI.Pc.UiPressOrigin": "ready", "TypeInfo UnityEngine.EventSystems.EventSystem": "routing",
+  };
+  // Buttons whose frame press is current never reach these cells; the uncached cases below cover them.
+  const INPUT_CELLS = ["MethodRef Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl`1::get_value()<r4>", "TypeInfo UnityEngine.InputSystem.InputSystem",
+    "TypeInfo UnityEngine.InputSystem.Controls.ButtonControl", "TypeInfo UnityEngine.InputSystem.LowLevel.InputStateBuffers"];
+  for (const label of Object.keys(pins.cells).filter(label => !INPUT_CELLS.includes(label))) {
+    const unused = outcomeOf(`${label} not used yet`, unusedCell(label), unusedOutcome[label] ?? "cold");
+    if (/DigKeySettings|<bool>/.test(label)) assert.equal(unused.dig.manual, null, label);
+    check(`${label} holding another usage word`, ({h}) => h.raw(CELL(label), "ptr", pins.cellWords[label] + 2), "unavailable", "build");
+  }
+  const classic = check("classic skin needs no semi-auto setting", f => { f.h.set(f.p.skins, "chosen", 0); unusedCell("TypeInfo Spinel.UI.Pc.Play.DigKeySettings")(f); }, "ready");
+  assert.equal(classic.dig.manual, true);
+  check("dig settings unread without the drill feature", f => { noDrill(f); unusedCell("TypeInfo Spinel.UI.Pc.UiSkins")(f); }, "ready");
+  for (const [name, outcome] of [["Spinel.UI.Pc.Play.DigKeySettings", "ready"], ["Spinel.UI.Pc.Hud.HudCover", "ready"], ["Spinel.UI.Pc.Screens.GameFlow", "cold"], ["UnityEngine.EventSystems.EventSystem", "routing"]]) {
+    outcomeOf(`${name} statics not initialized`, ({h}) => h.raw(h.cls(name) + 76, "ptr", 0), outcome);
+  }
+  check("no current GameFlow", ({h}) => h.set(h.statics("Spinel.UI.Pc.Screens.GameFlow"), "Current", 0), "unavailable", "cold");
+  check("no current keyboard", ({h}) => h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", 0), "unavailable", "cold");
+  check("no current UiPressOrigin", ({h}) => h.set(h.statics("Spinel.UI.Pc.UiPressOrigin"), "Current", 0), "ready");
   check("misaligned object", ({h, p}) => h.raw(h.addr(p.flow, "Screen"), "ptr", p.screen + 1));
   check("truncated object", ({h, p}) => h.raw(h.addr(p.flow, "Screen"), "ptr", h.buffer.byteLength - 8));
   // A Dictionary`2 is 48 bytes; one cut short by the end of memory must be refused before any read.
@@ -619,8 +660,8 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("host override with zero first component", ({h, p}) => h.set(p.stage, "hostOverride.hasValue", true));
   check("nonfinite zoom", ({h, p}) => h.set(p.stage, "Current.WorldZoom", NaN));
   const services = "MethodRef mscorlib.dll|System.Collections.Generic.Dictionary`2::TryGetValue(!TKey,!TValue&)<System.Type,object>";
-  check("unresolved method", ({h}) => h.raw(CELL(services), "ptr", 0xa0003fdb));
-  check("unresolved context", ({h}) => h.raw(h.u32(CELL(services)) + 28, "ptr", 0));
+  check("unresolved method", ({h}) => h.raw(CELL(services), "ptr", pins.cellWords[services]), "unavailable", "cold");
+  check("unresolved context", ({h}) => h.raw(h.u32(CELL(services)) + 28, "ptr", 0), "unavailable", "cold");
   check("wrong specialization", ({h, p}) => h.raw(p.actors, "ptr", h.u32(p.serviceDict)));
   check("invalid slot stride", ({h}) => h.raw(h.cls(PAIRS) + 140, "int", 4));
   check("used beyond slots", ({h, p}) => h.set(p.actors, "used", 2));
@@ -640,7 +681,9 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   cases++;
   check("malformed boolean", ({h, p}) => h.raw(h.addr(p.screen, "ready"), "byte", 2));
   check("modal UI", ({h, p}) => h.set(p.eventSystem, "m_CurrentSelected", p.screen));
-  check("key routing masked", ({h, p}) => h.set(p.hud, "keyMask", 1));
+  // Hud..ctor f48528 sets keyMask (+68) to 0x7FFFF and set_UiMode f48477 rewrites it from GameUiMode.Masks f21418.
+  // KeyPasses f48492 tests it through KeyOn f21422, which passes any name KeyBit f21420 gives no bit, as Dig and Run.
+  for (const mask of [0x7ffff, 12289, 0]) check(`HUD key mask ${mask} leaves Dig and Run routed`, ({h, p}) => h.raw(p.hud + 68, "int", mask), "ready");
   check("unknown binding", ({h, p}) => h.set(p.digBinding, "Code", h.string("Key1")));
   check("modifier binding", ({h, p}) => h.set(p.digBinding, "Modifier", 1));
   check("conflicting run/dig", ({h, p}) => h.set(p.runBinding, "Code", h.string("KeyF")));
@@ -670,17 +713,105 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   assert.equal(check("default press point", f => cachedButton(f, 0, 1), "ready").input.modifiers[0], true);
   check("stale cached modifier value", f => { cachedButton(f, 0.5, 1); f.h.set(f.p.modifiers[0], "m_CachedValueIsStale", true); }, "unavailable", "input");
   check("processors evaluated on every read", f => { cachedButton(f, 0.5, 1); f.h.set(f.p.modifiers[0], "evaluateProcessorsEveryRead", true); }, "unavailable", "input");
-  const gun = check("actual equipped gun branch", ({h, p}) => {
-    const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1}), info = h.set(h.object(INFO), {Id: 9000n, Type: 2, SubType: 54});
+  // Keyboard.current holds whatever MakeCurrent f34170 stored; the client's own keyboard is the precompiled FastKeyboard.
+  const fastKeyboard = ({h, p}) => {
+    const k = h.set(h.object("UnityEngine.InputSystem.FastKeyboard"), {m_Keys: p.keys, shiftKey: p.modifiers[0], ctrlKey: p.modifiers[1], altKey: p.modifiers[2]});
+    h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", k);
+    return k;
+  };
+  check("FastKeyboard is the current keyboard", fastKeyboard, "ready");
+  check("current keyboard of another class", ({h}) => h.set(h.statics("UnityEngine.InputSystem.Keyboard"), "current", h.object(BUTTON)), "unavailable", "type");
+  // With InputManager.m_ReadValueCachingFeatureEnabled off, get_value f69067 reads the device's front buffer on every call.
+  const FOURCC = {BIT: 0x42495420, BYTE: 0x42595445, FLT: 0x464c5420};
+  const uncached = (f, device = f.h.get(f.h.statics("UnityEngine.InputSystem.Keyboard"), "current")) => {
+    const {h} = f, state = h.alloc(16), mapping = h.alloc(8);
+    for (let i = 0; i < 16; i++) h.declare(state + i, `device front buffer[${i}]`, "byte");
+    h.declare(mapping, "deviceToBufferMapping[0]", "ptr");
+    h.write(mapping, "ptr", state);
+    h.set(h.statics("UnityEngine.InputSystem.LowLevel.InputStateBuffers"), "s_CurrentBuffers", {deviceToBufferMapping: mapping, deviceCount: 1});
+    h.set(h.statics("UnityEngine.InputSystem.InputSystem"), "s_Manager", h.object("UnityEngine.InputSystem.InputManager"));
+    h.set(h.statics(BUTTON), "s_GlobalDefaultButtonPressPoint", 0.5);
+    h.set(device, "m_DeviceIndex", 0);
+    const bit = n => h.write(state + (n >> 3), "byte", h.view.getUint8(state + (n >> 3)) | 1 << (n & 7));
+    return {state, mapping, device, bit};
+  };
+  // A FastKeyboard key is one state bit at its Key value; KeyF is Key 20, m_Keys[19].
+  const digKey = f => f.h.get(f.p.keys, "[19]");
+  const stateKey = (f, s, bit = 20) => f.h.set(digKey(f), {needsToCheckFramePress: false, m_Device: s.device, m_StateBlock: {format: {m_Code: FOURCC.BIT}, m_ByteOffset: 0, bitOffset: bit, sizeInBits: 1}});
+  assert.equal(check("uncached dig key held", f => { const s = uncached(f); stateKey(f, s); s.bit(20); }, "ready").input.digHeld, true);
+  assert.equal(check("uncached dig key released", f => { const s = uncached(f); stateKey(f, s); s.bit(19); s.bit(21); }, "ready").input.digHeld, false);
+  assert.equal(check("uncached BYTE fast path", f => {
+    const s = uncached(f); stateKey(f, s);
+    f.h.set(digKey(f), {m_StateBlock: {m_ByteOffset: 3}, m_OptimizedControlDataType: {m_Code: FOURCC.BYTE}});
+    f.h.write(s.state + 3, "byte", 1);
+  }, "ready").input.digHeld, true);
+  assert.equal(check("uncached unaligned FLT fast path", f => {
+    const s = uncached(f); stateKey(f, s);
+    f.h.set(digKey(f), {m_StateBlock: {m_ByteOffset: 5}, m_OptimizedControlDataType: {m_Code: FOURCC.FLT}});
+    f.h.view.setFloat32(s.state + 5, 0.75, true);
+  }, "ready").input.digHeld, true);
+  // FastKeyboard's shift is a DiscreteButtonControl over bits 51 and 52 (left and right shift) with values 1 to 3.
+  const shiftState = (f, bits) => {
+    const k = fastKeyboard(f), s = uncached(f, k), shift = f.h.object("UnityEngine.InputSystem.Controls.DiscreteButtonControl");
+    f.h.set(shift, {m_Device: k, m_StateBlock: {format: {m_Code: FOURCC.BIT}, m_ByteOffset: 0, bitOffset: 51, sizeInBits: 2}, minValue: 1, maxValue: 3});
+    f.h.set(k, "shiftKey", shift);
+    bits.forEach(b => s.bit(b));
+    return shift;
+  };
+  assert.equal(check("uncached left shift", f => shiftState(f, [51]), "ready").input.modifiers[0], true);
+  assert.equal(check("uncached right shift", f => shiftState(f, [52]), "ready").input.modifiers[0], true);
+  assert.equal(check("uncached shift released", f => shiftState(f, [50, 53]), "ready").input.modifiers[0], false);
+  check("uncached wrapping discrete range", f => f.h.set(shiftState(f, [51]), {minValue: 3, maxValue: 1}), "unavailable", "input");
+  check("uncached key with processors", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_ProcessorStack.length", 1); }, "unavailable", "input");
+  check("uncached key with preprocessing", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "invert", true); }, "unavailable", "input");
+  check("uncached key in an unmodelled state format", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_StateBlock.sizeInBits", 8); }, "unavailable", "input");
+  check("uncached key of another device", f => { stateKey(f, uncached(f)); f.h.set(digKey(f), "m_Device", f.h.object("UnityEngine.InputSystem.FastKeyboard")); }, "unavailable", "input");
+  check("uncached device outside the current buffers", f => { const s = uncached(f); stateKey(f, s); f.h.set(s.device, "m_DeviceIndex", 1); }, "unavailable", "input");
+  check("uncached device without a front buffer", f => { const s = uncached(f); stateKey(f, s); f.h.write(s.mapping, "ptr", 0); }, "unavailable", "input");
+  for (const label of INPUT_CELLS) {
+    const pressing = f => { const s = uncached(f); stateKey(f, s); s.bit(20); };
+    check(`${label} not used yet`, f => { pressing(f); unusedCell(label)(f); }, "unavailable", "cold");
+    check(`${label} holding another usage word`, f => { pressing(f); f.h.raw(CELL(label), "ptr", pins.cellWords[label] + 2); }, "unavailable", "build");
+  }
+  check("uncached AnyKeyControl", f => {
+    const s = uncached(f), any = f.h.set(f.h.object("UnityEngine.InputSystem.Controls.AnyKeyControl"), "m_Device", s.device);
+    f.h.set(f.p.keyboard, "ctrlKey", any);
+  }, "unavailable", "input");
+  // The second id has a high word with its sign bit set, which Int64.GetHashCode f71422 folds into the hash.
+  for (const id of [9000n, 0x8000000500002328n]) {
+    const gun = check(`actual equipped gun branch, item ${id}`, ({h, p}) => {
+      const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: id, Count: 1}), info = h.set(h.object(INFO), {Id: id, Type: 2, SubType: 54});
+      h.set(p.slots, "[1]", 502n);
+      h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [502n, item]]));
+      h.set(p.gun, {infos: h.itemMap([p.toolInfo, info]), Armed: true, Ready: true, State: 3});
+    }, "ready");
+    assert.equal(gun.combat.gunWorn, true);
+    assert.equal(gun.combat.gunReady, true);
+  }
+  // GunFlowing.infos is an ItemMap; ItemMap.TryGetValue f24927 finds an id through Dictionary`2.FindEntry f64786.
+  // In a two-bucket map 8001 and 8003 share a bucket, so 8001 sits behind 8003 in its chain.
+  const otherInfo = h => h.set(h.object(INFO), {Id: 8003n, Type: 2});
+  const infoMap = ({h, p}) => h.get(p.gun, "infos"), infoEntries = f => f.h.get(f.h.get(infoMap(f), "slots"), "_entries");
+  assert.equal(check("ItemMap id behind its bucket chain", ({h, p}) => h.set(p.gun, "infos", h.itemMap([p.toolInfo, otherInfo(h)])), "ready").dig.toolUsable, true);
+  const unknown = check("worn item ids missing from the ItemMap", ({h, p}) => {
+    const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1});
     h.set(p.slots, "[1]", 502n);
     h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [502n, item]]));
-    h.set(p.gun, {infos: h.dict(I64, INFO, [[8001n, p.toolInfo], [9000n, info]]), Armed: true, Ready: true, State: 3});
+    h.set(p.gun, "infos", h.itemMap([otherInfo(h)]));
   }, "ready");
-  assert.equal(gun.combat.gunWorn, true);
-  assert.equal(gun.combat.gunReady, true);
+  assert.equal(unknown.combat.gunWorn, false);
+  assert.equal(unknown.dig.toolUsable, false);
+  check("ItemMap slot past its count", f => f.h.set(infoEntries(f), "[0].value", 1), "unavailable", "generic");
+  check("ItemMap row of another id", f => f.h.set(f.h.get(infoMap(f), "rows"), "[0]", otherInfo(f.h)), "unavailable", "generic");
+  check("ItemMap slots with a custom comparer", f => f.h.set(f.h.get(infoMap(f), "slots"), "_comparer", f.p.toolInfo), "unavailable", "generic");
+  check("cyclic ItemMap bucket chain", f => { f.h.set(f.p.gun, "infos", f.h.itemMap([otherInfo(f.h)])); f.h.set(infoEntries(f), "[0].next", 0); }, "unavailable", "generic");
+  check("ItemMap larger than the read budget", ({h, p}) => {
+    const n = 100001, slots = h.dict(I64, I32, Array.from({length: n}, (_, i) => [i ? 100000n + BigInt(i) : 8001n, i]));
+    h.set(p.gun, "infos", h.set(h.object("Spinel.Game.Play.ItemMap"), {rows: h.set(h.array(INFO, n), "[0]", p.toolInfo), count: n, slots}));
+  }, "ready");
   check("foreign nullable specialization", ({h}) => h.raw(h.u32(CELL("MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<vt:UnityEngine.Vector2>")) + 16, "ptr", h.cls(["System.Nullable`1", I32])));
   check("nullable field overlap", ({h}) => h.raw(h.rgctx(["System.Nullable`1", "UnityEngine.Vector2"]) + 12, "int", 5));
-  check("unknown manual setting", ({h, p}) => h.set(p.semi, "semiAuto.hasValue", false));
+  assert.equal(check("unknown manual setting", ({h, p}) => h.set(p.semi, "semiAuto.hasValue", false), "ready").dig.manual, null);
   check("cold drill parameter", ({h, p}) => { h.set(p.fsm, "State", 5); h.set(p.drill, "inDrillState", true); });
   check("native page zoom", f => { f.context.visualViewport = {scale: 2, offsetLeft: 0, offsetTop: 0}; });
   check("non-canvas DOM editor", f => { f.context.document.activeElement = {tagName: "INPUT"}; });
@@ -695,6 +826,8 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("duplicate fading key", ({h, p}) => h.set(p.combat, "fading", h.orderedMap(I32, AGING, [[73, h.object(AGING)], [73, h.object(AGING)]])), "unavailable", "generic");
   check("selected skill consumes world input", ({h, p}) => h.set(p.skills, "target", p.monster));
   check("pending held cast", ({h, p}) => h.set(p.skills, "heldCast", p.monster));
+  // SkillsApi..ctor f17848 is the only writer of combatPlaysEsa (+124): CombatModel was present at install.
+  check("combat ESA playback is a setting, not pending input", ({h, p}) => h.raw(p.skills + 124, "byte", 1), "ready");
   const noDig = check("source map dig refusal", ({h, p}) => h.set(p.zoneInfo, "Type", 5), "ready");
   assert.equal(noDig.dig.mapAllowed, false);
   for (const option of [0, 1]) {
@@ -703,7 +836,7 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
       h.set(p.slots, "[8]", 503n);
       h.set(p.zoneInfo, "Option", option);
       h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [503n, item]]));
-      h.set(p.gun, "infos", h.dict(I64, INFO, [[8001n, p.toolInfo], [7000n, info]]));
+      h.set(p.gun, "infos", h.itemMap([p.toolInfo, info]));
       h.set(p.drillData, "AutoPets", h.dict(I64, I32, [[7000n, 1]]));
     }, "ready");
     assert.equal(pet.dig.automaticPet, option === 0);
@@ -719,6 +852,11 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   check("pressed flag on a waiting action", ({h, p}) => h.set(p.actions[0], "[0].m_Flags", 64), "unavailable", "input");
   const semi = check("semi-auto retained", ({h, p}) => h.set(p.semi, "semiAuto.value", true), "ready");
   assert.equal(semi.dig.manual, false);
+  const switched = fixture();
+  assert.equal(switched.sample().snapshot.revision, 1);
+  switched.h.set(switched.p.semi, "semiAuto.value", true);
+  assert.equal(switched.sample().snapshot.revision, 2, "a changed dig route is a new revision");
+  cases++;
   const assist = check("helper state 2 is busy", ({h, p}) => h.set(p.assist, "State", 2), "ready");
   assert.equal(assist.dig.assist, 2);
   const automatic = check("automatic drill phase", ({h, p}) => h.set(p.drill, "Auto", h.set(h.object("Spinel.Game.Play.AutoDrill"), "State", 2)), "ready");

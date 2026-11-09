@@ -36,6 +36,7 @@
   "Spinel.Game.Play.GunFlowing": [],
   "Spinel.Game.Play.HotkeyMap": [],
   "Spinel.Game.Play.ItemInfo": [],
+  "Spinel.Game.Play.ItemMap": [],
   "Spinel.Game.Play.KeyBinding": [],
   "Spinel.Game.Play.PlayerStats": [],
   "Spinel.Game.Play.RunToggle": [],
@@ -158,6 +159,10 @@
    "UnityEngine.InputSystem.InputControl`1<r4>",
    "UnityEngine.InputSystem.InputControl"
   ],
+  "UnityEngine.InputSystem.Controls.AxisControl": [
+   "UnityEngine.InputSystem.InputControl`1<r4>",
+   "UnityEngine.InputSystem.InputControl"
+  ],
   "UnityEngine.InputSystem.Controls.ButtonControl": [
    "UnityEngine.InputSystem.Controls.AxisControl",
    "UnityEngine.InputSystem.InputControl`1<r4>",
@@ -175,6 +180,11 @@
    "UnityEngine.InputSystem.InputControl`1<r4>",
    "UnityEngine.InputSystem.InputControl"
   ],
+  "UnityEngine.InputSystem.FastKeyboard": [
+   "UnityEngine.InputSystem.Keyboard",
+   "UnityEngine.InputSystem.InputDevice",
+   "UnityEngine.InputSystem.InputControl"
+  ],
   "UnityEngine.InputSystem.InputAction": [],
   "UnityEngine.InputSystem.InputActionMap": [],
   "UnityEngine.InputSystem.InputActionState": [],
@@ -188,11 +198,26 @@
   "UnityEngine.InputSystem.InputControl`1": [
    "UnityEngine.InputSystem.InputControl"
   ],
+  "UnityEngine.InputSystem.InputDevice": [
+   "UnityEngine.InputSystem.InputControl"
+  ],
   "UnityEngine.InputSystem.InputManager": [],
   "UnityEngine.InputSystem.InputSystem": [],
   "UnityEngine.InputSystem.Keyboard": [
    "UnityEngine.InputSystem.InputDevice",
    "UnityEngine.InputSystem.InputControl"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers": [
+   "System.ValueType"
+  ],
+  "UnityEngine.InputSystem.Utilities.FourCC": [
+   "System.ValueType"
   ],
   "UnityEngine.Rect": [
    "System.ValueType"
@@ -205,6 +230,34 @@
   ]
  },
  "build": "ea1a68bd89958fae94179f1e0835ffb5",
+ "cellWords": {
+  "MethodRef Spinel.Net.dll|Spinel.Net.OrderedMap`2::ContainsKey(!TKey)<i4,Spinel.Game.Play.CombatModel/Aging>": 2684387571,
+  "MethodRef Spinel.Net.dll|Spinel.Net.OrderedMap`2::Get(!TKey)<i4,Spinel.Engine.Unity.World.ActorView>": 2684387463,
+  "MethodRef Spinel.Net.dll|Spinel.Net.OrderedMap`2::Get(!TKey)<u8,Spinel.Net.Game.InvItem>": 2684387771,
+  "MethodRef Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl`1::get_value()<r4>": 2684375243,
+  "MethodRef mscorlib.dll|System.Collections.Generic.Dictionary`2::ContainsKey(!TKey)<i8,i4>": 2684369017,
+  "MethodRef mscorlib.dll|System.Collections.Generic.Dictionary`2::TryGetValue(!TKey,!TValue&)<System.Type,object>": 2684370921,
+  "MethodRef mscorlib.dll|System.Collections.Generic.Dictionary`2::TryGetValue(!TKey,!TValue&)<string,System.Collections.Generic.List`1<Spinel.Game.Play.KeyBinding>>": 2684369793,
+  "MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<bool>": 2684386627,
+  "MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<i4>": 2684386841,
+  "MethodRef mscorlib.dll|System.Nullable`1::GetValueOrDefault()<vt:UnityEngine.Vector2>": 2684387283,
+  "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<bool>": 2684386631,
+  "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<i4>": 2684386845,
+  "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<vt:UnityEngine.Vector2>": 2684387285,
+  "MethodRef mscorlib.dll|System.Nullable`1::get_HasValue()<vt:UnityEngine.Vector2Int>": 2684387293,
+  "TypeInfo Spinel.Engine.Unity.SpinelEngine": 536919877,
+  "TypeInfo Spinel.UI.Pc.EditBox": 536903493,
+  "TypeInfo Spinel.UI.Pc.Hud.HudCover": 536907653,
+  "TypeInfo Spinel.UI.Pc.Play.DigKeySettings": 536902459,
+  "TypeInfo Spinel.UI.Pc.Screens.GameFlow": 536905459,
+  "TypeInfo Spinel.UI.Pc.UiPressOrigin": 536923117,
+  "TypeInfo Spinel.UI.Pc.UiSkins": 536923129,
+  "TypeInfo UnityEngine.EventSystems.EventSystem": 536904109,
+  "TypeInfo UnityEngine.InputSystem.Controls.ButtonControl": 536899443,
+  "TypeInfo UnityEngine.InputSystem.InputSystem": 536909263,
+  "TypeInfo UnityEngine.InputSystem.Keyboard": 536910259,
+  "TypeInfo UnityEngine.InputSystem.LowLevel.InputStateBuffers": 536909255
+ },
  "cells": {
   "MethodRef Spinel.Net.dll|Spinel.Net.OrderedMap`2::ContainsKey(!TKey)<i4,Spinel.Game.Play.CombatModel/Aging>": 3334644,
   "MethodRef Spinel.Net.dll|Spinel.Net.OrderedMap`2::Get(!TKey)<i4,Spinel.Engine.Unity.World.ActorView>": 3334428,
@@ -230,13 +283,15 @@
   "TypeInfo UnityEngine.EventSystems.EventSystem": 3246812,
   "TypeInfo UnityEngine.InputSystem.Controls.ButtonControl": 3243056,
   "TypeInfo UnityEngine.InputSystem.InputSystem": 3250132,
-  "TypeInfo UnityEngine.InputSystem.Keyboard": 3250708
+  "TypeInfo UnityEngine.InputSystem.Keyboard": 3250708,
+  "TypeInfo UnityEngine.InputSystem.LowLevel.InputStateBuffers": 3250128
  },
  "enums": {
   "Spinel.Game.Play.AutoDrill/Phase": "i4",
   "Spinel.Game.Play.DigAssist/Mode": "i4",
   "Spinel.Game.Play.DrillFeature/Stage": "i4",
-  "Spinel.UI.Pc.UiSkin": "i4"
+  "Spinel.UI.Pc.UiSkin": "i4",
+  "UnityEngine.InputSystem.Controls.AxisControl/Clamp": "i4"
  },
  "fields": {
   "Spinel.Engine.StageLayout.PxPerDp": [
@@ -511,6 +566,18 @@
    24,
    "i4"
   ],
+  "Spinel.Game.Play.ItemMap.count": [
+   12,
+   "i4"
+  ],
+  "Spinel.Game.Play.ItemMap.rows": [
+   8,
+   "Spinel.Game.Play.ItemInfo[]"
+  ],
+  "Spinel.Game.Play.ItemMap.slots": [
+   16,
+   "System.Collections.Generic.Dictionary`2<i8,i4>"
+  ],
   "Spinel.Game.Play.KeyBinding.Code": [
    8,
    "string"
@@ -541,10 +608,6 @@
   ],
   "Spinel.Game.Play.SkillsApi.UiWait": [
    125,
-   "bool"
-  ],
-  "Spinel.Game.Play.SkillsApi.combatPlaysEsa": [
-   124,
    "bool"
   ],
   "Spinel.Game.Play.SkillsApi.heldCast": [
@@ -690,10 +753,6 @@
   "Spinel.UI.Pc.Hud.Hud.due": [
    148,
    "System.Action"
-  ],
-  "Spinel.UI.Pc.Hud.Hud.keyMask": [
-   68,
-   "i4"
   ],
   "Spinel.UI.Pc.Hud.Hud.waitAction": [
    140,
@@ -939,6 +998,22 @@
    0,
    "System.Collections.Generic.List`1<UnityEngine.EventSystems.EventSystem>"
   ],
+  "UnityEngine.InputSystem.Controls.AxisControl.clamp": [
+   188,
+   "vt:UnityEngine.InputSystem.Controls.AxisControl/Clamp"
+  ],
+  "UnityEngine.InputSystem.Controls.AxisControl.invert": [
+   204,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.Controls.AxisControl.normalize": [
+   205,
+   "bool"
+  ],
+  "UnityEngine.InputSystem.Controls.AxisControl.scale": [
+   220,
+   "bool"
+  ],
   "UnityEngine.InputSystem.Controls.ButtonControl.m_LastUpdateWasPress": [
    240,
    "bool"
@@ -954,6 +1029,14 @@
   "UnityEngine.InputSystem.Controls.ButtonControl::s_GlobalDefaultButtonPressPoint": [
    0,
    "r4"
+  ],
+  "UnityEngine.InputSystem.Controls.DiscreteButtonControl.maxValue": [
+   252,
+   "i4"
+  ],
+  "UnityEngine.InputSystem.Controls.DiscreteButtonControl.minValue": [
+   248,
+   "i4"
   ],
   "UnityEngine.InputSystem.InputAction.m_ActionIndexInState": [
    108,
@@ -999,6 +1082,22 @@
    104,
    "bool"
   ],
+  "UnityEngine.InputSystem.InputControl.m_Device": [
+   68,
+   "UnityEngine.InputSystem.InputDevice"
+  ],
+  "UnityEngine.InputSystem.InputControl.m_OptimizedControlDataType": [
+   160,
+   "vt:UnityEngine.InputSystem.Utilities.FourCC"
+  ],
+  "UnityEngine.InputSystem.InputControl.m_StateBlock": [
+   8,
+   "vt:UnityEngine.InputSystem.LowLevel.InputStateBlock"
+  ],
+  "UnityEngine.InputSystem.InputDevice.m_DeviceIndex": [
+   176,
+   "i4"
+  ],
   "UnityEngine.InputSystem.InputManager.m_ReadValueCachingFeatureEnabled": [
    736,
    "bool"
@@ -1026,6 +1125,38 @@
   "UnityEngine.InputSystem.Keyboard::current": [
    0,
    "UnityEngine.InputSystem.Keyboard"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.bitOffset": [
+   16,
+   "u4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.format": [
+   8,
+   "vt:UnityEngine.InputSystem.Utilities.FourCC"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.m_ByteOffset": [
+   12,
+   "u4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBlock.sizeInBits": [
+   20,
+   "u4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers.deviceCount": [
+   12,
+   "i4"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers.deviceToBufferMapping": [
+   8,
+   "void**"
+  ],
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers::s_CurrentBuffers": [
+   12,
+   "vt:UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers"
+  ],
+  "UnityEngine.InputSystem.Utilities.FourCC.m_Code": [
+   8,
+   "i4"
   ],
   "UnityEngine.Rect.m_Height": [
    20,
@@ -1585,6 +1716,23 @@
     ]
    },
    "size": 185
+  },
+  "UnityEngine.InputSystem.Utilities.InlinedArray`1<object>": {
+   "fields": {
+    "additionalValues": [
+     16,
+     "object[]"
+    ],
+    "firstValue": [
+     12,
+     "object"
+    ],
+    "length": [
+     8,
+     "i4"
+    ]
+   },
+   "size": 20
   }
  },
  "instanceSizes": {
@@ -1607,6 +1755,7 @@
   "Spinel.Game.Play.GunFlowing": 176,
   "Spinel.Game.Play.HotkeyMap": 28,
   "Spinel.Game.Play.ItemInfo": 264,
+  "Spinel.Game.Play.ItemMap": 24,
   "Spinel.Game.Play.KeyBinding": 20,
   "Spinel.Game.Play.PlayerStats": 28,
   "Spinel.Game.Play.RunToggle": 32,
@@ -1659,6 +1808,7 @@
   "UnityEngine.InputSystem.Controls.ButtonControl": 248,
   "UnityEngine.InputSystem.Controls.DiscreteButtonControl": 272,
   "UnityEngine.InputSystem.Controls.KeyControl": 256,
+  "UnityEngine.InputSystem.FastKeyboard": 320,
   "UnityEngine.InputSystem.InputAction": 236,
   "UnityEngine.InputSystem.InputActionMap": 168,
   "UnityEngine.InputSystem.InputActionState": 120,
@@ -1667,6 +1817,7 @@
   "UnityEngine.InputSystem.InputManager": 752,
   "UnityEngine.InputSystem.InputSystem": 8,
   "UnityEngine.InputSystem.Keyboard": 320,
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": 40,
   "UnityEngine.Vector2": 16,
   "UnityEngine.Vector2Int": 16
  },
@@ -1710,6 +1861,9 @@
   "Spinel.Game.dll|Spinel.Game.Play.DrillFeature::get_MyPoint()": "c0683b920d91e24f7288da720ebea42288f0f3ee9951c6609173216408194e04",
   "Spinel.Game.dll|Spinel.Game.Play.DrillFeature::get_ProgressPercent()": "7d5513284df1a7438d8f8abe837a69d60941652feda10468a1aa5d62f63452d6",
   "Spinel.Game.dll|Spinel.Game.Play.DrillFeature::get_WornDrill()": "4e1556e111ac74c080d682e603b861237a9ffb10f147ec929cc728095e290e57",
+  "Spinel.Game.dll|Spinel.Game.Play.GameUiMode::KeyBit(string)": "370e518592fd0302f0d4dca793a81a4e486e2e5addba4ad484b90b0b2dcd0172",
+  "Spinel.Game.dll|Spinel.Game.Play.GameUiMode::KeyOn(i4,string)": "d720ba5aaabd0e4aeaafbdf56d2320b5f62fa027dc995554e1e675f536e12ef3",
+  "Spinel.Game.dll|Spinel.Game.Play.GameUiMode::QuickSlotKey(string)": "167b0decf5aba3fce15041de4ac6c0e8c86073540ec39e736c63fd9c26a04f71",
   "Spinel.Game.dll|Spinel.Game.Play.GunFlowing::HoldsGun(Spinel.Net.Game.Inventory,System.Func`2<i8,Spinel.Game.Play.ItemInfo>)": "cb38d106fd006dc94dcd13c8d1d56f1fa7ed1e68f030e719e9a2f2575fd1ac1e",
   "Spinel.Game.dll|Spinel.Game.Play.GunFlowing::Info(i8)": "60b4ebc24845eabde51f8ed18aeebd31793a05ce4c84393c04204fa3f9a2bd8a",
   "Spinel.Game.dll|Spinel.Game.Play.GunFlowing::MayShow()": "9466886d7132576df4af6488136bf97224443c5653754bd47a0f984ed5579245",
@@ -1717,11 +1871,20 @@
   "Spinel.Game.dll|Spinel.Game.Play.HotkeyMap::MakeCatalog()": "85406235656444d7d78fdc2cb709bb8d57f4758a5e932fa22f7b186de2d1c249",
   "Spinel.Game.dll|Spinel.Game.Play.HotkeyMap::Of(string)": "42333addc3030b0aa1df7a65b870a05386f0272cc32882b2aa7cc07df22f582a",
   "Spinel.Game.dll|Spinel.Game.Play.HotkeyMap::Rebuild()": "b858c4a21f3cc2aca24b29c1466a10a1671c91e3d432a9e284159be0cd413718",
+  "Spinel.Game.dll|Spinel.Game.Play.ItemMap::.ctor(i4)": "5078e2a000727098ee9f4c6c0221e00ef74b4eee7c945a38f60a4bd66c0b9008",
+  "Spinel.Game.dll|Spinel.Game.Play.ItemMap::Add(Spinel.Game.Play.ItemInfo)": "d0c1b78e0b3d07aafd8a5f0529d7d26351524196228f11a9b5de82121ad79ff1",
+  "Spinel.Game.dll|Spinel.Game.Play.ItemMap::TryGetValue(i8,Spinel.Game.Play.ItemInfo&)": "b3308a660c25fb5f0a0c3981644acf9f55eb0045cb42eecf0cc26d30aeec483e",
   "Spinel.Game.dll|Spinel.Game.Play.ItemWeight::Heavy(i8,r8,i4)": "239620b8c1373d9aa6679e8e97d17ba2952334e1c8da024d1d48ac03c8121934",
   "Spinel.Game.dll|Spinel.Game.Play.KeyBindings::Matches(Spinel.Game.Play.KeyBinding,vt:Spinel.Game.Play.KeyStroke)": "1cbf3dede324c93c9e335eddb8aeecd7075b8114d61445dcd32dc18ec276139e",
   "Spinel.Game.dll|Spinel.Game.Play.KeyBindings::Matches(System.Collections.Generic.Dictionary`2<string,System.Collections.Generic.List`1<Spinel.Game.Play.KeyBinding>>,string,vt:Spinel.Game.Play.KeyStroke)": "ee11aaa54e85a4b702b8db818f1ed8115d2a511353c7171ae7236d443d4e8c37",
   "Spinel.Game.dll|Spinel.Game.Play.MyViewWindow::get_OkCancelShown()": "3338bf456346f4fbfaea98e9415648b611b9ea5476a12af0f3eb0bfbc84c9234",
   "Spinel.Game.dll|Spinel.Game.Play.RunToggle::get_Mode()": "9c51007193296618c8808c7c81af8c4a6aa42628c02922b78e705c02c9892870",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::.ctor(Spinel.Net.Game.IGameSession,Spinel.Game.Play.SkillTables,Spinel.Game.Play.CombatModel)": "90e1dba8ae4d420d1deb1c1632d08a9f9a2c00858f8dd8043640e13d2c9c5a55",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::OnEvent(Spinel.Net.Game.SkillEvent)": "cdeeca45faa1c5cdacc8c930200c203733a4b52a47f78e21fd6a45500ee05c9b",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::PlayHeldCast()": "3aaf7c0e49750837df6d924835de71e59334702f09a3abfcabcf9d13a8401894",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::SetUiWait(bool)": "4fcd55ca8e56799a58fc6cd9a1223983858ee64046f54524c5ac129e54521a75",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::Update(r8)": "ce258b54ad615a34c2d0456bc38127b0da2e0c592884d66dc5fa277944a100c9",
+  "Spinel.Game.dll|Spinel.Game.Play.SkillsApi::WorldClick(i4,r8,r8,vt:System.Nullable`1<vt:Spinel.Game.Play.PlayActor>,vt:Spinel.Game.Play.PlayActor,System.Func`3<r8,r8,bool>,bool)": "5df23c8bc38bd9e5c9e26fb1fa5cc9fc855026ea3457e5456a4cabcb0214911c",
   "Spinel.Game.dll|Spinel.Game.World.ObjectPick::Pick(System.Collections.Generic.IEnumerable`1<Spinel.Game.World.WorldActor>,bool)": "58b3420dc1eac594e2ef4571edc40befb7774bedf4e1196bd5d52c5592b2e57e",
   "Spinel.Game.dll|Spinel.Game.World.Portals::RegionAt(System.Collections.Generic.IReadOnlyList`1<Spinel.Game.World.WarpRegion>,r8,r8)": "32b869301cf65aee2a57158970094a3df223397f5da4b5836e64a069a04f7b61",
   "Spinel.Game.dll|Spinel.Game.World.WorldActor::HitTest(r8,r8)": "9ecd2b390dd91b88cf2b69ab27c92f2170987662b360027e89fc3b29f1223fa8",
@@ -1737,6 +1900,7 @@
   "Spinel.Net.dll|Spinel.Net.Game.Inventory::.ctor(Spinel.Net.Game.IGameSession)": "965e231a157b23d2c84d9e616e787a7236de8ecc3e510df7be1b067340dec539",
   "Spinel.Net.dll|Spinel.Net.Game.Inventory::Get(u8)": "c66c72d47238c2acfd97641d45ece9aa4686d7319d80574830ea9deed8284ed1",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud/<>c__DisplayClass68_0::<RegisterMenuButton>b__1()": "3b7cff1cf4ca1a8f007ba854ee60ed53dfe3af48a014810b3f5dc8a59757b34c",
+  "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::KeyPasses(string)": "b1e8da2fe184002faa0b8e881b4210c3af72d7bb44230b2a5e05357b7a43466f",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::OnKey(vt:Spinel.Game.Play.KeyStroke)": "8c75c30048439ca5966dd0db37a025dba2ab528411e22de35392dc7aaca91ab7",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::OnKeyUp(vt:Spinel.Game.Play.KeyStroke)": "48455d2fa3bf6b548c9f5e61df8a5a241f11c32739ef60253c79c42eeb0c83ac",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.Hud.Hud::PressHotkey(string)": "ab1b44a04cedbf31e0294453d99fb1e62e3086c65b5c2dea49ee8f792cd1de15",
@@ -1779,9 +1943,12 @@
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.UiPressOrigin::get_LeftOnUi()": "50bf22c6c1179065b2607ed476cc255981ac6e7f2d1829510e64d835d18bb13c",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.UiPressOrigin::get_RightOnUi()": "cfa081e7263c456661d77beb4ac9701fd5fdafe69031b2cb3d90e64c10804994",
   "Spinel.UI.Pc.dll|Spinel.UI.Pc.UiSkins::get_Current()": "c23062ddccd9d174179ad3ba725e2086856071a6473d7eea5a4bfbd1b129db63",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Controls.AxisControl::ReadUnprocessedValueFromState(void*)": "c8856ac52e607abd9e5718256ecaad9006968ab55b8d58aef5b67a3054f04bfa",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Controls.ButtonControl::get_isPressed()": "e9ad7c4afa3722e2e6c181bdb722ad0336ee4eec8a77b09a57f6014a2d7a251f",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Controls.DiscreteButtonControl::ReadUnprocessedValueFromState(void*)": "09de64ac355afd28b2488636af2e9cbd68219a7a90afe05b2d354fb6d4128d6b",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.InputAction::IsPressed()": "74fae1e2c90140b9cfde78546c59b5ea71b2065c26a47c4d7282730829eeb19b",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.InputActionState/TriggerState::get_isPressed()": "0fbed1dd0677e40be493f867f419fce30067cb4ea61b3b2794026b49f2417d65",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl::GetDeviceIndex()": "ab0c6db87591f10f3eddd1c064469e01169f3ac3769de38c845c88a8d5d33fe2",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.InputControl::get_currentStatePtr()": "aa4992e672328b8f0148d5b2bf11d264ef77b5ecd9f6259bc7085dc4179fa676",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_Item(vt:UnityEngine.InputSystem.Key)": "d9af049c8667e9b71fcc387ebcf3ca1887c550d1c73626223427b951fd558764",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_aKey()": "440fb79bfde472ca2e6217527e34d046fb376f21d4b539fcbfdbf96ccc5b3654",
@@ -1793,6 +1960,11 @@
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_rightCommandKey()": "b91a0ea6f2cc69cd31a35129d21b5c6279e393c89dbbbda7a1f20c4966e94f33",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_rightMetaKey()": "b91a0ea6f2cc69cd31a35129d21b5c6279e393c89dbbbda7a1f20c4966e94f33",
   "Unity.InputSystem.dll|UnityEngine.InputSystem.Keyboard::get_rightWindowsKey()": "b91a0ea6f2cc69cd31a35129d21b5c6279e393c89dbbbda7a1f20c4966e94f33",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.LowLevel.InputStateBlock::ReadFloat(void*)": "8d1125d459a3e7d94ac0c0b3f18992bdb8d995b8a3c7e7928ad35a283e9af78b",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.LowLevel.InputStateBuffers::GetFrontBufferForDevice(i4)": "35466436736938c0df1300178e755ed510034d4d0955ff904410f8c7fb209319",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Utilities.MemoryHelpers::ReadMultipleBitsAsUInt(void*,u4,u4)": "1fc088d9994bfb8d7561c0f853c92ed0b481835b1baac6a329da0b92bbe633e2",
+  "Unity.InputSystem.dll|UnityEngine.InputSystem.Utilities.MemoryHelpers::ReadSingleBit(void*,u4)": "6d197544d21813018278c11c443a2b706bec21df11363f9b414fb134f0cd72dc",
+  "mscorlib.dll|System.Int64::GetHashCode()": "837a67f95f77640d5c00a5e22719ea29dbd5333098298af1a9f81df32ce3d2f1",
   "mscorlib.dll|System.Object::GetType()": "cfefdc6163274f991f8831ed2a9181e2a4012e5ebe13b037660d54c1d57603de"
  },
  "rgctx": {
@@ -1802,6 +1974,7 @@
    "sha256": "fc6cf17328ad4b755e8c04bcc2bd8c5e41e16e577b0285339f714f0edfbf3b99"
   },
   "System.Collections.Generic.Dictionary`2": {
+   "+160": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.next",
    "+36": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.hashCode",
    "+40": "class !TKey",
    "+44": "field vt:System.Collections.Generic.Dictionary`2/Entry<!TKey,!TValue>.key",
@@ -1827,6 +2000,7 @@
    "+16": "field UnityEngine.InputSystem.InputControl`1<!TValue>.evaluateProcessorsEveryRead",
    "+28": "field UnityEngine.InputSystem.InputControl`1<!TValue>.m_CachedValue",
    "+4": "class !TValue",
+   "+56": "field UnityEngine.InputSystem.InputControl`1<!TValue>.m_ProcessorStack",
    "sha256": "626df0bd77908236e3bdeacd946a251f3aa277c7fc8c65636d3c5032c9061eb0"
   }
  },
@@ -1857,6 +2031,7 @@
   "System.String": 14,
   "System.UInt64": 11,
   "UnityEngine.InputSystem.InputActionState/TriggerState": 17,
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": 17,
   "UnityEngine.Vector2": 17,
   "UnityEngine.Vector2Int": 17
  },
@@ -1881,6 +2056,7 @@
   "Spinel.Game.Play.GunFlowing": 6632,
   "Spinel.Game.Play.HotkeyMap": 6744,
   "Spinel.Game.Play.ItemInfo": 6759,
+  "Spinel.Game.Play.ItemMap": 6764,
   "Spinel.Game.Play.KeyBinding": 6895,
   "Spinel.Game.Play.PlayerStats": 7415,
   "Spinel.Game.Play.RunToggle": 7918,
@@ -1933,6 +2109,7 @@
   "UnityEngine.InputSystem.Controls.ButtonControl": 10583,
   "UnityEngine.InputSystem.Controls.DiscreteButtonControl": 10586,
   "UnityEngine.InputSystem.Controls.KeyControl": 10591,
+  "UnityEngine.InputSystem.FastKeyboard": 10304,
   "UnityEngine.InputSystem.InputAction": 10214,
   "UnityEngine.InputSystem.InputActionMap": 10230,
   "UnityEngine.InputSystem.InputActionState": 10248,
@@ -1941,6 +2118,7 @@
   "UnityEngine.InputSystem.InputManager": 10330,
   "UnityEngine.InputSystem.InputSystem": 10206,
   "UnityEngine.InputSystem.Keyboard": 10299,
+  "UnityEngine.InputSystem.LowLevel.InputStateBuffers": 10529,
   "UnityEngine.Vector2": 13051,
   "UnityEngine.Vector2Int": 13052
  },

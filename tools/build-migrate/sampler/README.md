@@ -19,11 +19,11 @@ python3 -I tools/build-migrate/sampler/derive.py --build NEW_BUILD_ID WASM DATA 
   --expect tools/build-migrate/sampler/ea1a68bd.json --out NEW.json
 ```
 
-`MOVED` lines are renumbered indices, cells, slots and metadata globals; copy
-them into `sampler.js`. `CHANGED` lines are layout, field type, RGCTX, type-kind,
-size, method-body or Unity changes, and the script exits 1. Review each against
-source before moving the sampler. Replace the committed JSON with the new
-build's file in the migration change.
+`MOVED` lines are renumbered indices, cells, cell words, slots and metadata
+globals; copy them into `sampler.js`. `CHANGED` lines are layout, field type,
+RGCTX, type-kind, size, method-body or Unity changes, and the script exits 1.
+Review each against source before moving the sampler. Replace the committed
+JSON with the new build's file in the migration change.
 
 The test lays out objects from these sections:
 
@@ -37,6 +37,9 @@ The test lays out objects from these sections:
   metadata offsets of every pinned non-generic type.
 - `runtime`: libil2cpp's `s_GlobalMetadata` and `s_GlobalMetadataHeader` cells
   and the type-definition triple that `type()` uses to decode type handles.
+- `cellWords`: the usage word, `(kind << 29) | (index << 1) | 1`, that each
+  cell holds until the client first runs a method that uses it. The sampler
+  reads that word as "not used yet" and any other odd word as a wrong pin.
 
 Metadata does not describe libil2cpp's own structures, such as `Il2CppClass` and
 `MethodInfo`. The test's `RUNTIME` table holds their offsets for Unity

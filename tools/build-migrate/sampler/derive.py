@@ -29,7 +29,7 @@ UnityEngine.InputSystem.Controls.AnyKeyControl UnityEngine.InputSystem.Controls.
 UnityEngine.InputSystem.Controls.DiscreteButtonControl UnityEngine.InputSystem.Controls.KeyControl
 UnityEngine.InputSystem.InputControl`1 UnityEngine.InputSystem.InputSystem UnityEngine.InputSystem.InputManager
 UnityEngine.InputSystem.InputAction UnityEngine.InputSystem.InputActionMap UnityEngine.InputSystem.InputActionState
-UnityEngine.InputSystem.Keyboard UnityEngine.EventSystems.EventSystem
+UnityEngine.InputSystem.Keyboard UnityEngine.InputSystem.FastKeyboard UnityEngine.EventSystems.EventSystem
 Spinel.UI.Pc.Screens.GameFlow Spinel.Engine.Unity.SpinelEngine Spinel.UI.Pc.Screens.GameplayScreen
 Spinel.UI.Pc.Screens.GameplayScreen/LoadedZone Spinel.Engine.Unity.Stage Spinel.Engine.StageLayout
 Spinel.Engine.Unity.GameInput Spinel.Engine.Unity.World.MapView Spinel.Engine.Unity.World.ActorView
@@ -39,12 +39,12 @@ Spinel.UI.Pc.Screens.PlayServices Spinel.Game.Play.CombatModel Spinel.Game.Play.
 Spinel.Game.Play.CombatModel/WaitingMove Spinel.Game.Play.DrillFeature Spinel.Game.Play.DigAssist
 Spinel.Game.Play.GunFlowing Spinel.Game.Play.AvatarStatusFlags Spinel.Game.Play.SkillsApi Spinel.Game.Play.AvatarFsm
 Spinel.Game.Play.HotkeyMap Spinel.Game.Play.KeyBinding Spinel.Game.Play.RunToggle Spinel.Game.Play.PlayerStats
-Spinel.Game.Play.StatValues Spinel.Game.Play.ItemInfo Spinel.Game.Play.DrillData Spinel.Game.Play.DrillParam
-Spinel.Game.Play.AutoDrill Spinel.UI.Pc.Hud.Hud Spinel.UI.Pc.Hud.HudCover Spinel.UI.Pc.UiSkins
-Spinel.UI.Pc.Play.DigKeySettings Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0
+Spinel.Game.Play.StatValues Spinel.Game.Play.ItemInfo Spinel.Game.Play.ItemMap Spinel.Game.Play.DrillData
+Spinel.Game.Play.DrillParam Spinel.Game.Play.AutoDrill Spinel.UI.Pc.Hud.Hud Spinel.UI.Pc.Hud.HudCover
+Spinel.UI.Pc.UiSkins Spinel.UI.Pc.Play.DigKeySettings Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_0
 Spinel.UI.Pc.Screens.GroundItems Spinel.UI.Pc.Screens.GroundItems/Entry Spinel.UI.Pc.EditBox
 Spinel.UI.Pc.UiPressOrigin Spinel.UI.Pc.Screens.GroundItems/HoverDraw System.Collections.Generic.KeyValuePair`2
-UnityEngine.InputSystem.InputActionState/TriggerState
+UnityEngine.InputSystem.InputActionState/TriggerState UnityEngine.InputSystem.LowLevel.InputStateBuffers
 """.split()
 
 # Fields by name. "s:" marks a static field; <Name>k__BackingField is written Name.
@@ -66,20 +66,27 @@ FIELDS = {
     'Spinel.UI.Pc.Screens.PlayServices': 'items',
     'System.Type': '_impl',
     'System.RuntimeTypeHandle': 'value',
-    'Spinel.Game.Play.SkillsApi': 'target shownTarget combatPlaysEsa UiWait heldCast',
+    'Spinel.Game.Play.SkillsApi': 'target shownTarget UiWait heldCast',
     'Spinel.Game.Play.CombatModel': 'session Target Fainted attackTargets Fsm striking waitingMoves fading',
     'Spinel.Game.Play.DrillFeature': 'Data Inventory session fsm Flags inDrillState drill param State Gauge Held '
                                      'Crazy AutoMode Auto AutoFlagOn',
     'Spinel.Game.Play.DigAssist': 'drill State',
     'Spinel.Game.Play.GunFlowing': 'Inventory session infos Armed Ready State',
     'Spinel.Game.Play.AvatarFsm': 'State',
-    'Spinel.UI.Pc.Hud.Hud': 'keyMask Stats Keys waitMenu waitAction due',
+    'Spinel.UI.Pc.Hud.Hud': 'Stats Keys waitMenu waitAction due',
     'Spinel.Game.Play.HotkeyMap': 'Bindings',
     'Spinel.Game.Play.KeyBinding': 'Code Modifier Exclusive',
     'UnityEngine.InputSystem.Keyboard': 'shiftKey ctrlKey altKey m_Keys s:current',
     'UnityEngine.InputSystem.Controls.ButtonControl': 'm_LastUpdateWasPress needsToCheckFramePress pressPoint '
                                                       's:s_GlobalDefaultButtonPressPoint',
-    'UnityEngine.InputSystem.InputControl': 'm_CachedValueIsStale',
+    'UnityEngine.InputSystem.InputControl': 'm_StateBlock m_Device m_CachedValueIsStale m_OptimizedControlDataType',
+    'UnityEngine.InputSystem.LowLevel.InputStateBlock': 'format m_ByteOffset bitOffset sizeInBits',
+    'UnityEngine.InputSystem.Utilities.FourCC': 'm_Code',
+    'UnityEngine.InputSystem.InputDevice': 'm_DeviceIndex',
+    'UnityEngine.InputSystem.Controls.AxisControl': 'clamp invert normalize scale',
+    'UnityEngine.InputSystem.Controls.DiscreteButtonControl': 'minValue maxValue',
+    'UnityEngine.InputSystem.LowLevel.InputStateBuffers': 's:s_CurrentBuffers',
+    'UnityEngine.InputSystem.LowLevel.InputStateBuffers/DoubleBuffers': 'deviceToBufferMapping deviceCount',
     'UnityEngine.InputSystem.InputSystem': 's:s_Manager',
     'UnityEngine.InputSystem.InputManager': 'm_ReadValueCachingFeatureEnabled',
     'UnityEngine.InputSystem.InputAction': 'm_ActionIndexInState m_ActionMap',
@@ -97,6 +104,7 @@ FIELDS = {
     'Spinel.Net.Game.Inventory': 'byUid slots',
     'Spinel.Net.Game.InvItem': 'Uid ItemId Count',
     'Spinel.Game.Play.ItemInfo': 'Id Type SubType',
+    'Spinel.Game.Play.ItemMap': 'rows count slots',
     'Spinel.Game.Play.DrillData': 'Params AutoPets',
     'Spinel.Game.Play.DrillParam': 'Id Grade GroundNature DigDepth BarEffArea BarSpeed ScoopMass DrillLife',
     'Spinel.UI.Pc.UiSkins': 's:chosen s:started',
@@ -123,6 +131,7 @@ CELLS = [
     ('TypeInfo', 'UnityEngine.InputSystem.InputSystem'),
     ('TypeInfo', 'UnityEngine.InputSystem.Controls.ButtonControl'),
     ('TypeInfo', 'UnityEngine.InputSystem.Keyboard'),
+    ('TypeInfo', 'UnityEngine.InputSystem.LowLevel.InputStateBuffers'),
     ('TypeInfo', 'Spinel.UI.Pc.UiSkins'),
     ('TypeInfo', 'Spinel.UI.Pc.Play.DigKeySettings'),
     ('TypeInfo', 'Spinel.UI.Pc.EditBox'),
@@ -153,8 +162,8 @@ SLOTS = ['Spinel.UI.Pc.dll|Spinel.UI.Pc.Play.CarriedWeightUi/<>c__DisplayClass2_
 # Class RGCTX slots (byte offsets) read through MethodInfo+28.
 RGCTX = {
     'System.Nullable`1': (0, 8, 12),
-    'System.Collections.Generic.Dictionary`2': (36, 40, 44, 48, 52),
-    'UnityEngine.InputSystem.InputControl`1': (4, 16, 28),
+    'System.Collections.Generic.Dictionary`2': (36, 40, 44, 48, 52, 160),
+    'UnityEngine.InputSystem.InputControl`1': (4, 16, 28, 56),
     'Spinel.Net.OrderedMap`2': (12, 16),
     'System.Collections.Generic.KeyValuePair`2': (0, 4, 8, 12, 16),
 }
@@ -171,19 +180,22 @@ METHODS = {
                                      'Preconditions Press PressDig Release Result RightClick Step Update '
                                      'get_MarkerPercent get_MoveMode get_MyPoint get_ProgressPercent get_WornDrill',
     'Spinel.Game.Play.DrillFeature/<CreateAsync>d__123': 'MoveNext',
+    'Spinel.Game.Play.GameUiMode': 'KeyBit KeyOn QuickSlotKey',
     'Spinel.Game.Play.GunFlowing': 'HoldsGun Info MayShow get_GunWorn',
     'Spinel.Game.Play.HotkeyMap': 'MakeCatalog Of Rebuild',
+    'Spinel.Game.Play.ItemMap': '.ctor Add TryGetValue',
     'Spinel.Game.Play.ItemWeight': 'Heavy',
     'Spinel.Game.Play.KeyBindings': 'Matches',
     'Spinel.Game.Play.MyViewWindow': 'get_OkCancelShown',
     'Spinel.Game.Play.RunToggle': 'get_Mode',
+    'Spinel.Game.Play.SkillsApi': '.ctor OnEvent PlayHeldCast SetUiWait Update WorldClick',
     'Spinel.Game.World.ObjectPick': 'Pick',
     'Spinel.Game.World.Portals': 'RegionAt',
     'Spinel.Game.World.WorldActor': 'HitTest get_Moving',
     'Spinel.Net.Game.CombatLink': 'Attack',
     'Spinel.Net.Game.GameSession': 'ApplyHeldStop ApplyMove Handle OwnMoveEchoed RequestHeldMove RequestMove SendMove',
     'Spinel.Net.Game.Inventory': '.ctor Get',
-    'Spinel.UI.Pc.Hud.Hud': 'OnKey OnKeyUp PressHotkey PressMenuButton RegisterHotkey RegisterMenuButton '
+    'Spinel.UI.Pc.Hud.Hud': 'KeyPasses OnKey OnKeyUp PressHotkey PressMenuButton RegisterHotkey RegisterMenuButton '
                             'RunMenuButton Update Wait WaitForKey set_Installing',
     'Spinel.UI.Pc.Hud.Hud/<>c__DisplayClass68_0': '<RegisterMenuButton>b__1',
     'Spinel.UI.Pc.Hud.HudCover': 'get_Covered',
@@ -201,13 +213,19 @@ METHODS = {
                                            'UpdateNameTags get_MoveMode',
     'Spinel.UI.Pc.UiPressOrigin': 'get_LeftOnUi get_RightOnUi',
     'Spinel.UI.Pc.UiSkins': 'get_Current',
+    'UnityEngine.InputSystem.Controls.AxisControl': 'ReadUnprocessedValueFromState',
     'UnityEngine.InputSystem.Controls.ButtonControl': 'get_isPressed',
+    'UnityEngine.InputSystem.Controls.DiscreteButtonControl': 'ReadUnprocessedValueFromState',
     'UnityEngine.InputSystem.InputAction': 'IsPressed',
     'UnityEngine.InputSystem.InputActionState/TriggerState': 'get_isPressed',
-    'UnityEngine.InputSystem.InputControl': 'get_currentStatePtr',
+    'UnityEngine.InputSystem.InputControl': 'GetDeviceIndex get_currentStatePtr',
+    'UnityEngine.InputSystem.LowLevel.InputStateBlock': 'ReadFloat',
+    'UnityEngine.InputSystem.LowLevel.InputStateBuffers': 'GetFrontBufferForDevice',
+    'UnityEngine.InputSystem.Utilities.MemoryHelpers': 'ReadMultipleBitsAsUInt ReadSingleBit',
     'UnityEngine.InputSystem.Keyboard': 'get_Item get_aKey get_leftAppleKey get_leftCommandKey get_leftMetaKey '
                                         'get_leftWindowsKey get_rightAppleKey get_rightCommandKey get_rightMetaKey '
                                         'get_rightWindowsKey',
+    'System.Int64': 'GetHashCode',
     'System.Object': 'GetType',
 }
 
@@ -782,6 +800,7 @@ GENERICS = [
     ('System.Collections.Generic.List`1', ('vt:Spinel.Game.World.Point',)),
     ('System.Func`1', ('bool',)),
     ('UnityEngine.InputSystem.InputControl`1', ('r4',)),
+    ('UnityEngine.InputSystem.Utilities.InlinedArray`1', ('object',)),
 ]
 
 
@@ -1013,6 +1032,8 @@ def derive(build, build_id, unity, artifacts):
         if v in wanted:
             hits.setdefault(wanted[v], []).append(start + 4 * k)
     out['cells'] = {f'{kind} {name}': unique(hits.get((kind, name), []), f'{kind} {name}') for kind, name in CELLS}
+    # The usage word each cell holds until the first method that uses it resolves it.
+    out['cellWords'] = {label: build.u32(cell) for label, cell in out['cells'].items()}
     by_name = {}
     for mi in build.slot_of:
         by_name.setdefault(build.method_name(mi), []).append(mi)
@@ -1039,7 +1060,7 @@ def derive(build, build_id, unity, artifacts):
 
 # Sections that hold build-local indices and addresses. Every other difference is a
 # layout, generic-context, code or toolchain change that needs a semantic review.
-MOVES = ('typedefMax', 'types', 'cells', 'slots', 'runtime')
+MOVES = ('typedefMax', 'types', 'cells', 'cellWords', 'slots', 'runtime')
 
 
 def compare(old, new):
