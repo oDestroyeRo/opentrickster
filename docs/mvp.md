@@ -9,7 +9,9 @@ mode runs without Unity and displays received game state in the native dashboard
 
 - Combat uses basic attacks on eligible configured monsters. Prefer the nearest
   valid target inside the current map's configured boundary. Skip targets known
-  or suspected to be engaged by another player. Do not chase beyond the boundary.
+  or suspected to be engaged by another player. The attack itself approaches the
+  target as a normal click does; the run never walks onto a monster first. Do not
+  chase beyond the boundary: leaving it pauses the run.
 - Digging repeats normal manual-point digging in a bounded area. A drill cycle
   includes its normal client-side progression and server result; sending only a
   start request is insufficient.

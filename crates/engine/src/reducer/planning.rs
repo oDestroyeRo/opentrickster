@@ -207,9 +207,8 @@ impl Engine {
                             }
                     })
                     .min_by_key(|entity| (distance(own, entity.position), entity.key));
-                target.map_or(Ok(None), |entity| {
-                    move_or(entity.position, Action::BasicAttack(entity.key))
-                })
+                // A normal attack click approaches the target; leaving the boundary pauses the run.
+                Ok(target.map(|entity| Action::BasicAttack(entity.key)))
             }
             Activity::Digging { .. } => {
                 let (_, center, radius) = setup.boundary.parts();
