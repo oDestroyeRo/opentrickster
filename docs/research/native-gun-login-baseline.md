@@ -101,6 +101,16 @@ After a normal login, the client's `LoadSpeed` at C5 is exactly **1.0** when no 
 
 When a frame before C5 named FastLoad, source does not determine the value at C5. The replay may have run before or after `Provide<GunFlowing>`. A complete own 8 or 9 after C5 settles it again by the own effect lifecycle rule: `StartStates` ends the actor's old attached states, whose `OnEnd` writes 1.0 for a FastLoad, then starts the new list with `InitState`.
 
+## Native model
+
+`LoadSpeed` in [`crates/net/src/gun.rs`](../../crates/net/src/gun.rs) follows the constructor:
+
+1. `construct_gun`, which Net calls right after C5, stores 1. With no own list before it, no own FastLoad is attached.
+2. Before construction, an own 8 or 9 that lists a FastLoad leaves the speed unknown, and no own 8 or 9 before construction clears that. Only a complete own 8 or 9 after construction settles it.
+3. Every other rule is unchanged. A foreign, detached or unreadable FastLoad leaves the speed unknown for the session, and so does an own 7 that lists one, although the client ignores that list. An own 224/292 FastLoad leaves it unknown until the next complete own 8 or 9 after construction. So do an own 7, own faint, own removal and an end naming the tracked instance while an own FastLoad is tracked.
+
+Synthetic tests in `gun.rs`, `gun_tests.rs` and the session loopback cover the own-7 login and each case before construction.
+
 ## Not established
 
 - Whether the server ever sends an own 8 or 9 during or after login. Root saw none in about a minute idle.

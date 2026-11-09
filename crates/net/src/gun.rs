@@ -430,14 +430,17 @@ enum Attached {
 }
 
 /// What the client's `GunFlowing.LoadSpeed` is, from received effect state
-/// (`docs/research/native-own-effect-lifecycle.md`). Any FastLoad event a complete own
-/// appearance does not account for makes it unknown; detached and foreign FastLoads keep it
-/// unknown for the rest of the session because the client's setter has no owner check.
+/// (`docs/research/native-own-effect-lifecycle.md`). The constructor stores 1 and only a
+/// FastLoad writes it later (`docs/research/native-gun-login-baseline.md`). Any FastLoad
+/// event a complete own appearance after construction does not account for makes it unknown;
+/// detached and foreign FastLoads keep it unknown for the rest of the session because the
+/// client's setter has no owner check.
 #[derive(Default)]
 pub(crate) struct LoadSpeed {
     own: Option<Attached>,
     stale: bool,
     tainted: bool,
+    built: bool,
 }
 
 impl LoadSpeed {
@@ -451,17 +454,24 @@ impl LoadSpeed {
             Attached::Unusable => None,
         }
     }
-    /// A complete own type-1 appearance on 8 or 9 replaces the own attached list.
+    /// A complete own type-1 appearance on 8 or 9 replaces the own attached list. Before
+    /// construction the host may drop a FastLoad's write, so such a snapshot settles nothing,
+    /// and one that lists a FastLoad waits for a snapshot after construction.
     pub(crate) fn own_snapshot(&mut self, fast: &[(u16, f32)]) {
-        self.own = Some(match fast {
+        let own = match fast {
             [] => Attached::None,
             [(instance, v)] => load_speed(*v).map_or(Attached::Unusable, |speed| Attached::One {
                 instance: *instance,
                 speed,
             }),
             _ => Attached::Unusable,
-        });
-        self.stale = false;
+        };
+        if self.built {
+            self.stale = false;
+        } else if own != Attached::None {
+            self.stale = true;
+        }
+        self.own = Some(own);
     }
     /// Another actor's appearance with FastLoad writes the client's scalar too.
     pub(crate) fn foreign_snapshot(&mut self, fast: usize) {
@@ -503,6 +513,12 @@ impl LoadSpeed {
             self.stale = true;
         }
     }
+    /// The constructor (f24374) stores 1, so without an earlier own list no FastLoad is
+    /// attached.
+    pub(crate) fn constructed(&mut self) {
+        self.built = true;
+        self.own.get_or_insert(Attached::None);
+    }
 }
 
 #[cfg(test)]
@@ -510,9 +526,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn construction_proves_one_unless_a_fast_load_came_first() {
+        let mut s = LoadSpeed::default();
+        assert_eq!(s.value(), None);
+        s.constructed();
+        assert_eq!(s.value(), Some(1.0), "the constructor stores 1");
+        s.constructed();
+        assert_eq!(s.value(), Some(1.0));
+        // The host drops a write before the controller is provided, so no snapshot before
+        // construction settles a FastLoad.
+        let mut s = LoadSpeed::default();
+        s.own_snapshot(&[(4, 50.0)]);
+        s.constructed();
+        assert_eq!(s.value(), None);
+        s.own_snapshot(&[(4, 50.0)]);
+        assert_eq!(s.value(), Some(1.5));
+        let mut s = LoadSpeed::default();
+        s.own_snapshot(&[(4, 50.0)]);
+        s.own_snapshot(&[]);
+        s.constructed();
+        assert_eq!(s.value(), None);
+        let mut s = LoadSpeed::default();
+        s.skill_start(FAST_LOAD, true, 0);
+        s.own_snapshot(&[]);
+        s.constructed();
+        assert_eq!(s.value(), None);
+        s.own_snapshot(&[]);
+        assert_eq!(s.value(), Some(1.0));
+        // An empty own list before construction agrees with the constructor.
+        let mut s = LoadSpeed::default();
+        s.own_snapshot(&[]);
+        s.constructed();
+        assert_eq!(s.value(), Some(1.0));
+        let mut s = LoadSpeed::default();
+        s.foreign_snapshot(1);
+        s.constructed();
+        s.own_snapshot(&[]);
+        assert_eq!(s.value(), None);
+    }
+
+    #[test]
     fn unattached_own_fast_load_is_never_repaired_by_an_own_snapshot() {
         for class in [-1, 6] {
             let mut s = LoadSpeed::default();
+            s.constructed();
             s.own_snapshot(&[]);
             assert_eq!(s.value(), Some(1.0));
             s.skill_start(FAST_LOAD, true, class);
@@ -520,6 +577,7 @@ mod tests {
             assert_eq!(s.value(), None, "EsClass {class} never attaches");
         }
         let mut s = LoadSpeed::default();
+        s.constructed();
         s.own_snapshot(&[]);
         s.skill_start(FAST_LOAD, true, 1);
         assert_eq!(s.value(), None);
@@ -892,6 +950,7 @@ mod tests {
     fn load_speed_needs_a_complete_own_snapshot_and_stays_conservative() {
         let mut s = LoadSpeed::default();
         assert_eq!(s.value(), None);
+        s.constructed();
         s.own_snapshot(&[]);
         assert_eq!(s.value(), Some(1.0));
         s.own_snapshot(&[(4, 50.0)]);
@@ -929,11 +988,13 @@ mod tests {
             "a foreign FastLoad is not repaired by own appearance"
         );
         let mut s = LoadSpeed::default();
+        s.constructed();
         s.own_snapshot(&[]);
         s.detached_start(FAST_LOAD);
         s.own_snapshot(&[]);
         assert_eq!(s.value(), None);
         let mut s = LoadSpeed::default();
+        s.constructed();
         s.own_snapshot(&[(3, 20.0)]);
         s.own_lost();
         assert_eq!(s.value(), None);

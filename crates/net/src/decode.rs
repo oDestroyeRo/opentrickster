@@ -1384,13 +1384,14 @@ impl Decoder {
         let (kind, _) = self.definitions.as_ref()?.zones.get(&self.zone?)?;
         Some(!matches!(kind, 0 | 1 | 5))
     }
-    /// The `GunFlowing` constructor at EnterWorld (f24374): slot 20 runs the `SpecialOn`
-    /// branch, other equipped items go through `Wear`, then every earlier 518/521 replays in
-    /// arrival order.
+    /// The `GunFlowing` constructor at EnterWorld (f24374): it stores `LoadSpeed` 1, slot 20
+    /// runs the `SpecialOn` branch, other equipped items go through `Wear`, then every earlier
+    /// 518/521 replays in arrival order.
     pub(crate) fn construct_gun(&mut self) {
         if std::mem::replace(&mut self.gun_live, true) {
             return;
         }
+        self.load_speed.constructed();
         self.gun_skills = self.start_skills;
         for slot in 0..self.slots.len() {
             let uid = self.slots[slot];

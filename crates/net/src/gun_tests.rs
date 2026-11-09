@@ -242,6 +242,20 @@ pub(crate) fn startup() -> Vec<(u16, Vec<u8>)> {
         (233, stats(ZONE, &[(1, GUN_UID), (20, AMMO_UID)])),
     ]
 }
+/// The startup with the own player only on 7, between foreign 8s, and no own 8 or 9.
+pub(crate) fn own_7_startup(fast: &[(u16, f32)]) -> Vec<(u16, Vec<u8>)> {
+    let mut packets = Vec::new();
+    for (opcode, payload) in startup() {
+        if opcode == 9 {
+            packets.push((8, player(OTHER, &[], None, 0)));
+            packets.push((7, player(OWN, fast, Some(GUN), 0)));
+            packets.push((8, player(OTHER, &[], None, 0)));
+        } else {
+            packets.push((opcode, payload));
+        }
+    }
+    packets
+}
 
 struct Run {
     d: Decoder,
@@ -419,11 +433,6 @@ fn each_unknown_prerequisite_is_named_and_keeps_basic_attack_unsupported() {
             "no learned list",
             Run::started(with(base(), 271, None)).constructed(),
             M::GunSkills,
-        ),
-        (
-            "no own appearance",
-            Run::started(with(base(), 9, None)).constructed(),
-            M::GunEffectState,
         ),
         (
             "a hidden zone",
@@ -667,6 +676,52 @@ fn load_speed_comes_from_a_complete_own_appearance_and_rewears_the_gun() {
     run.apply(8, player(OTHER, &[(6, 20.0)], None, 0));
     run.apply(9, player(OWN, &[], Some(GUN), 1));
     assert_eq!(run.missing(), Some(M::GunEffectState));
+}
+
+#[test]
+fn an_own_7_login_reloads_at_the_constructor_speed() {
+    // The constructor stores LoadSpeed 1, and an own 7 reaches neither MyAppear nor the
+    // effect runner, so no own 8 or 9 is needed.
+    let mut run = Run::started(own_7_startup(&[])).constructed();
+    assert_eq!(run.missing(), None);
+    run.d.gun_tick(0.0);
+    run.d.gun_tick(RELOAD_MS - 1.0);
+    run.d.gun_tick(1.0);
+    assert!(!run.ready(), "speed 1 reloads in 60 ms");
+    run.d.gun_tick(1.0);
+    assert!(run.ready());
+    let crc = crate::actions::gun_crc(PROFILE.speed, PROFILE.range, PROFILE.start, KEY, false);
+    assert_eq!(
+        run.shoot(),
+        crate::actions::gun_shot(MONSTER, crc, 1, 1).0.to_vec()
+    );
+    let run = Run::started(with(startup(), 9, None)).constructed();
+    assert_eq!(run.missing(), None, "no own appearance is needed");
+}
+
+#[test]
+fn a_fast_load_before_construction_leaves_load_speed_unknown() {
+    // The host drops a write until the controller is provided, and the two installs are
+    // unordered, so only an own 8 or 9 after construction proves the speed.
+    let own = player(OWN, &[(5, 50.0)], Some(GUN), 0);
+    let mut run = Run::started(with(startup(), 9, Some(own))).constructed();
+    assert_eq!(run.missing(), Some(M::GunEffectState));
+    assert!(!run.waitable());
+    run.apply(9, player(OWN, &[(5, 50.0)], Some(GUN), 1));
+    assert_eq!(run.missing(), None);
+    run.d.gun_tick(0.0);
+    run.d.gun_tick(RELOAD_MS * 2.0 / 3.0);
+    run.d.gun_tick(1.0);
+    assert!(run.ready(), "FastLoad 50 reloads in 40 ms");
+    // An own 7 never settles a FastLoad it lists, and a foreign one taints the session.
+    let mut foreign = startup();
+    foreign.insert(foreign.len() - 1, (8, player(OTHER, &[(6, 20.0)], None, 0)));
+    for packets in [own_7_startup(&[(5, 50.0)]), foreign] {
+        let mut run = Run::started(packets).constructed();
+        assert_eq!(run.missing(), Some(M::GunEffectState));
+        run.apply(9, player(OWN, &[], Some(GUN), 1));
+        assert_eq!(run.missing(), Some(M::GunEffectState));
+    }
 }
 
 #[test]

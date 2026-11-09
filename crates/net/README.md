@@ -215,7 +215,13 @@ row, the received 512 key, slot-20 Type-29 ammo and Bunch, StartSet 271/518/521,
 live 82/85/523 and own 8/9, effective `LoadSpeed`, own walking, digging, camp
 and own damage. Frames applied before startup readiness (through H) are its
 StartSet. The controller is built right after C5, so its empty 511 key request
-follows C5 like the client's held send. Baseline waits up to `ACTION_MS` for that
+follows C5 like the client's held send. Construction stores `LoadSpeed` 1, as the
+client's constructor does, and only a FastLoad changes it later. An own 7 never
+reaches the client's effect runner or `MyAppear`, so it is never a baseline. A
+FastLoad named before C5 leaves the speed unknown until a complete own 8 or 9
+after C5, because the client may have dropped its write; see the
+[gun login baseline](../../docs/research/native-gun-login-baseline.md).
+Baseline waits up to `ACTION_MS` for that
 512, because support is fixed at Baseline.
 
 A gun ticket waits for Ready until 250 ms before `not_after`, then sends one 477

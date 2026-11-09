@@ -1477,7 +1477,8 @@ mod tests {
     }
 
     /// Scenario 0 holds a ticket until Ready, shoots once and attributes the own bundle;
-    /// 1 holds a walking gun until its window ends; 2 holds one until Quiesce.
+    /// 1 holds a walking gun until its window ends; 2 holds one until Quiesce; 3 shoots as 0
+    /// does after a login whose own player appears only on 7.
     #[test]
     fn loopback_gun_ticket_waits_for_ready_and_shoots_once() {
         use crate::codec::{Frames, OpcodeMap};
@@ -1521,7 +1522,7 @@ mod tests {
             .build()
             .unwrap();
         rt.block_on(async {
-            for scenario in 0..3 {
+            for scenario in 0..4 {
                 let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
                 let address = listener.local_addr().unwrap();
                 let server = tokio::spawn(async move {
@@ -1541,12 +1542,17 @@ mod tests {
                     };
                     assert_eq!(read(&mut game, &mut incoming, &mut order).await.opcode, 4);
                     let mut startup = vec![(5, 0, vec![])];
-                    startup.extend(
+                    let packets = if scenario == 3 {
+                        fixture::own_7_startup(&[])
+                    } else {
                         fixture::startup()
+                    };
+                    startup.extend(
+                        packets
                             .into_iter()
                             .map(|(opcode, payload)| (opcode, 0, payload)),
                     );
-                    if scenario > 0 {
+                    if matches!(scenario, 1 | 2) {
                         // A walk without learned 3010 holds the reload at zero.
                         startup.push((24, 0, fixture::walk(fixture::OWN, (110, 210))));
                     }
@@ -1559,7 +1565,7 @@ mod tests {
                     game.send(send(vec![(512, 0, fixture::KEY.to_le_bytes().to_vec())]))
                         .await
                         .unwrap();
-                    if scenario == 0 {
+                    if matches!(scenario, 0 | 3) {
                         let shot = read(&mut game, &mut incoming, &mut order).await;
                         assert_eq!(shot.opcode, 477);
                         let p = fixture::PROFILE;
@@ -1643,7 +1649,7 @@ mod tests {
                     }
                     let mut receipts = Vec::new();
                     let mut hit = false;
-                    while if scenario == 0 { !hit } else { receipts.is_empty() } {
+                    while if matches!(scenario, 0 | 3) { !hit } else { receipts.is_empty() } {
                         match next(&event_rx).await {
                             Event::Receipt { action, delivery } => {
                                 assert_eq!(action, id);
@@ -1658,7 +1664,7 @@ mod tests {
                         }
                     }
                     match scenario {
-                        0 => assert!(matches!(
+                        0 | 3 => assert!(matches!(
                             receipts.as_slice(),
                             [(e::Delivery::Submitted, _), (e::Delivery::Sent(_), _)]
                         )),
