@@ -167,11 +167,12 @@ When accepted:
   if a 231 list arrived at or before H. An empty list then means an empty bag.
 - Weight is the I64 sum of `ItemInfo.Weight` x pieces (Count for wire Kind 1,
   otherwise 1), reported as `u32`. Equipped and expiring items keep their weight.
-  The maximum is S282 total 6, or unknown when absent or exceeded.
+  The maximum is S282 total 6, else the derived `CharacterStatus.Total` for
+  stat 6. It is unknown when neither is known or the weight exceeds it.
 - `HpPotions` counts Kind-1 pieces that `potion_prerequisite` classifies no
   further than the unproven per-use state. Instance options, overrides, expiry
   and normal-form restrictions exclude a stack.
-- Each later decoded delta, a 233 or a change of total 6 re-emits both facts.
+- Each later decoded delta, a 233 or a change of the weight maximum re-emits both facts.
 - A missing definition, an unrepresentable sum or a delta before H reports
   nothing for the session. After a report, a late 231, an undecoded Inventory
   opcode, a row naming an uncached UID (including a 68 for a new UID) or a missing
@@ -244,12 +245,12 @@ the source joins.
 | Native gun controller | Controller, session integration and synthetic tests exist for ea1a68bd. Server acceptance of 477, the key's lifetime, live attribution and the live order of 271 and own 8/9 relative to H remain unproven. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
-| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. The maxima remain unknown without S282: Net models every packet-fed `CharacterStatus.Total` term, but `GameParts` is not provable from packets. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |
+| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. Without S282, the HP, MP and weight maxima are `GameParts` plus the packet-fed core, the client's installed steady state, and only while every input is proven. A denied inventory opcode, an unproven worn row or slot, a non-empty imprint list or a page-bound decoder leaves them unknown. Server enforcement is unprovable. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |
 | Runtime acceptance | One production Rust startup and joined cleanup passed. Gameplay, inventory readiness, and Desktop integration remain open. See the [runtime report](../../docs/research/native-rust-startup.md). |
 
 These gaps remain visible in support/readiness and cannot be called a completed
 MVP. S282 totals become unknown on source-backed recompute events. HP, MP and
-weight maxima are otherwise unknown, because their `GameParts` term is unproven. Potion
+weight maxima are otherwise derived only while their `GameParts` inputs are proven. Potion
 restoration arithmetic, gun defaults and full-inventory claims are not invented.
 
 The catalog and input contracts use the immutable

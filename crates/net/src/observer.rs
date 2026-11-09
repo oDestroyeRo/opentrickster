@@ -107,6 +107,13 @@ impl GameObserver {
             return Err(NetError::WrongPhase);
         }
         self.page = Some(crate::page::State::new(binding));
+        // The page forwards only `page::INCOMING`; `GameParts` needs frames outside it.
+        if let Some(startup) = &mut self.startup {
+            startup.decoder.lose_game_parts();
+        }
+        if let Some(decoder) = &mut self.decoder {
+            decoder.lose_game_parts();
+        }
         Ok(())
     }
     pub fn close_script(&mut self, request: u64) -> Result<crate::ObserverScript> {
@@ -585,6 +592,9 @@ impl GameObserver {
         self.epoch = self.epoch.checked_add(1).ok_or(NetError::Capacity)?;
         let mut startup = Startup::new(self.epoch);
         startup.decoder.set_definitions(self.definitions.clone());
+        if self.page.is_some() {
+            startup.decoder.lose_game_parts();
+        }
         self.active = Some(connection);
         self.startup = Some(startup);
         Ok(())
@@ -1181,6 +1191,132 @@ mod tests {
         assert_eq!(up.steps(), [crate::NormalInput::LeftUp]);
         assert_ne!(up.step_key(), plan.step_key());
         assert_eq!(observer.active_input(), Some(action));
+    }
+    /// The page bridge forwards only `page::INCOMING`, so a page-bound decoder never derives
+    /// maxima, even from startup frames that prove them on the native stream.
+    #[test]
+    fn page_bound_decoders_never_derive_resource_maxima() {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        use serde_json::json;
+        use zeroize::Zeroizing;
+        let mut definitions = crate::test_support::definitions(&[]);
+        std::sync::Arc::get_mut(&mut definitions)
+            .unwrap()
+            .player_levels = vec![1000.0; crate::resources::PLAYER_LEVELS];
+        let observer = || {
+            let mut engine = e::Engine::new(e::Mode::Assisted);
+            let opened = engine.handle(e::Input::User {
+                at: e::At(0),
+                request: e::RequestKey(1),
+                command: e::Command::Open,
+            });
+            let session = opened
+                .io
+                .iter()
+                .find_map(|effect| match effect {
+                    e::Effect::Open { session, .. } => Some(*session),
+                    _ => None,
+                })
+                .unwrap();
+            let profile = VerifiedProfile {
+                first_host: "127.0.0.1".into(),
+                first_port: 1234,
+                marker: Zeroizing::new("fixture".into()),
+                client_version: Zeroizing::new(vec![0; 4]),
+                definitions: Some(definitions.clone()),
+            };
+            GameObserver::new(session, profile)
+        };
+        let key = ConnectionKey(1);
+        let login = crate::codec::OpcodeMap::current(b"c2s")
+            .encode(4, 0, &[0; 14])
+            .unwrap();
+        let header: [u8; 6] = login[..6].try_into().unwrap();
+        let incoming = crate::codec::OpcodeMap::current(b"s2c");
+        let mut profile = vec![0; 69];
+        profile[17] = b'S';
+        let frames: Vec<_> = [
+            (5, vec![]),
+            (679, profile),
+            (230, vec![0; 10]),
+            (233, vec![0; 251]),
+        ]
+        .into_iter()
+        .map(|(opcode, payload)| incoming.encode(opcode, 0, &payload).unwrap())
+        .collect();
+        let log_in = |observer: &mut GameObserver| {
+            observer
+                .connect(ObserverContext::checked(ORIGIN, crate::BUILD, key).unwrap())
+                .unwrap();
+            observer.notice_game_login(key, header).unwrap();
+        };
+        let bind = |observer: &mut GameObserver| {
+            observer
+                .bind_page(crate::PageBinding::new(7, "a".repeat(32)).unwrap())
+                .unwrap();
+        };
+        let maxima = |observer: &GameObserver| {
+            let r = observer.readiness();
+            [
+                r.hp_maximum_known,
+                r.mp_maximum_known,
+                r.weight_maximum_known,
+            ]
+        };
+        // The native stream proves them; binding a page afterwards withdraws them at once.
+        let mut native = observer();
+        log_in(&mut native);
+        for frame in &frames {
+            native
+                .observe_binary(key, ObservedDirection::Inbound, frame)
+                .unwrap();
+        }
+        assert!(native.readiness().own_baseline_seen);
+        assert_eq!(maxima(&native), [true; 3]);
+        bind(&mut native);
+        assert_eq!(maxima(&native), [false; 3]);
+        // A page bound before the game login, or during startup, never proves them.
+        for bind_first in [true, false] {
+            let mut paged = observer();
+            let mut sequence = 0;
+            let mut raw_ingress = 0;
+            let mut ingest = |observer: &mut GameObserver,
+                              kind: &str,
+                              fields: serde_json::Value| {
+                sequence += 1;
+                raw_ingress = raw_ingress.max(fields["ingress"].as_u64().unwrap_or(0));
+                let mut value = json!({"channel":"opentrickster.net.v1","epoch":"7","guard":"a".repeat(32),"sequence":sequence,"rawIngress":raw_ingress,"kind":kind});
+                value
+                    .as_object_mut()
+                    .unwrap()
+                    .extend(fields.as_object().unwrap().clone());
+                observer
+                    .ingest_page(ORIGIN, &value.to_string(), std::time::Instant::now())
+                    .unwrap();
+            };
+            if bind_first {
+                bind(&mut paged);
+                ingest(&mut paged, "socket", json!({"connection":1}));
+                ingest(
+                    &mut paged,
+                    "game-login",
+                    json!({"connection":1,"ingress":1,"header":header}),
+                );
+            } else {
+                log_in(&mut paged);
+                bind(&mut paged);
+            }
+            for (i, frame) in frames.iter().enumerate() {
+                ingest(
+                    &mut paged,
+                    "frame",
+                    json!({"connection":1,"direction":"inbound","ingress":i+2,"ageMs":0,"data":STANDARD.encode(frame)}),
+                );
+            }
+            ingest(&mut paged, "frontier", json!({"ingress":5,"ageMs":0}));
+            assert!(paged.readiness().own_baseline_seen);
+            assert_eq!(maxima(&paged), [false; 3]);
+        }
     }
     #[test]
     fn socket_free_frontier_releases_baseline_and_preserves_original_age() {

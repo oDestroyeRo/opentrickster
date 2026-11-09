@@ -1,5 +1,6 @@
 //! `CharacterStatus.Total` for maximum HP (stat 9), MP (stat 3) and weight (stat 6) on
-//! build ea1a68bd. docs/research/derived-resource-maxima.md cites every input.
+//! build ea1a68bd. `crate::parts` supplies the `GameParts` term.
+//! docs/research/derived-resource-maxima.md cites every input.
 use crate::{Result, codec::Packet, wire::Reader};
 use opentrickster_engine::Gauge;
 use std::num::NonZeroU32;
@@ -9,12 +10,6 @@ type Values = [i32; STATS];
 type Nullable = [Option<i32>; STATS];
 /// The public player level table: 999 levels x 12 stats x 3 columns.
 pub(crate) const PLAYER_LEVELS: usize = 999 * STATS * 3;
-
-/// `AvatarStats.Part`, the `GameParts` term. The client attaches it only after an
-/// asynchronous UI install, and its equipment snapshot, set bonuses and imprint bonus
-/// are not proven from packets. Every derived maximum therefore stays unknown, and only
-/// a received S282 total is reported.
-const GAME_PARTS: Option<Values> = None;
 
 /// The client's `CharacterStatus` inputs, applied in arrival order. Frames through the
 /// startup cutoff H are the client's StartSet, which `CharacterStatus` reads only through
@@ -51,6 +46,14 @@ impl Status {
     pub(crate) fn startup(&mut self, cutoff: u64) {
         self.cutoff = Some(cutoff);
     }
+    /// Whether a frame belongs to the StartSet, at or before H.
+    pub(crate) fn in_start_set(&self, mark: u64) -> bool {
+        self.cutoff.is_none_or(|cutoff| mark <= cutoff)
+    }
+    /// Whether the StartSet is complete once this frame is applied.
+    pub(crate) fn closes_start_set(&self, mark: u64) -> bool {
+        self.cutoff.is_some_and(|cutoff| mark >= cutoff)
+    }
     pub(crate) fn observe(&mut self, p: &Packet) -> Result<()> {
         let values = match p.opcode {
             282 | 283 => Some(indexed(&p.payload)?),
@@ -68,12 +71,12 @@ impl Status {
             | 246 | 260 | 843 | 68 => self.totals = [None; STATS],
             _ => {}
         }
-        if self.cutoff.is_none_or(|cutoff| p.mark <= cutoff) {
+        if self.in_start_set(p.mark) {
             self.start(p);
         } else {
             self.live(p, values.as_deref());
         }
-        if self.start_pending && self.cutoff.is_some_and(|cutoff| p.mark >= cutoff) {
+        if self.start_pending && self.closes_start_set(p.mark) {
             self.start_pending = false;
             self.recompute(true);
         }
@@ -194,11 +197,17 @@ impl Status {
         };
         Some(base.wrapping_add(self.buffs[stat]).wrapping_add(aura[stat]))
     }
-    /// A received S282 total, else `CharacterStatus.Total` when every term is proven.
-    pub(crate) fn maximum(&self, stat: usize, player: Option<&[f64]>) -> Option<NonZeroU32> {
+    /// A received S282 total, else `CharacterStatus.Total` with `GameParts` term `parts`
+    /// when every term is proven.
+    pub(crate) fn maximum(
+        &self,
+        stat: usize,
+        player: Option<&[f64]>,
+        parts: Option<i32>,
+    ) -> Option<NonZeroU32> {
         let total = match self.totals[stat] {
             Some(total) => total,
-            None => GAME_PARTS?[stat].wrapping_add(self.core(stat, player?)?),
+            None => parts?.wrapping_add(self.core(stat, player?)?),
         };
         u32::try_from(total).ok().and_then(NonZeroU32::new)
     }
@@ -314,32 +323,42 @@ mod tests {
     #[test]
     fn totals_are_nullable_partial_and_invalidated_by_recompute() {
         let mut t = Status::default();
-        assert!(gauge(80, t.maximum(9, None)).maximum.is_none());
+        assert!(gauge(80, t.maximum(9, None, None)).maximum.is_none());
         let mut bytes = indexed_payload(&[(9, 100), (3, 50)]);
         t.observe(&p(282, 1, bytes.clone())).unwrap();
-        assert_eq!(gauge(120, t.maximum(9, None)).current, 100);
-        assert_eq!(t.maximum(3, None).unwrap().get(), 50);
-        assert!(t.maximum(6, None).is_none());
+        assert_eq!(gauge(120, t.maximum(9, None, None)).current, 100);
+        assert_eq!(t.maximum(3, None, None).unwrap().get(), 50);
+        assert!(t.maximum(6, None, None).is_none());
         bytes.pop();
         assert!(t.observe(&p(282, 1, bytes)).is_err());
-        assert_eq!(t.maximum(9, None).unwrap().get(), 100);
+        assert_eq!(t.maximum(9, None, None).unwrap().get(), 100);
         t.observe(&p(283, 1, vec![0])).unwrap();
-        assert!(t.maximum(9, None).is_none());
+        assert!(t.maximum(9, None, None).is_none());
         t.observe(&p(282, 1, indexed_payload(&[(9, -1)]))).unwrap();
-        assert!(t.maximum(9, None).is_none());
+        assert!(t.maximum(9, None, None).is_none());
     }
     #[test]
-    fn a_received_total_wins_and_game_parts_keep_derived_maxima_unknown() {
+    fn a_received_total_wins_over_game_parts_plus_core() {
         let mut status = started();
         let table = table();
         assert_eq!(core(&status), [Some(2009), Some(2003), Some(2006)]);
-        for stat in [9, 3, 6] {
-            assert!(status.maximum(stat, Some(&table)).is_none());
-        }
+        let derived = |status: &Status, parts| {
+            [9, 3, 6].map(|stat| status.maximum(stat, Some(&table), parts).map(|v| v.get()))
+        };
+        assert_eq!(derived(&status, None), [None; 3]);
+        assert_eq!(
+            derived(&status, Some(-9)),
+            [Some(2000), Some(1994), Some(1997)]
+        );
+        assert_eq!(derived(&status, Some(-2009)), [None, None, None]);
+        assert!(status.maximum(9, None, Some(1)).is_none());
         let total = indexed_payload(&[(9, 500)]);
         status.observe(&p(282, H + 1, total)).unwrap();
-        assert_eq!(status.maximum(9, Some(&table)).unwrap().get(), 500);
-        assert!(status.maximum(3, Some(&table)).is_none());
+        assert_eq!(derived(&status, None), [Some(500), None, None]);
+        assert_eq!(
+            derived(&status, Some(1)),
+            [Some(500), Some(2004), Some(2007)]
+        );
     }
     #[test]
     fn the_level_table_base_needs_points_and_the_whole_table() {

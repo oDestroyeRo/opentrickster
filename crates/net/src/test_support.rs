@@ -163,6 +163,7 @@ pub(crate) fn definitions(
             exist_type,
             life: 0,
             ftype: 0,
+            stat_plus: Some(vec![0.0; 12]),
         }
     };
     std::sync::Arc::new(GameDefinitions {
@@ -177,6 +178,7 @@ pub(crate) fn definitions(
         zone_labels: BTreeMap::new(),
         normal_form_effects: Vec::new(),
         player_levels: Vec::new(),
+        set_bonuses: Some(BTreeMap::new()),
     })
 }
 

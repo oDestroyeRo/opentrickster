@@ -61,6 +61,7 @@ mod input_flow;
 mod observer;
 mod ordered;
 mod page;
+mod parts;
 mod profile;
 mod resources;
 mod sampler;
