@@ -9,18 +9,23 @@ use zeroize::Zeroizing;
 
 /// Inbound opcodes the page forwards. They include the `CharacterStatus` and `GameParts`
 /// inputs of derived maxima (docs/research/derived-resource-maxima.md) and the login-time
-/// 1487 and 1489, whose handlers `Parts` is to model.
+/// 1487 and 1489, whose handlers `Parts` models.
 pub(crate) const INCOMING: &[u16] = &[
     5, 159, 679, 230, 233, 7, 8, 9, 6, 15, 16, 21, 24, 25, 26, 27, 729, 36, 37, 38, 1030, 286, 289,
     43, 42, 231, 561, 160, 770, 262, 246, 260, 843, 68, 82, 85, 41, 10, 11, 12, 13, 14, 617, 34,
     45, 46, 371, 50, 1951, 1952, 512, 518, 521, 31, 485, 1438, 32, 310, 525, 39, 109, 110, 271,
-    282, 283, 523, 437, 586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 32572,
+    282, 283, 523, 437, 586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 629, 634, 649, 784, 1070,
+    837, 1386, 1387, 1487, 1489, 1065, 1071, 1389, 32572,
 ];
-/// Inputs whose arrival alone matters. Only their header crosses IPC. The inventory inputs
-/// without a decoder grammar invalidate reported carried weight (`decode::UNDECODED_INVENTORY`).
-/// Season-pass progress 32572 carries no character state; its arrival shows that the game link
-/// is delivering frames (docs/research/pass-progress-liveness.md).
-pub(crate) const HEADER_ONLY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151, 32572];
+/// Inputs whose arrival alone matters. Only their header crosses IPC: the inventory inputs
+/// without a decoder grammar invalidate reported carried weight
+/// (`decode::UNDECODED_INVENTORY`, whose 151 crosses whole for `GameParts`), and the aura
+/// and imprint recomputes never read their payload. Season-pass progress 32572 carries no
+/// character state; its arrival shows that the game link is delivering frames
+/// (docs/research/pass-progress-liveness.md).
+pub(crate) const HEADER_ONLY: &[u16] = &[
+    586, 590, 1152, 587, 599, 601, 261, 86, 35, 1065, 1071, 1389, 32572,
+];
 pub(crate) const OUTGOING: &[u16] = &[24, 288, 29, 477, 44, 48, 49];
 
 /// Inbound opcodes whose payload never crosses IPC. Besides the startup verdicts, the group
