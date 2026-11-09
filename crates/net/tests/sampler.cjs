@@ -793,7 +793,14 @@ if (process.argv.some(a => ["--snapshot", "--stale-zoom", "--fresh-zoom"].includ
   const otherInfo = h => h.set(h.object(INFO), {Id: 8003n, Type: 2});
   const infoMap = ({h, p}) => h.get(p.gun, "infos"), infoEntries = f => f.h.get(f.h.get(infoMap(f), "slots"), "_entries");
   assert.equal(check("ItemMap id behind its bucket chain", ({h, p}) => h.set(p.gun, "infos", h.itemMap([p.toolInfo, otherInfo(h)])), "ready").dig.toolUsable, true);
-  check("item id missing from the ItemMap", ({h, p}) => h.set(p.gun, "infos", h.itemMap([otherInfo(h)])), "unavailable", "cold");
+  const unknown = check("worn item ids missing from the ItemMap", ({h, p}) => {
+    const item = h.set(h.object(ITEM), {Uid: 502n, ItemId: 9000n, Count: 1});
+    h.set(p.slots, "[1]", 502n);
+    h.set(p.inv, "byUid", h.orderedMap(U64, ITEM, [[501n, p.tool], [502n, item]]));
+    h.set(p.gun, "infos", h.itemMap([otherInfo(h)]));
+  }, "ready");
+  assert.equal(unknown.combat.gunWorn, false);
+  assert.equal(unknown.dig.toolUsable, false);
   check("ItemMap slot past its count", f => f.h.set(infoEntries(f), "[0].value", 1), "unavailable", "generic");
   check("ItemMap row of another id", f => f.h.set(f.h.get(infoMap(f), "rows"), "[0]", otherInfo(f.h)), "unavailable", "generic");
   check("ItemMap slots with a custom comparer", f => f.h.set(f.h.get(infoMap(f), "slots"), "_comparer", f.p.toolInfo), "unavailable", "generic");

@@ -451,8 +451,9 @@
     const items = object(pointer(gun + 28),6764), itemCount = integer(i32(items + 12),0,1048576), rows = array(pointer(items + 8),4,1048576,6759);
     if (itemCount > rows.count) unavailable("generic");
     const itemIds = new Set([...needed.values()].map(v => v.id)), infos = new Map();
+    // The map is complete before GunFlowing exists. GunFlowing.HoldsGun f24383 and DrillFeature.get_WornDrill f20238
+    // treat an id it lacks as no gun and no drill.
     const found = findLongs(pointer(items + 16),9023,1048576,methodCell(3297464),itemIds);
-    if (found.size !== itemIds.size) unavailable("cold");
     for (const [id, slot] of found) {
       const index = i32(slot);
       if (index < 0 || index >= itemCount) unavailable("generic");
@@ -461,7 +462,7 @@
       infos.set(id,{type:i32(info + 24),subtype:i32(info + 28)});
     }
     const itemAt = slot => needed.get(u64(slots.data + slot * 8)) || null;
-    const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id).subtype === 54; });
+    const gunWorn = [4,9,1,22].some(s => { const item = itemAt(s); return item && infos.get(item.id)?.subtype === 54; });
     const pet = itemAt(8), data = drill && object(pointer(drill + 12),6228);
     const wornTool = itemAt(7);
     let usableTool = false, equippedParam = null;
@@ -469,7 +470,7 @@
       object(p,6225);
       return {id:u64(p+8),grade:i32(p+16),nature:i32(p+20),depth:i32(p+24),area:i32(p+28),speed:i32(p+32),mass:i32(p+36),life:i32(p+40)};
     };
-    if (drill && wornTool && infos.get(wornTool.id).type === 6 && wornTool.count > 0) {
+    if (drill && wornTool && infos.get(wornTool.id)?.type === 6 && wornTool.count > 0) {
       const rows = dictionary(pointer(data+8),9024,6225,512);
       const matching = rows.filter(row => u64(row.key) === wornTool.id);
       if (matching.length !== 1) unavailable("cold");
