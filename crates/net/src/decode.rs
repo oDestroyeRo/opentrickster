@@ -32,6 +32,45 @@ const INVENTORY_DELTAS: [u16; 8] = [561, 160, 770, 262, 246, 260, 843, 68];
 /// 518/521 (slot 20), 82/85 (slots), 83 (refusal) and 41 (Galder) leave carried weight alone.
 /// The page bridge forwards each of them, header-only except 151, whose UID `GameParts` reads.
 const UNDECODED_INVENTORY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151];
+/// `MoveSpeeds` defaults (f26839) in px/s. A zone record can replace them without a frame.
+const WALK_PX_S: f64 = 115.0;
+const RUN_PX_S: f64 = 184.0;
+
+/// The own walk as the client runs it. After an echo the client walks to the server's
+/// destination locally and sends nothing when its path empties.
+#[derive(Clone, Copy)]
+enum Walk {
+    /// An own move request that no own move frame has answered. The gun counts it as walking.
+    Requested,
+    /// An own 24/26, and the MoveTo target this echo accepted.
+    Echoed {
+        to: e::Point,
+        target: Option<e::Point>,
+        mark: u64,
+        /// When the client would end the walk. This is an estimate, never proof.
+        due: std::time::Instant,
+    },
+}
+
+/// The client's walk time on a straight path (`FollowServerMove` f38516, `Update` f26885),
+/// plus an unproven allowance for its grid path: 9/8 of the length, 32 px and two frames.
+fn walk_time(
+    actor: Option<e::Point>,
+    from: e::Point,
+    to: e::Point,
+    mode: u8,
+    speed: Option<u16>,
+) -> std::time::Duration {
+    let distance = |a: e::Point, b: e::Point| f64::from(a.x - b.x).hypot(f64::from(a.y - b.y));
+    // Beyond 320 px the client first places the actor on the echo's start.
+    let actor = actor
+        .filter(|a| distance(*a, from) <= 320.0)
+        .unwrap_or(from);
+    let length = distance(actor, from) + distance(from, to);
+    let speed = speed.map_or(if mode == 2 { RUN_PX_S } else { WALK_PX_S }, f64::from);
+    let ms = ((length * 9.0 / 8.0 + 32.0) * 1000.0 / speed).ceil() as u64;
+    std::time::Duration::from_millis(ms + 32)
+}
 
 pub(crate) fn text(s: String) -> Result<e::DisplayText> {
     if s.len() > 256 || s.chars().any(char::is_control) {
@@ -82,6 +121,8 @@ struct PendingAction {
     mark: u64,
     ended: bool,
     outcome: bool,
+    /// An own move frame after the request already answered this MoveTo.
+    moved: bool,
 }
 pub(crate) struct DeferredFacts {
     pub(crate) mark: u64,
@@ -196,8 +237,9 @@ pub(crate) struct Decoder {
     gun_slots: [u64; 23],
     /// 82/85 arrived before construction; the client's replayed equipment omits them.
     gun_diverged: bool,
-    /// Destination of an own walk that no own stop has ended.
-    walk: Option<e::Point>,
+    walk: Option<Walk>,
+    /// Own `Speed` from 472 in px/s. None uses the mode's default.
+    speed: Option<u16>,
     learned: Option<BTreeSet<u16>>,
     zone: Option<u16>,
     dig_active: bool,
@@ -261,6 +303,7 @@ impl Decoder {
             gun_slots: [0; 23],
             gun_diverged: false,
             walk: None,
+            speed: None,
             learned: None,
             zone: None,
             dig_active: false,
@@ -507,11 +550,16 @@ impl Decoder {
                 floor: mark,
             });
         }
+        // An echo answers only the request it followed. The assisted path arms no walk.
+        if let Some(Walk::Echoed { target, .. }) = &mut self.walk {
+            *target = None;
+        }
         self.pending = Some(PendingAction {
             action,
             mark,
             ended: gun,
             outcome: false,
+            moved: false,
         });
         Ok(())
     }
@@ -522,6 +570,10 @@ impl Decoder {
     pub(crate) fn expire_action(&mut self) {
         self.pending = None;
         self.combat.clear();
+        // A request no frame answered starts no walk. A later echo is the server's own walk.
+        if matches!(self.walk, Some(Walk::Requested)) {
+            self.walk = None;
+        }
     }
     pub(crate) fn physical_uncertain(&self) -> bool {
         self.physical_uncertain
@@ -705,6 +757,8 @@ impl Decoder {
                 self.own = Some(own);
                 self.parts.clock(own, live);
                 self.point = Some(point);
+                self.walk = None;
+                self.speed = None;
                 self.clock_seen = true;
                 if let Some(map) = self.map {
                     out.push(Fact::Position { map, point });
@@ -862,9 +916,15 @@ impl Decoder {
             }
             24..=27 | 729 => {
                 let id = r.u16()?;
-                if matches!(p.opcode, 24 | 26) {
-                    r.take(4)?;
-                }
+                // ParseMove (f11867) reads the server's start for 24 and 26 only.
+                let from = if matches!(p.opcode, 24 | 26) {
+                    Some(e::Point {
+                        x: r.u16()? as i32,
+                        y: r.u16()? as i32,
+                    })
+                } else {
+                    None
+                };
                 let point = e::Point {
                     x: r.u16()? as i32,
                     y: r.u16()? as i32,
@@ -875,26 +935,60 @@ impl Decoder {
                     if !self.native_walk {
                         self.mode = Some(mode);
                     }
-                    self.point = Some(point);
-                    // 24/26 start a walk to this destination; 25/27 stop it.
-                    self.walk = matches!(p.opcode, 24 | 26).then_some(point);
+                    let actor = self.point.replace(point);
                     if let Some(map) = self.map {
                         out.push(Fact::Position { map, point });
                     }
-                    if matches!(p.opcode, 25 | 27) && self.pending.as_ref().is_some_and(|pending| {
-                        p.mark > pending.mark
-                            && matches!(pending.action,e::Action::MoveTo(target) if target==point)
-                    }) {
-                        self.pending = None;
-                        out.push(Fact::Outcome(e::Outcome::Arrived(point)));
+                    // The first own move frame after a MoveTo request answers it.
+                    let answered = self
+                        .pending
+                        .as_mut()
+                        .and_then(|pending| match pending.action {
+                            e::Action::MoveTo(target)
+                                if p.mark > pending.mark && !pending.moved =>
+                            {
+                                pending.moved = true;
+                                Some(target)
+                            }
+                            _ => None,
+                        });
+                    if let Some(from) = from {
+                        // The destination is not an arrival: the client walks there locally.
+                        self.walk = Some(Walk::Echoed {
+                            to: point,
+                            target: answered,
+                            mark: p.mark,
+                            due: p.received + walk_time(actor, from, point, mode, self.speed),
+                        });
+                    } else {
+                        // The client applies an own stop at once (ApplyHeldStop f20917). Only a
+                        // stop on the accepted destination, or on the target it answers, arrives.
+                        let accepted = match self.walk.take() {
+                            Some(Walk::Echoed { to, target, .. }) if to == point => target,
+                            _ => None,
+                        };
+                        if let Some(target) = accepted.or(answered.filter(|t| *t == point))
+                            && self.arrive(target)
+                        {
+                            out.push(Fact::Outcome(e::Outcome::Arrived { target, at: point }));
+                        }
                     }
-                    // A destination in a movement packet is not proof of arrival or idle.
                 }
                 if let Some(a) = self.actors.get_mut(&id) {
                     a.point = point;
                 }
                 if let Some(f) = self.entity(id)? {
                     out.push(f);
+                }
+            }
+            472 if self.native_walk => {
+                // ParseMoveSpeed (f11868). Its handler (f38368) sets Speed to U8 × 4 px/s, or
+                // clears it for zero. Only the native walk estimate reads it; the page does not
+                // forward 472, because the assisted path ends a walk from the sample.
+                let id = r.u16()?;
+                let speed = r.u8()?;
+                if Some(id) == self.own {
+                    self.speed = (speed > 0).then(|| u16::from(speed) * 4);
                 }
             }
             36 | 37 => {
@@ -1236,6 +1330,8 @@ impl Decoder {
                 self.own = Some(own);
                 self.parts.enter_zone(own, live);
                 self.point = Some(point);
+                self.walk = None;
+                self.speed = None;
                 self.map = None;
                 self.zone = None;
                 self.stats_seen = false;
@@ -1565,8 +1661,50 @@ impl Decoder {
         self.gun.shoot(target, mode).ok_or(NetError::Unsupported)
     }
     /// An own move request starts a walk before its echo arrives.
-    pub(crate) fn walking(&mut self, to: e::Point) {
-        self.walk = Some(to);
+    pub(crate) fn walking(&mut self) {
+        self.walk = Some(Walk::Requested);
+    }
+    /// The echoed own walk: its destination, the echo's mark and the estimated native end.
+    pub(crate) fn walk_end(&self) -> Option<(e::Point, u64, std::time::Instant)> {
+        match self.walk {
+            Some(Walk::Echoed { to, mark, due, .. }) => Some((to, mark, due)),
+            _ => None,
+        }
+    }
+    /// The client ended the echoed walk, on its destination when `arrived`. Only an echo that
+    /// accepted the pending MoveTo then arrives, reported under the echo's mark.
+    pub(crate) fn end_walk(&mut self, arrived: bool, received: std::time::Instant) {
+        let Some(Walk::Echoed {
+            to, target, mark, ..
+        }) = self.walk
+        else {
+            return;
+        };
+        self.walk = None;
+        if let Some(target) = target
+            && arrived
+            && self.arrive(target)
+        {
+            self.correlated.push(DeferredFacts {
+                mark,
+                received,
+                facts: vec![Fact::Outcome(e::Outcome::Arrived { target, at: to })],
+            });
+        }
+    }
+    /// No own walk waits for its echo or is still running.
+    pub(crate) fn walk_settled(&self) -> bool {
+        self.walk.is_none()
+    }
+    fn arrive(&mut self, target: e::Point) -> bool {
+        let pending = self
+            .pending
+            .as_ref()
+            .is_some_and(|p| p.action == e::Action::MoveTo(target));
+        if pending {
+            self.pending = None;
+        }
+        pending
     }
     /// A native dig begins (`DrillBegin`, f24412) or ends (`DrillEnd`, f24413).
     pub(crate) fn drilling(&mut self, active: bool) {
@@ -2355,6 +2493,180 @@ mod tests {
             );
         }
     }
+    /// Own 321 placed at (100, 200) under the native walk policy.
+    fn walker() -> Decoder {
+        let mut d = Decoder::new();
+        d.use_native_walk_policy();
+        let mut clock = vec![0; 4];
+        for n in [321u16, 100, 200] {
+            clock.extend_from_slice(&n.to_le_bytes());
+        }
+        d.apply(&packet(230, clock)).unwrap();
+        d.apply(&packet(233, vec![0; 251])).unwrap();
+        d
+    }
+    /// An own 24 from `from` to `to`, or an own 25 at `to` without a start.
+    fn own_move(mark: u64, from: Option<(u16, u16)>, to: (u16, u16)) -> Packet {
+        let mut words = vec![321u16];
+        words.extend(from.map(|(x, y)| [x, y]).into_iter().flatten());
+        words.extend([to.0, to.1]);
+        let mut payload: Vec<u8> = words.into_iter().flat_map(u16::to_le_bytes).collect();
+        payload.push(1);
+        let mut p = packet(if from.is_some() { 24 } else { 25 }, payload);
+        p.mark = mark;
+        p
+    }
+    /// Arrivals in `facts` and in the deferred facts after ending any echoed walk on its
+    /// destination when its estimate is due.
+    fn arrivals(d: &mut Decoder, facts: Vec<Fact>) -> Vec<e::Outcome> {
+        if let Some((_, _, due)) = d.walk_end() {
+            d.end_walk(true, due);
+        }
+        facts
+            .into_iter()
+            .chain(d.take_correlated().into_iter().flat_map(|c| c.facts))
+            .filter_map(|f| match f {
+                Fact::Outcome(o @ e::Outcome::Arrived { .. }) => Some(o),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_echo_accepts_a_move_that_arrives_when_the_client_would_stop() {
+        let mut d = walker();
+        let target = e::Point { x: 140, y: 200 };
+        d.expect_action(e::Action::MoveTo(target), 10, false)
+            .unwrap();
+        d.walking();
+        // The server ends the walk 4 px short and sends no stop.
+        let echo = own_move(11, Some((100, 200)), (136, 200));
+        let facts = d.apply(&echo).unwrap();
+        assert!(!facts.iter().any(|f| matches!(f, Fact::Outcome(_))));
+        assert!(d.action_pending() && !d.walk_settled());
+        let end = e::Point { x: 136, y: 200 };
+        let (to, mark, due) = d.walk_end().unwrap();
+        assert_eq!((to, mark), (end, 11));
+        // ceil((36 * 9/8 + 32) * 1000 / 115) + 32 ms at the default walk speed.
+        assert_eq!(due - echo.received, std::time::Duration::from_millis(663));
+        d.end_walk(true, due);
+        let deferred = d.take_correlated();
+        assert_eq!(deferred.len(), 1);
+        assert_eq!(deferred[0].mark, 11);
+        assert!(matches!(
+            deferred[0].facts.as_slice(),
+            [Fact::Outcome(o)] if *o == e::Outcome::Arrived { target, at: end }
+        ));
+        assert!(!d.action_pending() && d.walk_settled());
+        // Own 472 sets Speed to 50 * 4 px/s.
+        d.apply(&packet(472, vec![0x41, 0x01, 50])).unwrap();
+        let echo = own_move(12, Some((136, 200)), (172, 200));
+        d.apply(&echo).unwrap();
+        let due = d.walk_end().unwrap().2;
+        assert_eq!(
+            due - echo.received,
+            std::time::Duration::from_millis(363 + 32)
+        );
+        d.end_walk(true, due);
+        // More than 320 px from the client's actor, the walk starts at the echo's start.
+        let echo = own_move(13, Some((600, 200)), (636, 200));
+        d.apply(&echo).unwrap();
+        let due = d.walk_end().unwrap().2;
+        assert_eq!(
+            due - echo.received,
+            std::time::Duration::from_millis(363 + 32)
+        );
+        // A zero speed clears the override.
+        d.apply(&packet(472, vec![0x41, 0x01, 0])).unwrap();
+        let echo = own_move(14, Some((636, 200)), (672, 200));
+        d.apply(&echo).unwrap();
+        let due = d.walk_end().unwrap().2;
+        assert_eq!(due - echo.received, std::time::Duration::from_millis(663));
+    }
+
+    #[test]
+    fn a_refused_or_diverted_move_never_arrives() {
+        let target = e::Point { x: 140, y: 200 };
+        let start = |d: &mut Decoder| {
+            d.expect_action(e::Action::MoveTo(target), 10, false)
+                .unwrap();
+            d.walking();
+        };
+        // Refused by a stop where the character stands. A later echo is the server's own walk.
+        let mut d = walker();
+        start(&mut d);
+        let mut facts = d.apply(&own_move(11, None, (100, 200))).unwrap();
+        facts.extend(
+            d.apply(&own_move(12, Some((100, 200)), (140, 200)))
+                .unwrap(),
+        );
+        assert!(arrivals(&mut d, facts).is_empty());
+        assert!(d.action_pending());
+        // Diverted by a second echo.
+        let mut d = walker();
+        start(&mut d);
+        let mut facts = d
+            .apply(&own_move(11, Some((100, 200)), (136, 200)))
+            .unwrap();
+        facts.extend(
+            d.apply(&own_move(12, Some((136, 200)), (150, 220)))
+                .unwrap(),
+        );
+        assert!(arrivals(&mut d, facts).is_empty());
+        assert!(d.action_pending());
+        // Diverted by a stop short of the accepted destination.
+        let mut d = walker();
+        start(&mut d);
+        let mut facts = d
+            .apply(&own_move(11, Some((100, 200)), (136, 200)))
+            .unwrap();
+        facts.extend(d.apply(&own_move(12, None, (120, 200))).unwrap());
+        assert!(d.walk_settled());
+        assert!(arrivals(&mut d, facts).is_empty());
+        assert!(d.action_pending());
+        // Unanswered until the window closed. A late echo is the server's own walk.
+        let mut d = walker();
+        start(&mut d);
+        d.expire_action();
+        assert!(d.walk_settled());
+        let facts = d
+            .apply(&own_move(12, Some((100, 200)), (136, 200)))
+            .unwrap();
+        assert!(!d.walk_settled());
+        assert!(arrivals(&mut d, facts).is_empty());
+        // An expired move's echo never answers the next request to the same target, whether
+        // its walk ends or a stop lands on its destination.
+        for stop in [false, true] {
+            let mut d = walker();
+            d.expect_action(e::Action::MoveTo(target), 10, false)
+                .unwrap();
+            let mut facts = d
+                .apply(&own_move(11, Some((100, 200)), (136, 200)))
+                .unwrap();
+            d.expire_action();
+            d.expect_action(e::Action::MoveTo(target), 20, false)
+                .unwrap();
+            if stop {
+                facts.extend(d.apply(&own_move(21, None, (136, 200))).unwrap());
+            }
+            assert!(arrivals(&mut d, facts).is_empty());
+            assert!(d.action_pending());
+        }
+        // A stop on the accepted destination ends the walk there at once.
+        let mut d = walker();
+        start(&mut d);
+        let mut facts = d
+            .apply(&own_move(11, Some((100, 200)), (136, 200)))
+            .unwrap();
+        facts.extend(d.apply(&own_move(12, None, (136, 200))).unwrap());
+        let end = e::Point { x: 136, y: 200 };
+        assert_eq!(
+            arrivals(&mut d, facts),
+            [e::Outcome::Arrived { target, at: end }]
+        );
+        assert!(!d.action_pending() && d.walk_settled());
+    }
+
     #[test]
     fn native_walk_and_pending_actions_require_own_source_evidence() {
         let mut d = Decoder::new();
@@ -2382,12 +2694,9 @@ mod tests {
         payload.push(2);
         let mut stop = packet(25, payload);
         stop.mark = 12;
-        assert!(
-            d.apply(&stop)
-                .unwrap()
-                .iter()
-                .any(|f| matches!(f,Fact::Outcome(e::Outcome::Arrived(p)) if *p==to))
-        );
+        assert!(d.apply(&stop).unwrap().iter().any(
+            |f| matches!(f,Fact::Outcome(e::Outcome::Arrived{target,at}) if *target==to && *at==to)
+        ));
         assert!(!d.action_pending());
         assert_eq!(
             *d.move_payload(e::Point { x: 200, y: 300 })

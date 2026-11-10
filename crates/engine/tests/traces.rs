@@ -297,6 +297,42 @@ fn combat_attacks_counts_once_and_loots_with_separate_inventory() {
 }
 
 #[test]
+fn an_adjusted_move_confirms_at_the_server_end_and_digs_there() {
+    let mut h = Harness::with(true, support(), baseline(), None);
+    let start = h.command(Command::Start);
+    let id = acts(&start)[0].id;
+    assert_eq!(acts(&start)[0].action, Action::DigAt(center()));
+    h.sent(id);
+    h.facts(vec![Fact::DigAccepted, Fact::DigSpot(center())]);
+    let first = h.facts(vec![Fact::Outcome(Outcome::DigEnded(DigEnd::Empty))]);
+    let movement = h.idle(&first);
+    let ticket = acts(&movement)[0];
+    let Action::MoveTo(target) = ticket.action else {
+        panic!("move to the next bounded point");
+    };
+    h.sent(ticket.id);
+    // The server's echo ends the walk 4 px short of the target it was asked for.
+    let end = Point {
+        x: target.x - 4,
+        y: target.y,
+    };
+    let echoed = h.facts(vec![Fact::Position {
+        map: MapKey(1),
+        point: end,
+    }]);
+    assert!(acts(&echoed).is_empty());
+    assert_eq!(echoed.snapshot.totals.confirmed, 1);
+    let arrival = h.facts(vec![Fact::Outcome(Outcome::Arrived { target, at: end })]);
+    assert_eq!(arrival.snapshot.totals.confirmed, 2);
+    let dig = h.idle(&arrival);
+    assert_eq!(
+        acts(&dig)[0].action,
+        Action::DigAt(end),
+        "dig where the server ended the walk instead of walking to the same target again"
+    );
+}
+
+#[test]
 fn repeated_dig_cycles_move_and_goal_uses_inventory_not_caption() {
     let mut h = Harness::with(
         true,
@@ -331,7 +367,10 @@ fn repeated_dig_cycles_move_and_goal_uses_inventory_not_caption() {
             map: MapKey(1),
             point,
         },
-        Fact::Outcome(Outcome::Arrived(point)),
+        Fact::Outcome(Outcome::Arrived {
+            target: point,
+            at: point,
+        }),
     ]);
     let dig = h.idle(&arrival);
     let id = acts(&dig)[0].id;

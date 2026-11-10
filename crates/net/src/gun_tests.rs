@@ -20,9 +20,11 @@ const TOWN: u16 = 41;
 const GUN: u32 = 9001;
 const AMMO: u32 = 9002;
 const COAT: u32 = 9004;
+const DRILL: u32 = 9005;
 const GUN_UID: u64 = 0x100;
 const AMMO_UID: u64 = 0x200;
 const COAT_UID: u64 = 0x300;
+const DRILL_UID: u64 = 0x400;
 pub(crate) const KEY: u16 = 0x55aa;
 /// GaugeSpeed 2000 reloads in 60 ms at speed 1; PowRange 1200 adds one Power per ms.
 pub(crate) const PROFILE: GunParams = GunParams {
@@ -59,6 +61,7 @@ pub(crate) fn definitions() -> Arc<GameDefinitions> {
         (GUN, info(2, 54, 0)),
         (AMMO, info(29, 1, 0)),
         (COAT, info(3, 0, 0)),
+        (DRILL, info(6, 0, 0)),
     ];
     Arc::new(GameDefinitions {
         item_types: rows
@@ -67,8 +70,25 @@ pub(crate) fn definitions() -> Arc<GameDefinitions> {
             .collect(),
         items: rows.into_iter().collect(),
         labels: BTreeMap::new(),
-        drills: BTreeMap::new(),
-        drill_meta: BTreeMap::new(),
+        drills: [(
+            DRILL,
+            crate::dig::Params {
+                area: 40,
+                speed: 100,
+                mass: 10,
+                limit: 100,
+                nature: 0,
+            },
+        )]
+        .into(),
+        drill_meta: [(
+            DRILL,
+            crate::definitions::DrillMeta {
+                grade: 1,
+                maximum_life: 300,
+            },
+        )]
+        .into(),
         gun_params: [(GUN, PROFILE)].into(),
         gun_slots: vec![4, 9, 1, 22],
         zones: [(ZONE, (2, 0)), (TOWN, (1, 0))].into(),
@@ -263,6 +283,26 @@ pub(crate) fn own_7_startup(fast: &[(u16, f32)]) -> Vec<(u16, Vec<u8>)> {
         }
     }
     packets
+}
+
+/// `startup` with a drill worn in slot 7 as well, for a native dig.
+pub(crate) fn drill_startup() -> Vec<(u16, Vec<u8>)> {
+    let mut frames = startup();
+    for (opcode, payload) in &mut frames {
+        match opcode {
+            231 => {
+                *payload = list(&[
+                    (2, GUN, GUN_UID, 1),
+                    (1, AMMO, AMMO_UID, 3),
+                    (2, COAT, COAT_UID, 1),
+                    (2, DRILL, DRILL_UID, 300),
+                ])
+            }
+            233 => *payload = stats(ZONE, &[(1, GUN_UID), (7, DRILL_UID), (20, AMMO_UID)]),
+            _ => {}
+        }
+    }
+    frames
 }
 
 struct Run {
@@ -642,7 +682,7 @@ fn walking_holds_the_reload_unless_learned() {
     // An own move request counts as walking before its echo.
     let mut run = Run::armed();
     run.d.gun_tick(0.0);
-    run.d.walking(e::Point { x: 1, y: 1 });
+    run.d.walking();
     run.d.gun_tick(RELOAD_MS * 3.0);
     assert!(!run.ready());
     let mut run = Run::started(with(startup(), 271, Some(learned(&[MOVE_SKILL])))).constructed();

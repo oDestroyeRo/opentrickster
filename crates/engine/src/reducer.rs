@@ -973,9 +973,11 @@ impl Engine {
         let mut arrived = None;
         for outcome in evidence.outcomes {
             match (pending.action, outcome) {
-                (Action::MoveTo(expected), Outcome::Arrived(actual)) if expected == actual => {
+                (Action::MoveTo(expected), Outcome::Arrived { target, at })
+                    if expected == target =>
+                {
                     confirmed = true;
-                    arrived = Some(actual);
+                    arrived = Some((target, at));
                 }
                 (Action::BasicAttack(expected), Outcome::OwnHit(actual))
                     if expected == actual
@@ -1037,8 +1039,9 @@ impl Engine {
         if let Some(key) = picked {
             self.book.mark_picked(key, evidence.ingress, evidence.at);
         }
-        if let Some(point) = arrived {
-            self.book.arrived(point, evidence.ingress, evidence.at);
+        if let Some((target, point)) = arrived {
+            self.book
+                .arrived(target, point, evidence.ingress, evidence.at);
         }
         if pending.terminal.is_some() {
             return;
@@ -1375,7 +1378,7 @@ fn blocker_pause(blocker: Blocker) -> Pause {
 
 fn outcome_matches(action: Action, outcome: Outcome) -> bool {
     match (action, outcome) {
-        (Action::MoveTo(expected), Outcome::Arrived(actual)) => expected == actual,
+        (Action::MoveTo(expected), Outcome::Arrived { target, .. }) => expected == target,
         (Action::BasicAttack(expected), Outcome::OwnHit(actual) | Outcome::OwnKill(actual)) => {
             expected == actual
         }

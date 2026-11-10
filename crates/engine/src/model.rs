@@ -351,13 +351,21 @@ pub enum Rejection {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
-    Arrived(Point),
+    /// The server accepted a MoveTo for `target`, and the walk ended at `at`. The server can
+    /// end it short of an unwalkable or unsnapped target.
+    Arrived {
+        target: Point,
+        at: Point,
+    },
     OwnHit(EntityKey),
     OwnKill(EntityKey),
     DigEnded(DigEnd),
     OwnPickup(DropKey),
     PotionUsed(StackKey),
-    Rejected { subject: Subject, reason: Rejection },
+    Rejected {
+        subject: Subject,
+        reason: Rejection,
+    },
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {

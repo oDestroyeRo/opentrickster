@@ -421,6 +421,31 @@ impl GameObserver {
             release_by,
         }))
     }
+    /// No frame reports the end of a walk. A sample taken after the echo shows it instead.
+    fn maybe_arrived(&mut self) -> Result<()> {
+        let (Some(sample), Some(decoder)) = (&self.sample, &mut self.decoder) else {
+            return Ok(());
+        };
+        let Some((to, mark, _)) = decoder.walk_end() else {
+            return Ok(());
+        };
+        let Some(at) = crate::sampler::walk_ended(sample).filter(|_| sample.raw_ingress >= mark)
+        else {
+            return Ok(());
+        };
+        decoder.end_walk(at == [f64::from(to.x), f64::from(to.y)], sample.captured);
+        for result in decoder.take_correlated() {
+            self.emit_at(
+                Event::Facts {
+                    revision: e::EvidenceKey((result.mark << 2) | 3),
+                    ingress: e::IngressMark(result.mark),
+                    facts: result.facts,
+                },
+                result.received,
+            )?;
+        }
+        Ok(())
+    }
     fn maybe_quiescent(&mut self) -> Result<()> {
         let Some((barrier, host, layout)) = self.barrier else {
             return Ok(());
@@ -531,6 +556,7 @@ impl GameObserver {
                         == Some((s.motion.own, s.zone))
             });
             let available = self.sample.is_some();
+            self.maybe_arrived()?;
             if let Some((dig, captured)) =
                 self.sample.as_ref().map(|s| (s.dig.is_some(), s.captured))
                 && self.dig_cycle.is_some_and(|reported| reported != dig)
@@ -913,6 +939,7 @@ impl GameObserver {
             for (received, event) in events {
                 self.emit_at(event, received)?;
             }
+            self.maybe_arrived()?;
         }
         self.maybe_quiescent()?;
         Ok(())
@@ -1855,6 +1882,219 @@ mod tests {
         assert_eq!(dig_events(&mut observer, present), none);
         assert_eq!(dig_events(&mut observer, cold), none);
         assert_eq!(dig_events(&mut observer, absent), [false]);
+    }
+
+    #[test]
+    fn assisted_move_arrives_on_a_sample_after_the_echo_that_shows_the_walk_ended() {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        use serde_json::json;
+        use zeroize::Zeroizing;
+        let profile = VerifiedProfile {
+            first_host: "127.0.0.1".into(),
+            first_port: 1234,
+            marker: Zeroizing::new("fixture".into()),
+            client_version: Zeroizing::new(vec![0; 4]),
+            definitions: None,
+        };
+        let tickets = crate::test_support::engine_tickets(&[
+            e::Action::MoveTo(e::Point { x: 390, y: 110 }),
+            e::Action::MoveTo(e::Point { x: 430, y: 110 }),
+        ]);
+        let mut engine = e::Engine::new(e::Mode::Assisted);
+        let opened = engine.handle(e::Input::User {
+            at: e::At(0),
+            request: e::RequestKey(1),
+            command: e::Command::Open,
+        });
+        let session = opened
+            .io
+            .iter()
+            .find_map(|effect| match effect {
+                e::Effect::Open { session, .. } => Some(*session),
+                _ => None,
+            })
+            .unwrap();
+        let mut observer = GameObserver::new(session, profile);
+        observer
+            .bind_page(crate::PageBinding::new(7, "a".repeat(32)).unwrap())
+            .unwrap();
+        let sample = crate::test_support::sample_value();
+        let own = sample["snapshot"]["motion"]["own"].as_u64().unwrap() as u16;
+        let zone = sample["snapshot"]["zone"].as_u64().unwrap() as u16;
+        let mut sequence = 0;
+        let mut ingest = |observer: &mut GameObserver, kind: &str, fields: serde_json::Value| {
+            sequence += 1;
+            let mut value = json!({"channel":"opentrickster.net.v1","epoch":"7","guard":"a".repeat(32),"sequence":sequence,"rawIngress":fields["ingress"].as_u64().unwrap_or(0),"kind":kind});
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            observer
+                .ingest_page(ORIGIN, &value.to_string(), std::time::Instant::now())
+                .unwrap();
+        };
+        let outgoing = crate::codec::OpcodeMap::current(b"c2s");
+        let incoming = crate::codec::OpcodeMap::current(b"s2c");
+        let frame = |direction: &str, ingress: u64, opcode: u16, payload: &[u8]| {
+            let map = if direction == "inbound" {
+                &incoming
+            } else {
+                &outgoing
+            };
+            let bytes = map.encode(opcode, 0, payload).unwrap();
+            json!({"connection":1,"direction":direction,"ingress":ingress,"ageMs":0,"data":STANDARD.encode(bytes)})
+        };
+        ingest(&mut observer, "socket", json!({"connection":1}));
+        let login = outgoing.encode(4, 0, &[0; 14]).unwrap();
+        ingest(
+            &mut observer,
+            "game-login",
+            json!({"connection":1,"ingress":1,"header":login[..6]}),
+        );
+        ingest(&mut observer, "frontier", json!({"ingress":1,"ageMs":0}));
+        let mut profile = vec![0; 69];
+        profile[17] = b'S';
+        let mut clock = vec![0; 4];
+        for n in [own, 350, 110] {
+            clock.extend_from_slice(&n.to_le_bytes());
+        }
+        let mut stats = vec![0; 251];
+        stats[219..221].copy_from_slice(&zone.to_le_bytes());
+        for (i, (opcode, payload)) in [(5, vec![]), (679, profile), (230, clock), (233, stats)]
+            .into_iter()
+            .enumerate()
+        {
+            ingest(
+                &mut observer,
+                "frame",
+                frame("inbound", i as u64 + 2, opcode, &payload),
+            );
+        }
+        ingest(&mut observer, "frontier", json!({"ingress":5,"ageMs":0}));
+        let events = |observer: &mut GameObserver| {
+            let mut drained = Vec::new();
+            while let Some((_, observation)) = observer.try_next_at(e::At(10000)).unwrap() {
+                drained.push(observation.event);
+            }
+            drained
+        };
+        assert!(matches!(
+            events(&mut observer).as_slice(),
+            [Event::Baseline { .. }]
+        ));
+        let arrivals = |events: Vec<Event>| -> Vec<e::Outcome> {
+            events
+                .into_iter()
+                .flat_map(|event| match event {
+                    Event::Facts { facts, .. } => facts,
+                    _ => Vec::new(),
+                })
+                .filter_map(|fact| match fact {
+                    e::Fact::Outcome(o @ e::Outcome::Arrived { .. }) => Some(o),
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut request = 9;
+        // One sample: the bridge's ingress, the own path length, sendArmed and own position.
+        let mut sampled =
+            |observer: &mut GameObserver, raw: u64, path: u64, armed: bool, x: u16| {
+                request += 1;
+                observer.sample_script(request, 11).unwrap();
+                let mut fields = sample.clone();
+                fields["request"] = json!(format!("{request:x}"));
+                fields["rawIngress"] = json!(raw);
+                fields["snapshot"]["motion"]["path"] = json!(path);
+                fields["snapshot"]["motion"]["sendArmed"] = json!(armed);
+                for actor in fields["snapshot"]["actors"].as_array_mut().unwrap() {
+                    if actor["raw"] == json!(own) {
+                        actor["x"] = json!(x);
+                    }
+                }
+                fields
+            };
+        let move_payload = |from: u16, to: u16| {
+            crate::actions::movement(
+                e::Point {
+                    x: from as i32,
+                    y: 110,
+                },
+                e::Point {
+                    x: to as i32,
+                    y: 110,
+                },
+                1,
+            )
+            .unwrap()
+            .0
+            .to_vec()
+        };
+        let echo = |from: u16, to: u16| {
+            let mut b: Vec<u8> = [own, from, 110, to, 110]
+                .into_iter()
+                .flat_map(u16::to_le_bytes)
+                .collect();
+            b.push(1);
+            b
+        };
+        let (first, _) = &tickets[0];
+        let e::Action::MoveTo(target) = first.action else {
+            unreachable!()
+        };
+        // The server ends the walk 4 px short of the target and sends no stop.
+        let end = e::Point { x: 386, y: 110 };
+        observer.arm_action(first.clone()).unwrap();
+        ingest(
+            &mut observer,
+            "frame",
+            frame("outbound", 6, 24, &move_payload(350, 390)),
+        );
+        // A sample from before the echo can never end the walk, even one that looks done.
+        let fields = sampled(&mut observer, 6, 0, true, 386);
+        ingest(&mut observer, "sample", fields);
+        ingest(
+            &mut observer,
+            "frame",
+            frame("inbound", 7, 24, &echo(350, 386)),
+        );
+        ingest(&mut observer, "frontier", json!({"ingress":7,"ageMs":0}));
+        let sent = events(&mut observer);
+        assert!(sent.iter().any(|event| matches!(
+            event,
+            Event::Receipt { action, delivery: e::Delivery::Sent(_) } if *action == first.id
+        )));
+        assert!(arrivals(sent).is_empty());
+        // Still walking, then stopped but with the send not yet re-armed by the echo.
+        let fields = sampled(&mut observer, 7, 3, true, 360);
+        ingest(&mut observer, "sample", fields);
+        let fields = sampled(&mut observer, 7, 0, false, 386);
+        ingest(&mut observer, "sample", fields);
+        assert!(arrivals(events(&mut observer)).is_empty());
+        let fields = sampled(&mut observer, 7, 0, true, 386);
+        ingest(&mut observer, "sample", fields);
+        assert_eq!(
+            arrivals(events(&mut observer)),
+            [e::Outcome::Arrived { target, at: end }]
+        );
+        // A walk that stops short of the echo's destination is diverted and never arrives.
+        let (second, _) = &tickets[1];
+        observer.arm_action(second.clone()).unwrap();
+        ingest(
+            &mut observer,
+            "frame",
+            frame("outbound", 8, 24, &move_payload(386, 430)),
+        );
+        ingest(
+            &mut observer,
+            "frame",
+            frame("inbound", 9, 24, &echo(386, 426)),
+        );
+        ingest(&mut observer, "frontier", json!({"ingress":9,"ageMs":0}));
+        let fields = sampled(&mut observer, 9, 0, true, 400);
+        ingest(&mut observer, "sample", fields);
+        assert!(arrivals(events(&mut observer)).is_empty());
+        let decoder = observer.decoder.as_ref().unwrap();
+        assert!(decoder.walk_settled() && decoder.action_pending());
     }
     /// A bound page whose game link (connection 1) has reached its baseline.
     struct OnlinePage {

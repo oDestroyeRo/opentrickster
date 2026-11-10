@@ -6,6 +6,79 @@ pub(crate) fn ticket(action: Action) -> (SessionKey, ActionTicket) {
 }
 /// An engine-minted ticket and the barrier key of the drain that preceded it.
 pub(crate) fn engine_ticket(action: Action) -> (SessionKey, ActionTicket, Option<e::BarrierKey>) {
+    let (_, session, mut ticket, barrier) = engine_start();
+    ticket.action = action;
+    ticket.not_after = At(1000);
+    (session, ticket, barrier)
+}
+
+/// Engine-minted tickets with increasing IDs, one per action. The engine confirms and drains
+/// each before it mints the next, and returns the barrier of that drain.
+pub(crate) fn engine_tickets(actions: &[Action]) -> Vec<(ActionTicket, e::BarrierKey)> {
+    let (mut engine, session, mut ticket, mut barrier) = engine_start();
+    let mut tickets = Vec::new();
+    for (n, action) in (0u64..).zip(actions) {
+        if n > 0 {
+            let observe = |engine: &mut e::Engine, event| {
+                engine.handle(e::Input::Observed {
+                    at: At(10 + n),
+                    observation: e::Observation { session, event },
+                })
+            };
+            let previous = ticket.id;
+            observe(
+                &mut engine,
+                e::Event::Receipt {
+                    action: previous,
+                    delivery: e::Delivery::Sent(e::IngressMark(10 * n)),
+                },
+            );
+            let confirmed = observe(
+                &mut engine,
+                e::Event::Facts {
+                    revision: e::EvidenceKey(100 * n),
+                    ingress: e::IngressMark(10 * n + 1),
+                    facts: vec![e::Fact::Outcome(e::Outcome::OwnHit(e::EntityKey(1)))],
+                },
+            );
+            let key = quiesce_key(&confirmed.io).expect("drain after a confirmation");
+            barrier = Some(key);
+            let next = observe(&mut engine, e::Event::Quiescent(key));
+            ticket = act(next.io).expect("next engine action");
+        }
+        tickets.push((
+            ActionTicket {
+                action: *action,
+                not_after: At(60_000),
+                ..ticket.clone()
+            },
+            barrier.expect("engine drain"),
+        ));
+    }
+    tickets
+}
+
+fn quiesce_key(io: &[e::Effect]) -> Option<e::BarrierKey> {
+    io.iter().find_map(|effect| match effect {
+        e::Effect::Session {
+            op: e::SessionOp::Quiesce(k),
+            ..
+        } => Some(*k),
+        _ => None,
+    })
+}
+
+fn act(io: Vec<e::Effect>) -> Option<ActionTicket> {
+    io.into_iter().find_map(|effect| match effect {
+        e::Effect::Session {
+            op: e::SessionOp::Act(t),
+            ..
+        } => Some(t),
+        _ => None,
+    })
+}
+
+fn engine_start() -> (e::Engine, SessionKey, ActionTicket, Option<e::BarrierKey>) {
     let mut engine = e::Engine::new(e::Mode::Assisted);
     let effects = engine.handle(e::Input::User {
         at: At(0),
@@ -91,13 +164,7 @@ pub(crate) fn engine_ticket(action: Action) -> (SessionKey, ActionTicket, Option
             },
         },
     });
-    let barrier = effects.io.iter().find_map(|effect| match effect {
-        e::Effect::Session {
-            op: e::SessionOp::Quiesce(k),
-            ..
-        } => Some(*k),
-        _ => None,
-    });
+    let barrier = quiesce_key(&effects.io);
     if let Some(key) = barrier {
         engine.handle(e::Input::Observed {
             at: At(3),
@@ -112,20 +179,8 @@ pub(crate) fn engine_ticket(action: Action) -> (SessionKey, ActionTicket, Option
         request: e::RequestKey(3),
         command: e::Command::Start,
     });
-    let mut ticket = effects
-        .io
-        .into_iter()
-        .find_map(|effect| match effect {
-            e::Effect::Session {
-                op: e::SessionOp::Act(t),
-                ..
-            } => Some(t),
-            _ => None,
-        })
-        .expect("engine action");
-    ticket.action = action;
-    ticket.not_after = At(1000);
-    (session, ticket, barrier)
+    let ticket = act(effects.io).expect("engine action");
+    (engine, session, ticket, barrier)
 }
 
 /// Synthetic item definitions, never public catalog rows.

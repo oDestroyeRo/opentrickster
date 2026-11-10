@@ -206,6 +206,26 @@ that policy. Own hit/kill association requires one complete unambiguous own
 Strike bundle with the matching recipient, action floor and incarnation.
 Unattributed HP falls, captions and faint alone cannot award outcomes.
 
+A MoveTo is confirmed only after the server accepts it and the walk ends. The
+first own movement frame after the request answers it. An own 24/26 echo
+accepts the walk and names the destination the server chose, which can differ
+from the target. An own 25/27 at the target, or at an accepted destination,
+arrives at once. A stop anywhere else, a later own walk or a missing answer
+leaves the move unconfirmed, so the engine pauses as `Uncertain`. The client
+ends a walk locally when its path empties, and no frame reports that. Natively,
+the decoder estimates the end from the echo. The length runs from the last own
+position through the echo's start to its destination. A position more than
+320 px from the echo's start counts as that start, as in the client. The speed
+is own 472 `Speed`, else 184 px/s for run mode 2 and 115 px/s otherwise. The
+estimate allows 9/8 of the length plus 32 px, and two 16 ms frames. Nothing
+proves it. Net does not see the zone grid's A\* detours, zone
+`WalkSpeed`/`RunSpeed` or ESA speed changes. The assisted observer instead ends
+the walk on the first page sample after the echo that shows the own send
+re-armed, no pending target, held stop, route or path, and the avatar on the
+accepted destination. `Arrived { target, at }` carries both points. Native
+quiescence waits for the end of any own walk, including one the server started.
+See [native move arrival](../../docs/research/native-move-arrival.md).
+
 When a gun is worn in a configured gun slot, or that is unknown, `BasicAttack`
 never falls back to 288+29. `src/gun.rs` transcribes the client's `GunFlowing`.
 Its states 0-5 advance by real elapsed time on the 16 ms session tick, one state
@@ -255,7 +275,8 @@ request. Only a complete 14-byte Swing counts as own firing. Some client delays
 are not modelled, so Ready can come earlier than the client's: `StrikeOf`
 defers `Begin`, and so an own strike's reload or another attacker's damage to
 us, while that attacker's earlier strikes are still queued, and ESA damage after
-an effect's start is not seen. The assisted observer builds the same controller
+an effect's start is not seen. A native walk can also outlast its estimated end,
+for example around an obstacle. The assisted observer builds the same controller
 at its startup cutoff only to report `missing_gun` and to correlate the client's
 own 477. The page bridge forwards no camp, ESA, counter or guard damage frames,
 so that report can miss those inputs; assisted support does not depend on it.
