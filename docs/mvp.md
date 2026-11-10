@@ -40,7 +40,9 @@ mode runs without Unity and displays received game state in the native dashboard
   An idle character on a live game link therefore stays fresh. A silent link,
   an unfinished baseline, a disconnect, a reconnect or a closing session never
   refreshes state.
-- An expired quiescence window closes the session only while an action of ours
+- A quiescence window does not end before the receipt or confirmation window
+  of an unresolved action of ours, because that action can still resolve.
+  An expired quiescence window closes the session only while an action of ours
   may be in flight or a Stop is draining. Otherwise the app keeps the session,
   repeats the same quiescence request in fresh 2-second windows, and holds the
   next action until the game is idle.

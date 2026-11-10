@@ -1202,6 +1202,16 @@ impl Engine {
             .as_ref()
             .is_some_and(|barrier| self.now >= barrier.deadline)
         {
+            // A drain can start just after a send. The action can still resolve until its own
+            // window ends, so the idle proof waits for that window instead of closing first.
+            if let Some(until) = self.in_flight_until().filter(|until| self.now < *until)
+                && let Some(barrier) = &mut self.barrier
+            {
+                barrier.deadline = until;
+                let key = barrier.key;
+                self.emit(SessionOp::Quiesce(key), io);
+                return;
+            }
             // With no action of ours in flight, a slow idle proof only holds the next action.
             // A resolved action is no longer in flight; a gun reload after a confirmed shot
             // can outlast this window. Keep the same barrier and ask again instead of
@@ -1226,21 +1236,10 @@ impl Engine {
             self.close(AfterClose::Offline(self.mode), io);
             return;
         }
-        let expired = self
-            .run
-            .as_ref()
-            .and_then(|run| run.pending.as_ref())
-            .is_some_and(|pending| {
-                pending.terminal.is_none()
-                    && !pending.quarantined
-                    && self.now
-                        >= if pending.sent.is_none() {
-                            pending.receipt_by
-                        } else {
-                            pending.finish_by
-                        }
-            });
-        if expired {
+        if self
+            .in_flight_until()
+            .is_some_and(|until| self.now >= until)
+        {
             self.uncertain(io);
         }
     }
@@ -1319,6 +1318,16 @@ impl Engine {
         );
     }
 
+    /// When the receipt or confirmation window of an unresolved action of ours ends.
+    fn in_flight_until(&self) -> Option<At> {
+        let pending = self.run.as_ref()?.pending.as_ref()?;
+        (pending.terminal.is_none() && !pending.quarantined).then_some(if pending.sent.is_none() {
+            pending.receipt_by
+        } else {
+            pending.finish_by
+        })
+    }
+
     fn wake_at(&self) -> Option<At> {
         if !matches!(self.connection, Connection::Online(_)) {
             return None;
@@ -1327,22 +1336,14 @@ impl Engine {
         if let Some(barrier) = &self.barrier {
             deadlines.push(barrier.deadline);
         }
-        if let Some(run) = &self.run {
-            if let Some(pending) = &run.pending
-                && pending.terminal.is_none()
-                && !pending.quarantined
-            {
-                deadlines.push(if pending.sent.is_none() {
-                    pending.receipt_by
-                } else {
-                    pending.finish_by
-                });
-            }
-            if matches!(run.stage, Stage::Running)
-                && let Some(fresh_until) = self.book.fresh_until()
-            {
-                deadlines.push(fresh_until);
-            }
+        deadlines.extend(self.in_flight_until());
+        if self
+            .run
+            .as_ref()
+            .is_some_and(|run| matches!(run.stage, Stage::Running))
+            && let Some(fresh_until) = self.book.fresh_until()
+        {
+            deadlines.push(fresh_until);
         }
         deadlines
             .into_iter()
