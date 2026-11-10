@@ -1300,20 +1300,8 @@ impl Decoder {
     /// with every input known.
     pub(crate) fn gun_prerequisite(&self) -> Option<MissingPrerequisite> {
         use MissingPrerequisite as M;
-        if !self.stats_seen || self.own.is_none() {
-            return Some(M::OwnBaseline);
-        }
-        if self.definitions.is_none() {
-            return Some(M::Definitions);
-        }
-        if !self.readiness.equipment_references_resolved
-            || self.gun_worn().is_none()
-            || self.gun_diverged
-        {
-            return Some(M::Equipment);
-        }
-        if self.gun_profile().is_none() {
-            return Some(M::GunProfile);
+        if let Some(missing) = self.gun_equipment() {
+            return Some(missing);
         }
         if self.gun.key().is_none() {
             return Some(M::GunKey);
@@ -1342,6 +1330,27 @@ impl Decoder {
         // Wearing disarms until a fresh 512 arrives.
         if !self.gun.armed() {
             return Some(M::GunKey);
+        }
+        None
+    }
+    /// The own baseline, definitions, worn slots and gun profile that `gun_prerequisite`
+    /// checks first.
+    fn gun_equipment(&self) -> Option<MissingPrerequisite> {
+        use MissingPrerequisite as M;
+        if !self.stats_seen || self.own.is_none() {
+            return Some(M::OwnBaseline);
+        }
+        if self.definitions.is_none() {
+            return Some(M::Definitions);
+        }
+        if !self.readiness.equipment_references_resolved
+            || self.gun_worn().is_none()
+            || self.gun_diverged
+        {
+            return Some(M::Equipment);
+        }
+        if self.gun_profile().is_none() {
+            return Some(M::GunProfile);
         }
         None
     }
@@ -1384,13 +1393,14 @@ impl Decoder {
         let (kind, _) = self.definitions.as_ref()?.zones.get(&self.zone?)?;
         Some(!matches!(kind, 0 | 1 | 5))
     }
-    /// The `GunFlowing` constructor at EnterWorld (f24374): slot 20 runs the `SpecialOn`
-    /// branch, other equipped items go through `Wear`, then every earlier 518/521 replays in
-    /// arrival order.
+    /// The `GunFlowing` constructor at EnterWorld (f24374): it stores `LoadSpeed` 1, slot 20
+    /// runs the `SpecialOn` branch, other equipped items go through `Wear`, then every earlier
+    /// 518/521 replays in arrival order.
     pub(crate) fn construct_gun(&mut self) {
         if std::mem::replace(&mut self.gun_live, true) {
             return;
         }
+        self.load_speed.constructed();
         self.gun_skills = self.start_skills;
         for slot in 0..self.slots.len() {
             let uid = self.slots[slot];
@@ -1499,11 +1509,19 @@ impl Decoder {
             self.gun.drill_end(worn);
         }
     }
-    /// BasicAttack is supported with a worn gun only when the controller is armed and every
-    /// input is known; without one, the ordinary melee rules apply.
+    /// BasicAttack is supported with a worn gun when no input that stays unknown for the
+    /// session is missing; learned skills are known only after construction. Support is fixed
+    /// at Baseline, so the key, the ammo count, a `LoadSpeed` a later own 8 or 9 can settle,
+    /// the zone and camp are checked for each shot by `gun_waitable` instead. Without a gun,
+    /// the ordinary melee rules apply.
     pub(crate) fn basic_attack_supported(&self) -> bool {
         match self.gun_worn() {
-            Some(true) => self.gun_prerequisite().is_none(),
+            Some(true) => {
+                self.gun_equipment().is_none()
+                    && !self.ammo_unknown
+                    && self.gun_skills.is_some()
+                    && self.load_speed.knowable()
+            }
             Some(false) => self.normal_weapon_mode().is_ok(),
             None => false,
         }
