@@ -1215,17 +1215,23 @@ impl Engine {
             // With no action of ours in flight, a slow idle proof only holds the next action.
             // A resolved action is no longer in flight; a gun reload after a confirmed shot
             // can outlast this window. Keep the same barrier and ask again instead of
-            // dropping the player's session.
+            // dropping the player's session. A stopping run has no next action, so it ends.
             if self.run.as_ref().is_none_or(|run| {
                 run.pending
                     .as_ref()
                     .is_none_or(|pending| pending.terminal.is_some() && !pending.quarantined)
-                    && !matches!(run.stage, Stage::Draining(AfterDrain::Stop))
             }) && let Some(barrier) = &mut self.barrier
             {
                 barrier.deadline = At(self.now.0.saturating_add(DRAIN_MS));
                 let key = barrier.key;
                 self.emit(SessionOp::Quiesce(key), io);
+                if self
+                    .run
+                    .as_ref()
+                    .is_some_and(|run| matches!(run.stage, Stage::Draining(AfterDrain::Stop)))
+                {
+                    self.finish_run();
+                }
                 return;
             }
             if let Some(run) = &mut self.run

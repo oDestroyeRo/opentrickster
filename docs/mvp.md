@@ -43,9 +43,9 @@ mode runs without Unity and displays received game state in the native dashboard
 - A quiescence window does not end before the receipt or confirmation window
   of an unresolved action of ours, because that action can still resolve.
   An expired quiescence window closes the session only while an action of ours
-  may be in flight or a Stop is draining. Otherwise the app keeps the session,
-  repeats the same quiescence request in fresh 2-second windows, and holds the
-  next action until the game is idle.
+  may be in flight. Otherwise the app keeps the session, repeats the same
+  quiescence request in fresh 2-second windows, and holds the next action until
+  the game is idle. A draining Stop then ends its run.
 - Stop a run after three consecutive correlated rejected actions. A confirmed
   action resets the rejection streak.
 - An attack that the adapter could not send, for example on a target that the
