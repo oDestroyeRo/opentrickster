@@ -166,12 +166,11 @@ impl Engine {
             }
             _ => ActivityView::None,
         };
-        let blocked = self.refusal.or_else(|| {
-            if self.run.is_some() {
-                self.guard(Control::Resume).err()
-            } else {
-                self.guard(Control::Start).err()
-            }
+        // Only Start and Resume are blocked; a run that is not paused waits for neither.
+        let blocked = self.refusal.or_else(|| match &self.run {
+            Some(run) if matches!(run.stage, Stage::Paused(_)) => self.guard(Control::Resume).err(),
+            Some(_) => None,
+            None => self.guard(Control::Start).err(),
         });
         Snapshot {
             mode: self.mode,
