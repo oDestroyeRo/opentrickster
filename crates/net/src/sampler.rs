@@ -502,15 +502,26 @@ fn project(s: &Snapshot, p: [f64; 2]) -> Result<[f64; 2]> {
 
 fn world_press(s: &Snapshot, p: [f64; 2], target: Option<u16>) -> Result<Candidate> {
     let [x, y] = project(s, p)?;
-    let at_point = s
-        .pointer
-        .world
-        .is_some_and(|q| (p[0] - q[0]).abs() <= 0.25 && (p[1] - q[1]).abs() <= 0.25);
-    if !at_point || s.pointer.over_ui || s.pointer.picked != target || s.pointer.ground_hover {
+    let g = &s.geometry;
+    // WebKit delivers the pointer in whole CSS pixels; the extra 0.01 absorbs the page's f32 rounding.
+    let pixel = [
+        g.backing[0] / g.rect[2] / g.zoom,
+        g.backing[1] / g.rect[3] / g.zoom,
+    ];
+    let Some(q) = s.pointer.world.filter(|q| {
+        (0..2).all(|i| (p[i] - q[i]).abs() <= pixel[i] + 0.01)
+            && !s.pointer.over_ui
+            && s.pointer.picked == target
+            && !s.pointer.ground_hover
+    }) else {
         return Ok(Candidate {
             steps: vec![NormalInput::PointerMove { x, y }],
             requires_resample: true,
         });
+    };
+    // The press lands at the sampled pointer, not the aim point.
+    if target.is_none() {
+        ground_clear(s, q)?;
     }
     Ok(Candidate {
         steps: vec![NormalInput::LeftDown],
@@ -994,6 +1005,28 @@ mod tests {
     }
 
     #[test]
+    fn a_pointer_within_one_css_pixel_of_the_aim_presses() {
+        // The invented geometry maps one CSS pixel to 1.6 by 2.0 world units.
+        let action = Action::BasicAttack(e::EntityKey(1));
+        let mut s = snapshot();
+        s.pointer.world = Some([501.5, 298.1]);
+        assert_eq!(
+            candidate(&s, action, Some(73))
+                .unwrap_or_else(|_| panic!("within a pixel"))
+                .steps,
+            vec![NormalInput::LeftDown]
+        );
+        for beyond in [[501.7, 300.0], [500.0, 302.1]] {
+            s.pointer.world = Some(beyond);
+            assert!(
+                candidate(&s, action, Some(73))
+                    .unwrap_or_else(|_| panic!("beyond a pixel"))
+                    .requires_resample
+            );
+        }
+    }
+
+    #[test]
     fn source_projection_requires_new_hover_and_exact_current_pick() {
         let action = Action::BasicAttack(e::EntityKey(1));
         let mut s = snapshot();
@@ -1036,6 +1069,9 @@ mod tests {
             vec![NormalInput::LeftDown]
         );
         s.portals.push([590.0, 390.0, 610.0, 410.0]);
+        assert!(candidate(&s, Action::MoveTo(e::Point { x: 600, y: 400 }), None).is_err());
+        s.portals[0] = [601.0, 390.0, 610.0, 410.0];
+        s.pointer.world = Some([601.5, 400.0]);
         assert!(candidate(&s, Action::MoveTo(e::Point { x: 600, y: 400 }), None).is_err());
         let mut s = snapshot();
         s.combat.gun_worn = true;
