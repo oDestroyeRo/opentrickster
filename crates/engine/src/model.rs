@@ -5,6 +5,9 @@ pub struct At(pub u64); // monotonic ms
 /// Adapters use these to bound an action's continuation after its actual send.
 /// An action ticket must reach `Delivery::Sent` before its `not_after` (`RECEIPT_MS`).
 pub const RECEIPT_MS: u64 = 2_000;
+/// An adapter stops trying to send this long before a ticket's `not_after`, so its `Sent` or
+/// `NotSent` receipt reaches the engine before the receipt window ends.
+pub const SEND_MARGIN_MS: u64 = 250;
 /// Ordinary action confirmation window, measured from the actual send.
 pub const ACTION_MS: u64 = 5_000;
 /// Complete dig-cycle window, measured from the actual send.

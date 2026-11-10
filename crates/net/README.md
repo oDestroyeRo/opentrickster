@@ -41,7 +41,10 @@ explicitly approved decline uses UID-only 2012 without changing settings.
 There is no takeover, release-held retry or automatic uncertain gameplay replay.
 Only engine recovery effects authorize another physical attempt, up to five.
 
-A ticket's `not_after` bounds only the send receipt. After the actual send, the
+A ticket's `not_after` bounds only the send receipt. Both adapters stop trying
+to send `SEND_MARGIN_MS` (250 ms) before it and report `NotSent`, so the receipt
+reaches the engine inside its window. In client-assisted mode this covers a
+plan that waits out a gun reload. After the actual send, the
 engine's `ACTION_MS` (5 s) or `DIG_MS` (30 s) window bounds completion. The
 native adapter starts its window at the send, so it closes no later than the
 engine's. When it closes without a correlated outcome, the adapter cancels a dig
@@ -247,7 +250,7 @@ speed unknown until a complete own 8 or 9 after C5, because the client may have
 dropped its write; see the
 [gun login baseline](../../docs/research/native-gun-login-baseline.md).
 
-A gun ticket waits for Ready until 250 ms before `not_after`, then sends one 477
+A gun ticket waits for Ready until `SEND_MARGIN_MS` before `not_after`, then sends one 477
 with the actual target, key, Bunch, moveMode and computed critical bit. It shoots
 only on a tick where every received frame is applied, so it never decides
 halfway through a message. Cancel and engine ops win over a due tick. The ticket

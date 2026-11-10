@@ -623,7 +623,7 @@ impl Actor {
                             // A worn or unknown gun never falls back to melee. The shot waits for Ready on
                             // the session tick, ending early enough for its Sent receipt to beat not_after.
                             if let e::Action::BasicAttack(target)=ticket.action && decoder.gun_worn()!=Some(false) {
-                                let window=now.map_or(0,|now|ticket.not_after.0.saturating_sub(now)).saturating_sub(HOLD_MARGIN_MS);
+                                let window=now.map_or(0,|now|ticket.not_after.0.saturating_sub(now)).saturating_sub(e::SEND_MARGIN_MS);
                                 if window==0 || !decoder.gun_waitable(target) {self.emit(Event::Receipt{action:ticket.id,delivery:e::Delivery::NotSent})?;continue;}
                                 held=Some(Held{ticket,target,until:Instant::now()+Duration::from_millis(window)});
                                 continue;
@@ -766,8 +766,6 @@ impl Actor {
         }
     }
 }
-/// Stop holding a gun ticket this long before `not_after`, so its Sent receipt arrives in time.
-const HOLD_MARGIN_MS: u64 = 250;
 struct Held {
     ticket: e::ActionTicket,
     target: e::EntityKey,
