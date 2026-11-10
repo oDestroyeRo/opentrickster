@@ -250,28 +250,22 @@ impl Harness {
 }
 
 #[test]
-fn combat_moves_attacks_counts_once_and_loots_with_separate_inventory() {
+fn combat_attacks_counts_once_and_loots_with_separate_inventory() {
     let mut h = Harness::new(false);
     let target = Point { x: 103, y: 100 };
     h.facts(vec![entity(1, target, Some(false))]);
     let effects = h.command(Command::Start);
-    let movement = acts(&effects)[0];
-    assert_eq!(movement.action, Action::MoveTo(target));
-    let id = movement.id;
-    h.sent(id);
-    let result = h.facts(vec![
+    let attack = acts(&effects)[0];
+    // The game approaches a clicked monster itself; the run does not walk onto it first.
+    assert_eq!(attack.action, Action::BasicAttack(EntityKey(1)));
+    h.sent(attack.id);
+    let kill = h.facts(vec![
         Fact::Position {
             map: MapKey(1),
             point: target,
         },
-        Fact::Outcome(Outcome::Arrived(target)),
+        Fact::Outcome(Outcome::OwnKill(EntityKey(1))),
     ]);
-    assert!(acts(&result).is_empty());
-    let next = h.idle(&result);
-    let id = acts(&next)[0].id;
-    assert_eq!(acts(&next)[0].action, Action::BasicAttack(EntityKey(1)));
-    h.sent(id);
-    let kill = h.facts(vec![Fact::Outcome(Outcome::OwnKill(EntityKey(1)))]);
     assert_eq!(kill.snapshot.totals.kills, 1);
     let duplicate = h.facts(vec![Fact::Outcome(Outcome::OwnKill(EntityKey(1)))]);
     assert_eq!(duplicate.snapshot.totals.kills, 1);
@@ -294,12 +288,12 @@ fn combat_moves_attacks_counts_once_and_loots_with_separate_inventory() {
             quantity: 2,
         })),
     ]);
-    assert_eq!(pickup.snapshot.totals.confirmed, 3);
+    assert_eq!(pickup.snapshot.totals.confirmed, 2);
     h.idle(&pickup);
     let stopped = h.command(Command::Stop);
     assert_eq!(stopped.snapshot.phase, Phase::Ready);
     assert_eq!(stopped.snapshot.totals.kills, 1);
-    assert_eq!(stopped.snapshot.totals.sent, 3);
+    assert_eq!(stopped.snapshot.totals.sent, 2);
 }
 
 #[test]
@@ -920,7 +914,16 @@ fn unsupported_action_capabilities_do_not_emit_actions() {
             _ => capabilities.move_to = false,
         }
         let mut h = Harness::with(cap == 1, capabilities, baseline(), None);
-        h.facts(vec![entity(1, Point { x: 101, y: 100 }, Some(false))]);
+        // Combat attacks in place, so a drop away from the character is what needs a move.
+        h.facts(vec![
+            entity(1, Point { x: 101, y: 100 }, Some(false)),
+            Fact::Drop(Drop {
+                key: DropKey(1),
+                kind: ItemKind(1),
+                position: Point { x: 101, y: 100 },
+                quantity: 1,
+            }),
+        ]);
         let start = h.command(Command::Start);
         assert!(acts(&start).is_empty());
         assert_eq!(start.snapshot.blocked, Some(Refusal::Unsupported));
@@ -1443,18 +1446,7 @@ fn combat_selects_nearest_eligible_configured_target_deterministically() {
         entity(2, Point { x: 102, y: 100 }, Some(false)),
     ]);
     let start = h.command(Command::Start);
-    assert_eq!(
-        acts(&start)[0].action,
-        Action::MoveTo(Point { x: 102, y: 100 })
-    );
-    let id = acts(&start)[0].id;
-    h.sent(id);
-    let arrival = h.facts(vec![Fact::Outcome(Outcome::Arrived(Point {
-        x: 102,
-        y: 100,
-    }))]);
-    let attack = h.idle(&arrival);
-    assert_eq!(acts(&attack)[0].action, Action::BasicAttack(EntityKey(2)));
+    assert_eq!(acts(&start)[0].action, Action::BasicAttack(EntityKey(2)));
 }
 
 #[test]
@@ -1566,7 +1558,12 @@ fn required_movement_capability_uses_the_same_preflight_as_start() {
     let mut capabilities = support();
     capabilities.move_to = false;
     let mut h = Harness::with(false, capabilities, baseline(), None);
-    let state = h.facts(vec![entity(1, Point { x: 101, y: 100 }, Some(false))]);
+    let state = h.facts(vec![Fact::Drop(Drop {
+        key: DropKey(1),
+        kind: ItemKind(1),
+        position: Point { x: 101, y: 100 },
+        quantity: 1,
+    })]);
     assert!(
         state
             .snapshot
