@@ -25,7 +25,7 @@ impl Desktop {
     }
 
     pub fn update_notice(&self) -> Option<update::Notice> {
-        update::notice(self.updater.state(), self.occupancy())
+        self.updater.notice(self.occupancy())
     }
 
     pub fn update_in_flight(&self) -> bool {
@@ -40,6 +40,8 @@ impl Desktop {
                 Phase::Disconnected | Phase::Reconnecting(_)
             ),
             quitting: self.quit_requested,
+            // The updater reads the other copies itself.
+            other_copy: false,
         }
     }
 

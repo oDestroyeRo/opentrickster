@@ -211,6 +211,15 @@ pub fn accept_build(json: &[u8], release: Version) -> Result<(), Reject> {
     }
 }
 
+/// The version that a bundle's own `build.json` names.
+pub fn built_version(json: &[u8]) -> Option<Version> {
+    serde_json::from_slice::<BuildJson>(json)
+        .ok()?
+        .version
+        .parse()
+        .ok()
+}
+
 pub fn accept_identifier(found: &str) -> Result<(), Reject> {
     if found.trim() == BUNDLE_IDENTIFIER {
         Ok(())
@@ -257,7 +266,10 @@ pub enum Reject {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failure {
+    /// The release check failed on the network.
     Network,
+    /// The archive download failed on the network.
+    Download,
     Malformed,
     Rejected(Reject),
     Disk,
@@ -265,6 +277,7 @@ pub enum Failure {
 }
 
 impl Failure {
+    /// Only a failed release check is cheap, so only it retries soon.
     pub fn backoff(self) -> Duration {
         if self == Self::Network {
             RETRY_AFTER
@@ -273,10 +286,19 @@ impl Failure {
         }
     }
 
+    /// Another download of the same release would fail the same way. A checksum or signature
+    /// mismatch may be a bad transfer, so it stays open to a retry.
+    fn is_hopeless(self) -> bool {
+        matches!(
+            self,
+            Self::Rejected(reject) if !matches!(reject, Reject::Checksum | Reject::Signature)
+        )
+    }
+
     /// What the user reads. A network failure is quiet, because the next check retries it.
     fn notice(self) -> Option<&'static str> {
         match self {
-            Self::Network | Self::Malformed => None,
+            Self::Network | Self::Download | Self::Malformed => None,
             Self::Rejected(Reject::Checksum) => {
                 Some("The update failed its checksum and was discarded.")
             }
@@ -300,6 +322,9 @@ pub enum OffReason {
     Architecture,
     NotBundled,
     Translocated,
+    /// The bundle's own `build.json` names another version than this build, so an update would
+    /// install again on every launch.
+    VersionMismatch,
     ReadOnly,
 }
 
@@ -310,7 +335,7 @@ impl OffReason {
                 Some("Updates are off. Move OpenTrickster to Applications to turn them on.")
             }
             Self::ReadOnly => Some(
-                "Updates are off because OpenTrickster cannot write to its folder. Move it to Applications.",
+                "Updates are off because OpenTrickster cannot write to its folder. Download updates from the release page.",
             ),
             _ => None,
         }
@@ -341,10 +366,12 @@ pub fn enclosing_bundle(executable: &Path) -> Option<&Path> {
         .then_some(bundle)
 }
 
-/// Whether this build may update itself, and where its bundle lives. `writable` probes the
-/// folder that holds the bundle, because the swap renames beside it.
+/// Whether this build may update itself, and where its bundle lives. `bundled` reads the version
+/// that the running bundle names. `writable` probes the folder that holds the bundle, because the
+/// swap renames beside it.
 pub fn plan(
     environment: &Environment,
+    bundled: impl FnOnce(&Path) -> Option<Version>,
     writable: impl FnOnce(&Path) -> bool,
 ) -> Result<Plan, OffReason> {
     let current = environment
@@ -363,6 +390,9 @@ pub fn plan(
         .ok_or(OffReason::NotBundled)?;
     if bundle.to_string_lossy().contains("/AppTranslocation/") {
         return Err(OffReason::Translocated);
+    }
+    if bundled(bundle) != Some(current) {
+        return Err(OffReason::VersionMismatch);
     }
     let parent = bundle.parent().ok_or(OffReason::NotBundled)?;
     if !writable(parent) {
@@ -418,6 +448,9 @@ pub struct Occupancy {
     /// the engine keeps a live run paused when its session closes.
     pub held: bool,
     pub quitting: bool,
+    /// Another live copy of this bundle runs, and a swap would pull the app out from under it.
+    /// The updater fills this in from the markers that live copies hold.
+    pub other_copy: bool,
 }
 
 impl Occupancy {
@@ -433,6 +466,8 @@ pub enum Input {
     Checked(Result<Option<Release>, Failure>),
     Downloaded(Result<Staged, Failure>),
     Restart,
+    /// The staged update is gone from disk.
+    Vanished,
     InstallFailed(Failure),
 }
 
@@ -449,20 +484,10 @@ fn due(since: Option<Instant>, wait: Duration, now: Instant) -> bool {
 }
 
 impl State {
-    pub fn initial(plan: &Result<Plan, OffReason>) -> Self {
+    pub fn initial<T>(plan: &Result<T, OffReason>) -> Self {
         match plan {
             Ok(_) => Self::Idle { last_check: None },
             Err(reason) => Self::Off(*reason),
-        }
-    }
-
-    pub fn next_check(&self) -> Option<Instant> {
-        match self {
-            Self::Idle {
-                last_check: Some(at),
-            } => Some(*at + CHECK_EVERY),
-            Self::Failed { reason, at } => Some(*at + reason.backoff()),
-            _ => None,
         }
     }
 
@@ -513,9 +538,20 @@ impl State {
             },
             (Self::Downloading { version }, Input::Downloaded(result)) => match result {
                 Ok(staged) => (Self::Ready { version, staged }, None),
+                Err(Failure::Network) => (
+                    Self::Failed {
+                        reason: Failure::Download,
+                        at: now,
+                    },
+                    None,
+                ),
                 Err(reason) => (Self::Failed { reason, at: now }, None),
             },
-            (Self::Ready { version, staged }, Input::Tick) if !world.busy() && !world.quitting => {
+            (Self::Ready { .. }, Input::Vanished) => (Self::Idle { last_check: None }, None),
+            (state @ Self::Ready { .. }, Input::Restart) if world.other_copy => (state, None),
+            (Self::Ready { version, staged }, Input::Tick)
+                if !world.busy() && !world.quitting && !world.other_copy =>
+            {
                 (Self::Installing { version }, Some(Action::Install(staged)))
             }
             (Self::Ready { version, staged }, Input::Restart) if world.open => {
@@ -532,6 +568,45 @@ impl State {
             }
             (state, _) => (state, None),
         }
+    }
+}
+
+/// A `State` and the one fact that outlives it: the newest release that failed a check no
+/// retry can fix. A check that offers that release again, or an older one, finds no news.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Machine {
+    state: State,
+    refused: Option<Version>,
+}
+
+impl Machine {
+    pub fn new(state: State) -> Self {
+        Self {
+            state,
+            refused: None,
+        }
+    }
+
+    pub fn state(&self) -> &State {
+        &self.state
+    }
+
+    pub fn step(&mut self, input: Input, now: Instant, world: Occupancy) -> Option<Action> {
+        let input = match input {
+            Input::Checked(Ok(Some(release))) if self.refused >= Some(release.version) => {
+                Input::Checked(Ok(None))
+            }
+            input => input,
+        };
+        if let (State::Downloading { version }, Input::Downloaded(Err(failure))) =
+            (&self.state, &input)
+            && failure.is_hopeless()
+        {
+            self.refused = self.refused.max(Some(*version));
+        }
+        let (state, action) = self.state.clone().step(input, now, world);
+        self.state = state;
+        action
     }
 }
 
@@ -573,6 +648,9 @@ pub fn notice(state: &State, world: Occupancy) -> Option<Notice> {
         State::Downloading { version } => Some(Notice::text(format!(
             "Downloading OpenTrickster {version}."
         ))),
+        State::Ready { .. } if world.other_copy => Some(Notice::text(
+            "Another OpenTrickster window is open. Quit it to update.",
+        )),
         State::Ready { version, .. } if world.busy() => Some(Notice {
             text: format!("Update {version} is ready."),
             caption: Some("Restarting closes the game and ends a run."),
@@ -987,9 +1065,11 @@ mod tests {
 
     #[test]
     fn a_release_build_in_a_writable_app_may_update() {
-        let plan = plan(&environment(Some("0.1.0"), EXECUTABLE), |parent| {
-            parent == Path::new("/Applications")
-        });
+        let plan = plan(
+            &environment(Some("0.1.0"), EXECUTABLE),
+            |bundle| (bundle == Path::new("/Applications/OpenTrickster.app")).then(|| v(0, 1, 0)),
+            |parent| parent == Path::new("/Applications"),
+        );
         assert_eq!(
             plan,
             Ok(Plan {
@@ -1005,7 +1085,11 @@ mod tests {
     fn a_build_without_a_valid_release_never_updates() {
         for release in [None, Some(""), Some("dev"), Some("0.1"), Some("v0.1.0")] {
             assert_eq!(
-                plan(&environment(release, EXECUTABLE), |_| true),
+                plan(
+                    &environment(release, EXECUTABLE),
+                    |_| Some(v(0, 1, 0)),
+                    |_| true
+                ),
                 Err(OffReason::DevBuild),
                 "{release:?}"
             );
@@ -1015,7 +1099,7 @@ mod tests {
     #[test]
     fn each_unsafe_place_turns_updates_off() {
         let off = |environment: Environment, writable: bool| {
-            plan(&environment, |_| writable).unwrap_err()
+            plan(&environment, |_| Some(v(0, 1, 0)), |_| writable).unwrap_err()
         };
         let mut verification = environment(Some("0.1.0"), EXECUTABLE);
         verification.verification = true;
@@ -1052,21 +1136,56 @@ mod tests {
     #[test]
     fn a_folder_is_probed_only_when_nothing_else_rules_updates_out() {
         let mut probed = false;
-        let _ = plan(&environment(None, EXECUTABLE), |_| {
+        let mut probe = |_: &Path| {
             probed = true;
             true
-        });
+        };
+        let _ = plan(&environment(None, EXECUTABLE), |_| None, &mut probe);
         let _ = plan(
             &environment(
                 Some("0.1.0"),
                 "/x/AppTranslocation/1/d/OpenTrickster.app/Contents/MacOS/opentrickster",
             ),
-            |_| {
-                probed = true;
-                true
-            },
+            |_| Some(v(0, 1, 0)),
+            &mut probe,
+        );
+        let _ = plan(
+            &environment(Some("0.1.0"), EXECUTABLE),
+            |_| Some(v(0, 1, 1)),
+            &mut probe,
         );
         assert!(!probed);
+    }
+
+    #[test]
+    fn a_bundle_that_names_another_version_never_updates() {
+        for bundled in [Some(v(0, 1, 1)), Some(v(0, 0, 9)), Some(v(1, 1, 0)), None] {
+            assert_eq!(
+                plan(
+                    &environment(Some("0.1.0"), EXECUTABLE),
+                    |_| bundled,
+                    |_| true
+                ),
+                Err(OffReason::VersionMismatch),
+                "{bundled:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_bundle_names_its_version_in_its_build_file() {
+        let named = |json: &str| built_version(json.as_bytes());
+        assert_eq!(named(&build("0.2.0", "false", "release")), Some(v(0, 2, 0)));
+        for bad in [
+            "",
+            "not json",
+            "{}",
+            r#"{"version":"0.2","source_dirty":false,"profile":"release"}"#,
+            r#"{"version":"v0.2.0","source_dirty":false,"profile":"release"}"#,
+            r#"{"version":2,"source_dirty":false,"profile":"release"}"#,
+        ] {
+            assert_eq!(named(bad), None, "{bad:?}");
+        }
     }
 
     #[test]
@@ -1079,12 +1198,14 @@ mod tests {
             OffReason::Architecture,
             OffReason::NotBundled,
             OffReason::Translocated,
+            OffReason::VersionMismatch,
             OffReason::ReadOnly,
         ] {
             for input in [
                 Input::Tick,
                 Input::BuildChanged,
                 Input::Restart,
+                Input::Vanished,
                 Input::Checked(Ok(Some(Release {
                     version: v(9, 0, 0),
                 }))),
@@ -1097,6 +1218,7 @@ mod tests {
                         open: true,
                         held: true,
                         quitting: true,
+                        other_copy: true,
                     },
                 ] {
                     assert_eq!(
@@ -1122,7 +1244,6 @@ mod tests {
         let idle = State::Idle {
             last_check: Some(start),
         };
-        assert_eq!(idle.next_check(), Some(start + CHECK_EVERY));
         let almost = start + CHECK_EVERY - Duration::from_secs(1);
         assert_eq!(
             idle.clone().step(Input::Tick, almost, Occupancy::default()),
@@ -1140,7 +1261,8 @@ mod tests {
         let world = Occupancy {
             open: true,
             held: true,
-            quitting: false,
+            other_copy: true,
+            ..Occupancy::default()
         };
         assert_eq!(
             State::Idle { last_check: None }.step(Input::Tick, now, world),
@@ -1244,12 +1366,28 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_failure_waits_before_the_next_try() {
-        let start = Instant::now();
+    /// The failed state must hold off a check until `wait` has passed, then check at once.
+    fn assert_waits(failed: &State, start: Instant, wait: Duration) {
         let world = Occupancy::default();
-        let (failed, action) =
-            State::Checking.step(Input::Checked(Err(Failure::Network)), start, world);
+        let early = start + wait - Duration::from_secs(1);
+        assert_eq!(
+            failed.clone().step(Input::Tick, early, world),
+            (failed.clone(), None)
+        );
+        assert_eq!(
+            failed.clone().step(Input::Tick, start + wait, world),
+            (State::Checking, Some(Action::Check))
+        );
+    }
+
+    #[test]
+    fn a_failed_check_tries_again_after_fifteen_minutes() {
+        let start = Instant::now();
+        let (failed, action) = State::Checking.step(
+            Input::Checked(Err(Failure::Network)),
+            start,
+            Occupancy::default(),
+        );
         assert_eq!(
             (&failed, action),
             (
@@ -1260,27 +1398,152 @@ mod tests {
                 None
             )
         );
-        assert_eq!(failed.next_check(), Some(start + RETRY_AFTER));
-        let still = start + RETRY_AFTER - Duration::from_secs(1);
-        assert_eq!(
-            failed.clone().step(Input::Tick, still, world),
-            (failed.clone(), None)
+        assert_waits(&failed, start, RETRY_AFTER);
+    }
+
+    #[test]
+    fn an_unreadable_check_waits_for_the_next_six_hour_slot() {
+        let start = Instant::now();
+        let (failed, _) = State::Checking.step(
+            Input::Checked(Err(Failure::Malformed)),
+            start,
+            Occupancy::default(),
+        );
+        assert_waits(&failed, start, CHECK_EVERY);
+    }
+
+    #[test]
+    fn a_failed_download_waits_six_hours_not_fifteen_minutes() {
+        let start = Instant::now();
+        let (failed, action) = State::Downloading {
+            version: v(0, 2, 0),
+        }
+        .step(
+            Input::Downloaded(Err(Failure::Network)),
+            start,
+            Occupancy::default(),
         );
         assert_eq!(
-            failed.step(Input::Tick, start + RETRY_AFTER, world),
-            (State::Checking, Some(Action::Check))
+            (&failed, action),
+            (
+                &State::Failed {
+                    reason: Failure::Download,
+                    at: start
+                },
+                None
+            )
         );
-        let rejected = State::Failed {
-            reason: Failure::Rejected(Reject::Checksum),
-            at: start,
-        };
-        assert_eq!(rejected.next_check(), Some(start + CHECK_EVERY));
+        assert_waits(&failed, start, CHECK_EVERY);
+    }
+
+    #[test]
+    fn a_rejected_download_waits_six_hours() {
+        let start = Instant::now();
+        for reject in [Reject::Checksum, Reject::Signature, Reject::Layout] {
+            let failed = State::Failed {
+                reason: Failure::Rejected(reject),
+                at: start,
+            };
+            assert_waits(&failed, start, CHECK_EVERY);
+        }
+    }
+
+    fn release(patch: u64) -> Release {
+        Release {
+            version: v(0, 2, patch),
+        }
+    }
+
+    /// A machine that has just seen the download of 0.2.0 fail with `failure`.
+    fn after_a_failed_download(failure: Failure, at: Instant) -> Machine {
+        let mut machine = Machine::new(State::Downloading {
+            version: v(0, 2, 0),
+        });
         assert_eq!(
-            rejected
-                .clone()
-                .step(Input::Tick, start + RETRY_AFTER, world),
-            (rejected, None)
+            machine.step(Input::Downloaded(Err(failure)), at, Occupancy::default()),
+            None
         );
+        machine
+    }
+
+    #[test]
+    fn a_release_that_fails_a_check_for_good_is_not_downloaded_again() {
+        let start = Instant::now();
+        let world = Occupancy::default();
+        for reject in [
+            Reject::Layout,
+            Reject::Identifier,
+            Reject::BuildInfo,
+            Reject::Version,
+            Reject::Dirty,
+            Reject::Profile,
+            Reject::System,
+        ] {
+            let mut machine = after_a_failed_download(Failure::Rejected(reject), start);
+            let next = start + CHECK_EVERY;
+            assert_eq!(
+                machine.step(Input::Tick, next, world),
+                Some(Action::Check),
+                "{reject:?}"
+            );
+            assert_eq!(
+                machine.step(Input::Checked(Ok(Some(release(0)))), next, world),
+                None,
+                "{reject:?}"
+            );
+            assert_eq!(
+                machine.state(),
+                &State::Idle {
+                    last_check: Some(next)
+                }
+            );
+            let newer = next + CHECK_EVERY;
+            assert_eq!(machine.step(Input::Tick, newer, world), Some(Action::Check));
+            assert_eq!(
+                machine.step(Input::Checked(Ok(Some(release(1)))), newer, world),
+                Some(Action::Download(release(1))),
+                "{reject:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_refused_release_stays_refused_when_an_older_one_is_offered() {
+        let start = Instant::now();
+        let world = Occupancy::default();
+        let mut machine = after_a_failed_download(Failure::Rejected(Reject::Layout), start);
+        let next = start + CHECK_EVERY;
+        machine.step(Input::Tick, next, world);
+        assert_eq!(
+            machine.step(Input::Checked(Ok(Some(release(0)))), next, world),
+            None
+        );
+    }
+
+    #[test]
+    fn a_release_that_failed_for_a_reason_a_retry_may_fix_is_tried_again() {
+        let start = Instant::now();
+        let world = Occupancy::default();
+        for failure in [
+            Failure::Rejected(Reject::Checksum),
+            Failure::Rejected(Reject::Signature),
+            Failure::Network,
+            Failure::Disk,
+            Failure::Malformed,
+        ] {
+            let mut machine = after_a_failed_download(failure, start);
+            let next = start + CHECK_EVERY;
+            assert_eq!(
+                machine.step(Input::Tick, next, world),
+                Some(Action::Check),
+                "{failure:?}"
+            );
+            assert_eq!(
+                machine.step(Input::Checked(Ok(Some(release(0)))), next, world),
+                Some(Action::Download(release(0))),
+                "{failure:?}"
+            );
+        }
     }
 
     #[test]
@@ -1331,6 +1594,7 @@ mod tests {
             Input::Downloaded(Ok(staged())),
             Input::InstallFailed(Failure::Install),
             Input::Restart,
+            Input::Vanished,
         ] {
             assert_eq!(idle.clone().step(input, now, world), (idle.clone(), None));
         }
@@ -1384,7 +1648,7 @@ mod tests {
             let world = Occupancy {
                 open,
                 held,
-                quitting: false,
+                ..Occupancy::default()
             };
             assert_eq!(
                 ready().step(Input::Tick, now, world),
@@ -1402,6 +1666,7 @@ mod tests {
                 open,
                 held,
                 quitting: true,
+                ..Occupancy::default()
             };
             assert_eq!(
                 ready().step(Input::Tick, now, world),
@@ -1416,8 +1681,7 @@ mod tests {
         let now = Instant::now();
         let open = Occupancy {
             open: true,
-            held: false,
-            quitting: false,
+            ..Occupancy::default()
         };
         assert_eq!(
             ready().step(Input::Restart, now, open),
@@ -1426,8 +1690,8 @@ mod tests {
         assert_eq!(closing().step(Input::Tick, now, open), (closing(), None));
         let quit_by_the_restart = Occupancy {
             open: true,
-            held: false,
             quitting: true,
+            ..Occupancy::default()
         };
         assert_eq!(
             closing().step(Input::Tick, now, quit_by_the_restart),
@@ -1443,9 +1707,9 @@ mod tests {
         for held in [false, true] {
             for quitting in [false, true] {
                 let closed = Occupancy {
-                    open: false,
                     held,
                     quitting,
+                    ..Occupancy::default()
                 };
                 assert_eq!(
                     closing().step(Input::Tick, now, closed),
@@ -1462,9 +1726,9 @@ mod tests {
         for held in [false, true] {
             for quitting in [false, true] {
                 let world = Occupancy {
-                    open: false,
                     held,
                     quitting,
+                    ..Occupancy::default()
                 };
                 assert_eq!(
                     ready().step(Input::Restart, now, world),
@@ -1492,6 +1756,54 @@ mod tests {
                 assert_eq!(state.clone().step(input, now, world), (state.clone(), None));
             }
         }
+    }
+
+    #[test]
+    fn a_ready_update_waits_while_another_copy_runs() {
+        let now = Instant::now();
+        let other = Occupancy {
+            other_copy: true,
+            ..Occupancy::default()
+        };
+        assert_eq!(ready().step(Input::Tick, now, other), (ready(), None));
+        for open in [false, true] {
+            for held in [false, true] {
+                let world = Occupancy {
+                    open,
+                    held,
+                    other_copy: true,
+                    ..Occupancy::default()
+                };
+                assert_eq!(
+                    ready().step(Input::Restart, now, world),
+                    (ready(), None),
+                    "{world:?}"
+                );
+            }
+        }
+        assert_eq!(
+            ready().step(Input::Tick, now, Occupancy::default()),
+            installing()
+        );
+    }
+
+    #[test]
+    fn a_ready_update_that_vanished_from_disk_is_fetched_again() {
+        let now = Instant::now();
+        let world = Occupancy {
+            open: true,
+            ..Occupancy::default()
+        };
+        let (state, action) = ready().step(Input::Vanished, now, world);
+        assert_eq!((&state, action), (&State::Idle { last_check: None }, None));
+        assert_eq!(
+            state.step(Input::Tick, now, world),
+            (State::Checking, Some(Action::Check))
+        );
+        assert_eq!(
+            closing().step(Input::Vanished, now, world),
+            (closing(), None)
+        );
     }
 
     #[test]
@@ -1548,19 +1860,22 @@ mod tests {
             for open in [false, true] {
                 for held in [false, true] {
                     for quitting in [false, true] {
-                        let world = Occupancy {
-                            open,
-                            held,
-                            quitting,
-                        };
-                        let (_, action) = state.clone().step(Input::Tick, now, world);
-                        let installs = matches!(action, Some(Action::Install(_)));
-                        let expected = match &state {
-                            State::Ready { .. } => !open && !held && !quitting,
-                            State::Closing { .. } => !open,
-                            _ => false,
-                        };
-                        assert_eq!(installs, expected, "{state:?} {world:?}");
+                        for other_copy in [false, true] {
+                            let world = Occupancy {
+                                open,
+                                held,
+                                quitting,
+                                other_copy,
+                            };
+                            let (_, action) = state.clone().step(Input::Tick, now, world);
+                            let installs = matches!(action, Some(Action::Install(_)));
+                            let expected = match &state {
+                                State::Ready { .. } => !open && !held && !quitting && !other_copy,
+                                State::Closing { .. } => !open,
+                                _ => false,
+                            };
+                            assert_eq!(installs, expected, "{state:?} {world:?}");
+                        }
                     }
                 }
             }
@@ -1613,10 +1928,15 @@ mod tests {
             State::Off(OffReason::Verification),
             State::Off(OffReason::Architecture),
             State::Off(OffReason::NotBundled),
+            State::Off(OffReason::VersionMismatch),
             State::Idle { last_check: None },
             State::Checking,
             State::Failed {
                 reason: Failure::Network,
+                at: now,
+            },
+            State::Failed {
+                reason: Failure::Download,
                 at: now,
             },
             State::Failed {
@@ -1689,9 +2009,41 @@ mod tests {
         );
         assert_eq!(moved.control, Some(Control::ReleasePage));
         let locked = notice_of(&State::Off(OffReason::ReadOnly), true).unwrap();
-        assert!(locked.text.contains("cannot write to its folder"));
-        assert!(locked.text.contains("Move it to Applications"));
+        assert_eq!(
+            locked.text,
+            "Updates are off because OpenTrickster cannot write to its folder. Download updates from the release page."
+        );
         assert_eq!(locked.control, Some(Control::ReleasePage));
+    }
+
+    #[test]
+    fn the_row_says_another_window_blocks_the_update_and_offers_no_restart() {
+        let blocked = Some(Notice {
+            text: "Another OpenTrickster window is open. Quit it to update.".into(),
+            caption: None,
+            control: None,
+        });
+        for open in [false, true] {
+            for held in [false, true] {
+                let world = Occupancy {
+                    open,
+                    held,
+                    other_copy: true,
+                    ..Occupancy::default()
+                };
+                assert_eq!(notice(&ready(), world), blocked, "{world:?}");
+            }
+        }
+        let world = Occupancy {
+            other_copy: true,
+            ..Occupancy::default()
+        };
+        assert_eq!(notice(&State::Idle { last_check: None }, world), None);
+        assert_eq!(
+            notice(&closing(), world).map(|n| n.text),
+            Some("Closing the game, then installing OpenTrickster 0.2.0.".into()),
+            "a restart already under way keeps its own text"
+        );
     }
 
     #[test]

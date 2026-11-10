@@ -505,28 +505,32 @@ The row is at least 40 px tall, on `surface.panel` with a 1 px `line.subtle` top
 | --- | --- | --- |
 | An update downloads | Downloading OpenTrickster 0.2.0. | None |
 | The update is ready, and a game page, a session, or a held run is open | Update 0.2.0 is ready. The caption reads "Restarting closes the game and ends a run." | **Restart to update**, primary |
+| The update is ready, and another window of this app runs from the same bundle | Another OpenTrickster window is open. Quit it to update. | None |
 | The user clicked **Restart to update**, and the game or session is closing | Closing the game, then installing OpenTrickster 0.2.0. | None |
 | The app installs | Installing OpenTrickster 0.2.0. | None |
 | A download failed a check, or the install failed | One sentence for the cause, such as "The update failed its checksum and was discarded." | **Release page**, secondary |
 | The app runs from a temporary location that macOS made | Updates are off. Move OpenTrickster to Applications to turn them on. | **Release page**, secondary |
-| The app cannot write to its folder | Updates are off because OpenTrickster cannot write to its folder. Move it to Applications. | **Release page**, secondary |
+| The app cannot write to its folder | Updates are off because OpenTrickster cannot write to its folder. Download updates from the release page. | **Release page**, secondary |
 
 The row shows nothing in these cases:
 
 - The app is checking, or no newer release exists.
 - A check failed because of the network or an unreadable answer. The next check tries again.
-- The build has no release version, the app does not run from `OpenTrickster.app`, or the app runs a verification.
+- The build has no release version, the build is not arm64, the app does not run from `OpenTrickster.app`, or the app runs a verification.
+- The running bundle's `build.json` names another version than the build. The app would install again on every launch.
 - The update is ready and nothing is open, because the app installs at once.
 
 **Release page** opens the latest release in the browser.
 
 How the app decides:
 
-1. It checks for a newer release when it opens, every 6 hours, and when a game halt reports a build change. A check that fails on the network tries again after 15 minutes. Any other failure waits for the next 6-hour check. A build change starts a check at most once a minute, and never while an update is on its way.
+1. It checks for a newer release when it opens, every 6 hours, and when a game halt reports a build change. A check that fails on the network tries again after 15 minutes. Any other failure waits for the next 6-hour check, including a failed download and a worker that stopped without an answer. A build change starts a check at most once a minute, and never while an update is on its way.
 2. It downloads in the background and verifies the download before the row says the update is ready. It refuses a download unless the archive matches the release's `SHA256SUMS`, the unpacked app passes `codesign --verify --strict`, its bundle identifier is `org.opentrickster.desktop`, its `build.json` names the release version with a clean source and the release profile, and its minimum macOS fits the running one.
+   A release that fails any of these checks except the checksum and the signature is skipped. The app does not download that version again and waits for a newer release. A checksum or signature mismatch may be a bad transfer, so the app tries it again at the next 6-hour check.
 3. It installs and relaunches without asking when nothing is open: no game page, no session, no run held after a lost connection, and the app is not quitting. Otherwise the row offers **Restart to update**.
-4. **Restart to update** closes the game and the session through the same cleanup as quit, then installs and relaunches. If the install fails, the app stays open and the row says so.
+4. **Restart to update** checks that the staged update is still on disk. If it is gone, the app drops the update, checks again, and leaves the game open. Otherwise it closes the game and the session through the same cleanup as quit, then installs and relaunches. If the install fails, the app stays open and the row says so. A failed install removes the staged update.
 5. A user who quits never gets an install they did not ask for.
+6. Every running copy holds a lock on `.OpenTrickster-instance-<pid>-<bundle>.lock` beside its bundle. The kernel drops the lock when the process ends. While another live copy of the same bundle runs, neither the automatic install nor **Restart to update** goes ahead, and the row says so. The install checks again just before it swaps. A copy removes a staged update or a backup only when the process that made it is dead.
 
 ### Meter
 
