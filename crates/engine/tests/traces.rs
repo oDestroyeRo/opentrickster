@@ -1450,6 +1450,24 @@ fn combat_selects_nearest_eligible_configured_target_deterministically() {
 }
 
 #[test]
+fn a_running_or_draining_run_reports_no_blocked_control() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    assert_eq!(h.engine.snapshot().phase, Phase::Running);
+    assert_eq!(h.engine.snapshot().blocked, None);
+    h.sent(id);
+    let draining = h.command(Command::Pause);
+    assert_eq!(draining.snapshot.phase, Phase::Pausing);
+    assert_eq!(draining.snapshot.blocked, None);
+    // A paused run still reports what blocks Resume.
+    let mut h = Harness::new(false);
+    h.command(Command::Start);
+    let paused = h.facts(vec![Fact::HpPotions(0)]);
+    assert_eq!(paused.snapshot.phase, Phase::Paused(Pause::HpPotions));
+    assert!(paused.snapshot.blocked.is_some());
+}
+
+#[test]
 fn combat_requires_observed_hp_potions_and_restocks_unlock_resume() {
     let mut h = Harness::new(false);
     h.command(Command::Start);
