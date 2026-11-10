@@ -2,7 +2,7 @@
 
 This crate implements the production gateway, existing-character authentication,
 state decoder, public catalog resolver, and passive embedded input boundary for
-build `ea1a68bd89958fae94179f1e0835ffb5`. It is a partial delivery of #21.
+the game build that `BUILD` in `src/profile.rs` pins. It is a partial delivery of #21.
 The remaining native action paths and live acceptance belong to #21 and #23.
 
 ## Runtime ownership
@@ -173,11 +173,14 @@ lists stay distinct from complete inventory. Missing equipment references stay
 unresolved at their original replay point.
 
 Carried weight and the HP potion count are gated by `INVENTORY_CUTOFF_BUILD` in
-`src/decode.rs`. It names build `ea1a68bd89958fae94179f1e0835ffb5`, accepted
-after Trial A and Trial B passed ([trials](../../docs/research/native-inventory-trials.md),
-procedure in the [inventory baseline report](../../docs/research/native-inventory-baseline.md)).
-For any other build, both stay unknown and no `Weight` or `HpPotions` fact is
-emitted, so a pin migration turns the cutoff off until the trials pass again.
+`src/decode.rs`. Trial A and Trial B passed on build `ea1a68bd`
+([trials](../../docs/research/native-inventory-trials.md), procedure in the
+[inventory baseline report](../../docs/research/native-inventory-baseline.md)).
+The acceptance carries forward to a new build when every signed client method
+still matches its reviewed fingerprint, and `tools/build-migrate` then moves the
+cutoff with `BUILD`. After a migration that changed a signed method, set the
+cutoff to `None` until the trials pass on that build. For any build the cutoff
+does not name, both stay unknown and no `Weight` or `HpPotions` fact is emitted.
 When accepted:
 
 - H is the last raw receipt among the first accepted 5, 679, 230 and 233. The

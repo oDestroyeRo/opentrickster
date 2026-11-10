@@ -144,7 +144,8 @@ Only `watch.py` holds logic. The workflow runs Git and `gh`.
 - A republish under the same build id, such as a changed descriptor or asset hash, reports
   `current`.
 - Server acceptance of the new seed and opcode maps is not tested.
-- The hourly run downloads about 71 MB.
+- The hourly run first reads the 4 KiB `version` file. It downloads the full build, about 71 MB,
+  only when the deployed build differs from `BUILD`.
 - The watcher does not use `--exclude-source`. Every signed method must match.
 
 ## Migrating by hand

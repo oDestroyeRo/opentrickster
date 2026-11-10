@@ -29,10 +29,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Reads the 4 KiB version file first, so an unchanged build costs one small request.
+      - name: Read the deployed build
+        id: probe
+        run: |
+          deployed=$(curl -fsS --proto '=https' --max-redirs 0 --max-time 60 --max-filesize 4096 \
+            -H 'Cache-Control: no-cache' -A 'Mozilla/5.0 (opentrickster build-migrate)' \
+            https://tr-play.playall.in.th/version |
+            python3 -I -c 'import json, re, sys; b = json.load(sys.stdin).get("build", ""); print(b if re.fullmatch(r"[0-9a-f]{32}", b) else "")')
+          pinned=$(sed -n 's/^pub const BUILD: &str = "\([0-9a-f]\{32\}\)";$/\1/p' crates/net/src/profile.rs)
+          [ -n "$deployed" ] && [ -n "$pinned" ] || { echo "Cannot read the deployed or the pinned build." >&2; exit 1; }
+          echo "Deployed build $deployed. Pinned build $pinned."
+          if [ "$deployed" = "$pinned" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Fetch the public build
+        if: steps.probe.outputs.changed == 'true'
         run: python3 -I tools/build-migrate/migrate.py fetch "$RUNNER_TEMP/game" > "$RUNNER_TEMP/fetch.json"
       - name: Compare it with the pinned build
         id: watch
+        if: steps.probe.outputs.changed == 'true'
         run: >
           python3 -I tools/build-migrate/watch.py "$RUNNER_TEMP/game"
           --work "$RUNNER_TEMP/watch" --github-output "$GITHUB_OUTPUT"
