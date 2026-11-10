@@ -18,6 +18,8 @@ import tempfile
 REPOSITORY = Path(__file__).resolve().parents[1]
 PACKAGE = "opentrickster-desktop"
 EXECUTABLE = "opentrickster"
+RELEASE_ENVIRONMENT = "OPENTRICKSTER_RELEASE"
+RELEASE_VERSION = re.compile(r"(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)")
 FONT_LICENSES = (
     "IBMPlexSans-OFL.txt",
     "IBMPlexSansThai-OFL.txt",
@@ -53,7 +55,13 @@ def desktop_package(repository: Path) -> dict:
     raise PackageError("The desktop workspace member has not been integrated.")
 
 
-def build_binary(repository: Path, package: dict, target: str | None, debug: bool) -> Path:
+def build_binary(
+    repository: Path, package: dict, target: str | None, debug: bool, release_version: str | None
+) -> Path:
+    # Only a release build carries the version; an ambient value must not leak into other builds.
+    environment = {k: v for k, v in os.environ.items() if k != RELEASE_ENVIRONMENT}
+    if release_version:
+        environment[RELEASE_ENVIRONMENT] = release_version
     arguments = [
         "cargo", "build", "--locked", "--package", PACKAGE, "--bin", EXECUTABLE,
         "--message-format=json-render-diagnostics",
@@ -63,7 +71,9 @@ def build_binary(repository: Path, package: dict, target: str | None, debug: boo
     if target:
         arguments.extend(["--target", target])
     executable = None
-    with subprocess.Popen(arguments, cwd=repository, stdout=subprocess.PIPE, text=True) as build:
+    with subprocess.Popen(
+        arguments, cwd=repository, env=environment, stdout=subprocess.PIPE, text=True
+    ) as build:
         assert build.stdout is not None
         for line in build.stdout:
             message = json.loads(line)
@@ -169,21 +179,38 @@ def assemble_bundle(
     return build
 
 
+def release_version_argument(text: str) -> str:
+    if not RELEASE_VERSION.fullmatch(text):
+        raise argparse.ArgumentTypeError("expected MAJOR.MINOR.PATCH, for example 1.2.3")
+    return text
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("dist/OpenTrickster.app"))
     parser.add_argument("--debug", action="store_true", help="Package the debug build for local verification.")
     parser.add_argument("--target", choices=["aarch64-apple-darwin", "x86_64-apple-darwin"])
+    parser.add_argument(
+        "--release-version",
+        type=release_version_argument,
+        metavar="X.Y.Z",
+        help="Package a release with this version. Needs a clean work tree and the release profile.",
+    )
     arguments = parser.parse_args()
     if sys.platform != "darwin":
         raise PackageError("Build and package OpenTrickster on macOS.")
+    if arguments.release_version and arguments.debug:
+        raise PackageError("A release version needs the release profile; remove --debug.")
     destination = arguments.output.expanduser().absolute()
     check_destination(destination)
     package = desktop_package(REPOSITORY)
     revision = capture(["git", "rev-parse", "--verify", "HEAD"], REPOSITORY)
     dirty = bool(capture(["git", "status", "--porcelain"], REPOSITORY))
-    binary = build_binary(REPOSITORY, package, arguments.target, arguments.debug)
-    details = assemble_bundle(REPOSITORY, binary, package["version"], destination, {
+    if arguments.release_version and dirty:
+        raise PackageError("A release version needs a clean work tree; commit or remove local changes.")
+    binary = build_binary(REPOSITORY, package, arguments.target, arguments.debug, arguments.release_version)
+    version = arguments.release_version or package["version"]
+    details = assemble_bundle(REPOSITORY, binary, version, destination, {
         "source_revision": revision,
         "source_dirty": dirty,
         "profile": "debug" if arguments.debug else "release",

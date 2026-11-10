@@ -16,3 +16,10 @@ Track implementation and runtime acceptance in
 
 [Implementation evidence](docs/research/README.md) indexes the pinned protocol,
 gameplay and client-control research, with its runtime limits.
+
+## Releases
+
+Each merge to `main` with a releasable change (`feat`, `fix`, `perf`, `revert`
+or a breaking change) publishes a GitHub Release with the macOS app. CI picks the
+version from the Conventional Commit messages. See
+[Releases](docs/macos-build.md#releases).
