@@ -243,6 +243,8 @@ pub(crate) struct Decoder {
     learned: Option<BTreeSet<u16>>,
     zone: Option<u16>,
     dig_active: bool,
+    /// The own spot has an odd key and no item depth, which the client cancels before digging.
+    dig_empty_spot: bool,
     own: Option<u16>,
     map: Option<e::MapKey>,
     point: Option<e::Point>,
@@ -307,6 +309,7 @@ impl Decoder {
             learned: None,
             zone: None,
             dig_active: false,
+            dig_empty_spot: false,
             own: None,
             map: None,
             point: None,
@@ -1342,6 +1345,7 @@ impl Decoder {
             }
             45 => {
                 self.dig_active = true;
+                self.dig_empty_spot = false;
                 out.push(Fact::DigAccepted);
             }
             371 => {
@@ -1351,15 +1355,19 @@ impl Decoder {
                     y: r.u16()? as i32,
                 };
                 let branch = r.u8()?;
-                if branch != 0 {
-                    r.u16()?;
+                let (unusable, item) = if branch != 0 {
+                    (r.u16()? as i16, 0)
                 } else {
-                    r.take(3)?;
-                }
-                r.u16()?;
+                    r.u8()?;
+                    let item = r.u8()?;
+                    r.u8()?;
+                    (0, item)
+                };
+                let key = r.u16()?;
                 r.u8()?;
                 r.end()?;
                 if Some(id) == self.own && self.dig_active {
+                    self.dig_empty_spot = unusable <= 0 && key & 1 != 0 && item == 0;
                     out.push(Fact::DigSpot(point));
                 }
             }
@@ -1373,8 +1381,13 @@ impl Decoder {
                     return Ok(out);
                 }
                 self.dig_active = false;
+                let empty_spot = std::mem::take(&mut self.dig_empty_spot);
                 match kind {
                     2 | 9 => out.push(Fact::Outcome(e::Outcome::DigEnded(e::DigEnd::Empty))),
+                    // The server's answer to the client's empty-spot cancel: nothing to find here.
+                    1 if empty_spot => {
+                        out.push(Fact::Outcome(e::Outcome::DigEnded(e::DigEnd::Empty)))
+                    }
                     3 => {
                         let item = self.item_kind(1, item)?;
                         out.push(Fact::Outcome(e::Outcome::DigEnded(
@@ -2312,6 +2325,56 @@ mod tests {
             b.extend([0; 4]);
         }
         b
+    }
+    fn own_spot(branch: u8, item: u8, key: u16) -> Vec<u8> {
+        let mut b = Vec::new();
+        for n in [7u16, 10, 20] {
+            b.extend(n.to_le_bytes());
+        }
+        b.push(branch);
+        if branch != 0 {
+            b.extend(0u16.to_le_bytes());
+        } else {
+            b.extend([20, item, 3]);
+        }
+        b.extend(key.to_le_bytes());
+        b.push(25);
+        b
+    }
+    fn dig_result(kind: u8) -> Vec<u8> {
+        let mut b = vec![kind];
+        b.extend(0u16.to_le_bytes());
+        b.extend(0u32.to_le_bytes());
+        b
+    }
+    #[test]
+    fn the_server_end_of_an_empty_spot_cancel_is_an_empty_dig() {
+        let mut d = Decoder::new();
+        d.own = Some(7);
+        let empty = |facts: &[Fact]| {
+            matches!(
+                facts,
+                [Fact::Outcome(e::Outcome::DigEnded(e::DigEnd::Empty))]
+            )
+        };
+        // The client cancels an odd-key spot without item depth (48); the server answers with kind 1.
+        for spot in [own_spot(0, 0, 0x1235), own_spot(1, 0, 0x1235)] {
+            d.apply(&packet(45, vec![])).unwrap();
+            d.apply(&packet(371, spot)).unwrap();
+            assert!(empty(&d.apply(&packet(50, dig_result(1))).unwrap()));
+        }
+        // Kind 1 after any other spot, such as a drain's cancel, is no dig result.
+        for spot in [own_spot(0, 8, 0x1235), own_spot(0, 0, 0x1234)] {
+            d.apply(&packet(45, vec![])).unwrap();
+            d.apply(&packet(371, spot)).unwrap();
+            assert!(d.apply(&packet(50, dig_result(1))).unwrap().is_empty());
+        }
+        // The empty spot belongs to its own dig only.
+        d.apply(&packet(45, vec![])).unwrap();
+        d.apply(&packet(371, own_spot(0, 0, 0x1235))).unwrap();
+        assert!(empty(&d.apply(&packet(50, dig_result(2))).unwrap()));
+        d.apply(&packet(45, vec![])).unwrap();
+        assert!(d.apply(&packet(50, dig_result(1))).unwrap().is_empty());
     }
     #[test]
     fn inventory_absent_empty_merge_and_absolute_delta() {
