@@ -1857,14 +1857,14 @@ mod tests {
         assert_eq!(dig_events(&mut observer, absent), [false]);
     }
     /// A bound page whose game link (connection 1) has reached its baseline.
-    struct Page {
+    struct OnlinePage {
         observer: GameObserver,
         sequence: u64,
         raw: u64,
     }
     const OWN: u16 = 0x0102;
     const ZONE: u16 = 41;
-    impl Page {
+    impl OnlinePage {
         fn online(session: e::SessionKey) -> Self {
             use zeroize::Zeroizing;
             let profile = VerifiedProfile {
@@ -2003,7 +2003,7 @@ mod tests {
         let point = e::Point { x: 7, y: 9 };
         let (session, ticket) =
             crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 12, y: 34 }));
-        let mut page = Page::online(session);
+        let mut page = OnlinePage::online(session);
         page.observer.arm_action(ticket.clone()).unwrap();
         page.handoff(6);
         let moved = page.events();
@@ -2052,7 +2052,7 @@ mod tests {
     #[test]
     fn a_replacement_login_before_the_old_link_closes_keeps_the_session() {
         let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
-        let mut page = Page::online(session);
+        let mut page = OnlinePage::online(session);
         page.handoff(6);
         page.events();
         page.ingest("socket", serde_json::json!({"connection":2}))
@@ -2067,7 +2067,7 @@ mod tests {
     #[test]
     fn a_handoff_with_no_replacement_login_in_time_is_lost() {
         let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
-        let mut page = Page::online(session);
+        let mut page = OnlinePage::online(session);
         page.handoff(6);
         page.events();
         let closed = std::time::Instant::now()
@@ -2089,7 +2089,7 @@ mod tests {
     #[test]
     fn an_unfinished_aux_group_on_the_old_link_dies_with_it() {
         let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
-        let mut page = Page::online(session);
+        let mut page = OnlinePage::online(session);
         page.grouped(1, 6, 36, 5, &17u32.to_le_bytes()).unwrap();
         page.frontier(6);
         page.handoff(7);
@@ -2114,13 +2114,13 @@ mod tests {
     #[test]
     fn handoff_flows_the_client_never_produces_fail_safe() {
         let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
-        let mut unannounced = Page::online(session);
+        let mut unannounced = OnlinePage::online(session);
         unannounced
             .ingest("socket", serde_json::json!({"connection":2}))
             .unwrap();
         assert_eq!(unannounced.handoff_login(2, 6), Err(NetError::Uncertain));
         assert!(unannounced.observer.try_next().is_err());
-        let mut late = Page::online(session);
+        let mut late = OnlinePage::online(session);
         late.handoff(6);
         late.events();
         late.ingest("socket", serde_json::json!({"connection":2}))
@@ -2131,12 +2131,12 @@ mod tests {
             Err(NetError::Uncertain),
             "the client closed the old link before it logged in on the new one"
         );
-        let mut dropped = Page::online(session);
+        let mut dropped = OnlinePage::online(session);
         dropped
             .ingest("socket-closed", serde_json::json!({"connection":1}))
             .unwrap();
         assert!(matches!(dropped.events().as_slice(), [Event::Lost]));
-        let mut unredacted = Page::online(session);
+        let mut unredacted = OnlinePage::online(session);
         let mut payload = vec![0; 28];
         payload[4] = 1;
         assert_eq!(
