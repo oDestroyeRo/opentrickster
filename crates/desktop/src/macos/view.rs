@@ -1,5 +1,6 @@
 mod dashboard;
 mod forms;
+mod update;
 
 use super::{
     app::{Desktop, LogFilter, Tab},
@@ -582,6 +583,9 @@ impl Desktop {
             Phase::Error(halt) => (
                 halt_label(&halt),
                 match halt {
+                    e::Halt::BuildChanged if self.update_in_flight() => {
+                        crate::update::GAME_UPDATED_UPDATING
+                    }
                     e::Halt::BuildChanged => {
                         "The game updated. Reload it or reconnect before continuing."
                     }
@@ -763,6 +767,7 @@ impl Desktop {
                     .p(px(16.))
                     .child(tab_content),
             )
+            .children(self.update_row(theme, cx))
             .child(
                 div()
                     .h(px(34.))

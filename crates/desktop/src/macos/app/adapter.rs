@@ -221,6 +221,9 @@ impl Desktop {
                 "Sign-in failed. Check the Game ID and password."
             }
             NetError::SecurityRequired => "Complete the account security step in the game.",
+            NetError::BuildChanged if self.update_in_flight() => {
+                crate::update::GAME_UPDATED_UPDATING
+            }
             NetError::BuildChanged => "The game updated. Update OpenTrickster before reconnecting.",
             NetError::Capacity | NetError::Uncertain => {
                 "The game state could not be verified. Reconnect before continuing."

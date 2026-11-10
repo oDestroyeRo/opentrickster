@@ -1,4 +1,5 @@
 mod adapter;
+mod update;
 
 use super::{
     controller::Controller,
@@ -7,6 +8,7 @@ use super::{
     input::TextInput,
     macos_native,
     network::{Background, Completion, Prepared},
+    updater::Updater,
     verification::{self, Probe},
 };
 use engine::{
@@ -154,6 +156,8 @@ pub struct Desktop {
     background: Background,
     credentials: Option<NetCredentials>,
     quit_requested: bool,
+    updater: Updater,
+    build_halt: bool,
     pub client_failure: Option<&'static str>,
     cache: Option<std::path::PathBuf>,
     menu_fingerprint: Cell<Option<MenuState>>,
@@ -166,6 +170,7 @@ impl Desktop {
         options: Option<verification::Options>,
     ) -> Self {
         let verify = options.as_ref().is_some_and(|options| !options.application);
+        let verification = options.is_some();
         let cache = options
             .as_ref()
             .filter(|o| o.application)
@@ -209,6 +214,8 @@ impl Desktop {
             background: Background::new(),
             credentials: None,
             quit_requested: false,
+            updater: Updater::new(verification),
+            build_halt: false,
             client_failure: None,
             menu_fingerprint: Cell::new(None),
             cache,
@@ -481,6 +488,7 @@ impl Desktop {
         }
         self.poll_host(window, cx);
         self.drain(window, cx);
+        self.drive_updater();
         if let Some(mut probe) = self.probe.take() {
             probe.tick(self, window, cx);
             self.probe = Some(probe);
