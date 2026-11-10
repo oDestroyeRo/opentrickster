@@ -934,8 +934,8 @@ impl Engine {
                     run.pending = None;
                     self.quiesce(io);
                 } else {
-                    pending.quarantined = true;
-                    pending.early.clear();
+                    // Nothing was sent, so no action of ours is in flight while the run drains.
+                    run.pending = None;
                     self.drain(AfterDrain::Pause(Pause::Uncertain), io);
                 }
             }

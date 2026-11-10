@@ -1208,6 +1208,24 @@ fn three_unsent_actions_in_a_row_pause_the_run_as_uncertain() {
 }
 
 #[test]
+fn an_unsent_action_that_pauses_keeps_the_session_through_a_slow_idle_proof() {
+    let mut h = Harness::new(true);
+    let start = h.command(Command::Start);
+    let id = acts(&start)[0].id;
+    let skipped = unsent(&mut h, id);
+    assert_eq!(skipped.snapshot.phase, Phase::Pausing);
+    let key = barrier(&skipped).expect("the pause waits for an idle proof");
+    // Nothing was sent, so a slow idle proof holds the pause instead of closing the session.
+    let slow = h.wake(DRAIN_MS);
+    assert_eq!(closes(&slow), 0);
+    assert_eq!(barrier(&slow), Some(key));
+    let late = unsent(&mut h, id);
+    assert!(acts(&late).is_empty() && closes(&late) == 0);
+    let paused = h.event(Event::Quiescent(key));
+    assert_eq!(paused.snapshot.phase, Phase::Paused(Pause::Uncertain));
+}
+
+#[test]
 fn manual_play_during_a_run_without_a_pending_action_keeps_the_session() {
     let mut h = Harness::new(false);
     let start = h.command(Command::Start);
