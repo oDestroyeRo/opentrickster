@@ -466,9 +466,13 @@ pub(crate) fn walk_ended(s: &Snapshot) -> Option<[f64; 2]> {
 }
 
 /// An armed gun loads toward Ready after each shot. Quiescence waits for it, because an
-/// attack's receipt window is shorter than a reload.
+/// attack's receipt window is shorter than a reload. The gun tick that enters state 3 or 4
+/// leaves Ready false; only the next tick sets it.
 fn reloading(s: &Snapshot) -> bool {
-    s.combat.gun_worn && s.combat.gun_armed && matches!(s.combat.gun_state, 1 | 2)
+    s.combat.gun_worn
+        && s.combat.gun_armed
+        && (matches!(s.combat.gun_state, 1 | 2)
+            || (matches!(s.combat.gun_state, 3 | 4) && !s.combat.gun_ready))
 }
 
 pub(crate) fn idle(s: &Snapshot) -> bool {
@@ -1109,6 +1113,17 @@ mod tests {
                 Err(NetError::NotReady)
             ));
         }
+        // The tick that enters state 3 or 4 has not set Ready yet.
+        s.combat.gun_ready = false;
+        for settling in [3, 4] {
+            s.combat.gun_state = settling;
+            assert!(!idle(&s));
+            assert!(matches!(
+                candidate(&s, action, Some(73)),
+                Err(NetError::NotReady)
+            ));
+        }
+        s.combat.gun_ready = true;
         s.combat.gun_state = 0;
         assert!(idle(&s));
         assert!(matches!(
