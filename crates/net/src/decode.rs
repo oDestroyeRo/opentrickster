@@ -210,6 +210,9 @@ pub(crate) struct Decoder {
     mode: Option<u8>,
     native_walk: bool,
     physical_uncertain: bool,
+    follows_handoffs: bool,
+    /// A handoff (s2c 154) moved the session, and its 437 has not arrived.
+    entering: bool,
     pending: Option<PendingAction>,
     combat: crate::combat::Correlator,
     correlated: Vec<DeferredFacts>,
@@ -281,6 +284,8 @@ impl Decoder {
             mode: None,
             native_walk: false,
             physical_uncertain: false,
+            follows_handoffs: false,
+            entering: false,
             pending: None,
             combat: Default::default(),
             correlated: Vec::new(),
@@ -517,6 +522,11 @@ impl Decoder {
     ) {
         self.definitions = data;
     }
+    /// Only the client-assisted observer follows a zone handoff. In a clientless session,
+    /// s2c 154 makes the state uncertain because the link is about to close.
+    pub(crate) fn follow_handoffs(&mut self) {
+        self.follows_handoffs = true;
+    }
     pub(crate) fn use_native_walk_policy(&mut self) {
         self.native_walk = true;
         self.mode = Some(1);
@@ -568,7 +578,12 @@ impl Decoder {
     pub(crate) fn physical_uncertain(&self) -> bool {
         self.physical_uncertain
     }
+    /// None between a handoff and its 437, because the new zone's server may give the own
+    /// actor another ID.
     pub(crate) fn sampling_identity(&self) -> Option<(u16, u16)> {
+        if self.entering {
+            return None;
+        }
         Some((self.own?, self.zone?))
     }
     pub(crate) fn take_correlated(&mut self) -> Vec<DeferredFacts> {
@@ -1248,6 +1263,62 @@ impl Decoder {
                 }
                 // The caption path does not insert inventory or prove a pickup action.
             }
+            154 if self.follows_handoffs => {
+                // `Messages.ParseHandoff` (f11873) has no end check.
+                r.u32()?;
+                r.u64()?;
+                r.cstr()?;
+                r.u32()?;
+                r.u32()?;
+                let zone = r.u16()?;
+                let point = e::Point {
+                    x: r.u16()? as i32,
+                    y: r.u16()? as i32,
+                };
+                r.u8()?;
+                let map = self.map_key(zone)?;
+                // `ChangeZone` (f48915) disposes the old map's actors, ground items and effects
+                // and stops the own action. Inventory, status and the gun controller stay.
+                self.actors.clear();
+                self.drops.clear();
+                self.combat.clear();
+                self.pending = None;
+                self.walk = None;
+                self.dig_active = false;
+                self.load_speed.own_lost();
+                self.zone = Some(zone);
+                self.map = Some(map);
+                self.point = Some(point);
+                self.entering = true;
+                out.push(Fact::MapChanged);
+                if let Some(label) = self
+                    .definitions
+                    .as_ref()
+                    .and_then(|d| d.zone_labels.get(&zone))
+                {
+                    out.push(Fact::MapLabel {
+                        map,
+                        label: text(label.clone())?,
+                    });
+                }
+                out.push(Fact::Position { map, point });
+            }
+            154 => self.physical_uncertain = true,
+            437 if self.entering => {
+                // `Messages.ParseEnterZone` (f11871) reads 6 bytes and has no end check.
+                let own = r.u16()?;
+                let point = e::Point {
+                    x: r.u16()? as i32,
+                    y: r.u16()? as i32,
+                };
+                self.entering = false;
+                self.own = Some(own);
+                self.parts.enter_zone(own, live);
+                self.point = Some(point);
+                if let Some(map) = self.map {
+                    out.push(Fact::Position { map, point });
+                }
+            }
             437 => {
                 self.physical_uncertain = true;
                 let own = r.u16()?;
@@ -1396,20 +1467,8 @@ impl Decoder {
     /// with every input known.
     pub(crate) fn gun_prerequisite(&self) -> Option<MissingPrerequisite> {
         use MissingPrerequisite as M;
-        if !self.stats_seen || self.own.is_none() {
-            return Some(M::OwnBaseline);
-        }
-        if self.definitions.is_none() {
-            return Some(M::Definitions);
-        }
-        if !self.readiness.equipment_references_resolved
-            || self.gun_worn().is_none()
-            || self.gun_diverged
-        {
-            return Some(M::Equipment);
-        }
-        if self.gun_profile().is_none() {
-            return Some(M::GunProfile);
+        if let Some(missing) = self.gun_equipment() {
+            return Some(missing);
         }
         if self.gun.key().is_none() {
             return Some(M::GunKey);
@@ -1438,6 +1497,27 @@ impl Decoder {
         // Wearing disarms until a fresh 512 arrives.
         if !self.gun.armed() {
             return Some(M::GunKey);
+        }
+        None
+    }
+    /// The own baseline, definitions, worn slots and gun profile that `gun_prerequisite`
+    /// checks first.
+    fn gun_equipment(&self) -> Option<MissingPrerequisite> {
+        use MissingPrerequisite as M;
+        if !self.stats_seen || self.own.is_none() {
+            return Some(M::OwnBaseline);
+        }
+        if self.definitions.is_none() {
+            return Some(M::Definitions);
+        }
+        if !self.readiness.equipment_references_resolved
+            || self.gun_worn().is_none()
+            || self.gun_diverged
+        {
+            return Some(M::Equipment);
+        }
+        if self.gun_profile().is_none() {
+            return Some(M::GunProfile);
         }
         None
     }
@@ -1480,13 +1560,14 @@ impl Decoder {
         let (kind, _) = self.definitions.as_ref()?.zones.get(&self.zone?)?;
         Some(!matches!(kind, 0 | 1 | 5))
     }
-    /// The `GunFlowing` constructor at EnterWorld (f24374): slot 20 runs the `SpecialOn`
-    /// branch, other equipped items go through `Wear`, then every earlier 518/521 replays in
-    /// arrival order.
+    /// The `GunFlowing` constructor at EnterWorld (f24374): it stores `LoadSpeed` 1, slot 20
+    /// runs the `SpecialOn` branch, other equipped items go through `Wear`, then every earlier
+    /// 518/521 replays in arrival order.
     pub(crate) fn construct_gun(&mut self) {
         if std::mem::replace(&mut self.gun_live, true) {
             return;
         }
+        self.load_speed.constructed();
         self.gun_skills = self.start_skills;
         for slot in 0..self.slots.len() {
             let uid = self.slots[slot];
@@ -1637,11 +1718,19 @@ impl Decoder {
             self.gun.drill_end(worn);
         }
     }
-    /// BasicAttack is supported with a worn gun only when the controller is armed and every
-    /// input is known; without one, the ordinary melee rules apply.
+    /// BasicAttack is supported with a worn gun when no input that stays unknown for the
+    /// session is missing; learned skills are known only after construction. Support is fixed
+    /// at Baseline, so the key, the ammo count, a `LoadSpeed` a later own 8 or 9 can settle,
+    /// the zone and camp are checked for each shot by `gun_waitable` instead. Without a gun,
+    /// the ordinary melee rules apply.
     pub(crate) fn basic_attack_supported(&self) -> bool {
         match self.gun_worn() {
-            Some(true) => self.gun_prerequisite().is_none(),
+            Some(true) => {
+                self.gun_equipment().is_none()
+                    && !self.ammo_unknown
+                    && self.gun_skills.is_some()
+                    && self.load_speed.knowable()
+            }
             Some(false) => self.normal_weapon_mode().is_ok(),
             None => false,
         }

@@ -11,7 +11,7 @@ let order = 0;
 for (const kind of ['pointermove','pointerdown','pointerup','keydown','keyup']) {
   addEventListener(kind, event => {
     ipc.postMessage(JSON.stringify({kind:'native-input',order:++order,event:kind,
-      code:event.code||null,button:event.button??null,x:event.clientX??null,
+      code:event.code||null,button:event.button??null,buttons:event.buttons??null,x:event.clientX??null,
       y:event.clientY??null,trusted:event.isTrusted}));
     event.preventDefault();
   }, {capture:true});

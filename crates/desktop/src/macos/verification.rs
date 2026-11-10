@@ -792,6 +792,7 @@ pub fn offline_snapshot() -> e::Snapshot {
     e::Snapshot {
         mode: e::Mode::Assisted,
         phase: e::Phase::ClientAbsent,
+        connect_step: None,
         allowed: vec![e::Control::Configure],
         blocked: None,
         blockers: vec![],

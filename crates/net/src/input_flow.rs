@@ -290,10 +290,13 @@ impl Flow {
         let Some(s) = s else {
             return Ok(None);
         };
+        // Only a press plan projects through the geometry. Once the game acts on a press, its
+        // camera may follow the character, so a later revision cannot invalidate the action.
+        let projects = matches!(self.phase, Phase::Prepare | Phase::KeyRelease);
         if s.host_epoch != self.host
             || s.layout_epoch != self.layout
             || s.zone != self.zone
-            || s.revision != self.revision
+            || (projects && s.revision != self.revision)
         {
             return Err(NetError::StaleConnection);
         }
@@ -475,6 +478,69 @@ mod tests {
             .unwrap()
             .steps;
         assert_eq!(press, [NormalInput::LeftDown]);
+    }
+    #[test]
+    fn a_camera_move_after_the_press_keeps_the_action() {
+        let value = crate::test_support::sample_value();
+        let clock = std::cell::Cell::new(Instant::now() - std::time::Duration::from_millis(100));
+        let next_capture = || {
+            let at = clock.get() + std::time::Duration::from_millis(1);
+            clock.set(at);
+            at
+        };
+        let mut s = crate::sampler::parse_snapshot(&value, next_capture()).unwrap();
+        s.pointer.world = Some([540.0, 350.0]);
+        s.pointer.picked = None;
+        s.pointer.ground_hover = false;
+        let fences = crate::InputFences {
+            host_epoch: 7,
+            layout_epoch: 11,
+            not_after: At(1000),
+        };
+        let action = Action::MoveTo(e::Point { x: 540, y: 350 });
+        let (session, ticket) = crate::test_support::ticket(action);
+        let mut moved = crate::sampler::parse_snapshot(&value, next_capture()).unwrap();
+        moved.pointer.world = s.pointer.world;
+        moved.revision += 1;
+        // Before the press, the plan projects through the geometry it started with.
+        assert!(matches!(
+            Flow::new(ticket.clone(), &s).next(Some(&moved), At(10), fences, session, None, false),
+            Err(NetError::StaleConnection)
+        ));
+        let mut flow = Flow::new(ticket, &s);
+        let press = flow
+            .next(Some(&s), At(10), fences, session, None, false)
+            .unwrap()
+            .unwrap()
+            .steps[0];
+        assert_eq!(press, NormalInput::LeftDown);
+        flow.issue(InputStepKey(1), press);
+        flow.dispatched(InputStepKey(1), next_capture()).unwrap();
+        flow.observe_send(24, 5);
+        s.captured = next_capture();
+        let release = flow
+            .next(Some(&s), At(11), fences, session, None, false)
+            .unwrap()
+            .unwrap()
+            .steps[0];
+        assert_eq!(release, NormalInput::LeftUp);
+        flow.issue(InputStepKey(2), release);
+        flow.dispatched(InputStepKey(2), next_capture()).unwrap();
+        // The camera follows the walking character, which changes the sampled geometry.
+        s.revision += 1;
+        s.motion.path = 3;
+        s.captured = next_capture();
+        assert!(matches!(
+            flow.next(Some(&s), At(12), fences, session, None, false),
+            Ok(None)
+        ));
+        s.motion.path = 0;
+        s.captured = next_capture();
+        assert!(matches!(
+            flow.next(Some(&s), At(13), fences, session, None, false),
+            Ok(None)
+        ));
+        assert!(flow.done());
     }
     #[test]
     fn dig_keeps_one_ticket_and_uses_observed_hold_release_and_first_coast() {

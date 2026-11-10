@@ -10,7 +10,7 @@
   const incoming = new Set(cfg.incoming);
   const outgoing = new Set(cfg.outgoing);
   const now = () => performance.now();
-  let failed = false, closing = false, sequence = 0, ingress = 0, lastFrontier = 0, next = 0, queue = [], queuedBytes = 0, timer = null;
+  let failed = false, closing = false, handoff = false, sequence = 0, ingress = 0, lastFrontier = 0, next = 0, queue = [], queuedBytes = 0, timer = null;
   function post(kind, value) {
     const body = Object.assign({channel:"opentrickster.net.v1",epoch:cfg.epoch,guard:cfg.guard,sequence:++sequence,rawIngress:ingress,kind},value);
     try {globalThis.ipc.postMessage(JSON.stringify(body));}
@@ -50,7 +50,9 @@
         timer = setTimeout(flush,16); return;
       }
       queue.shift(); queuedBytes -= entry.bytes.length;
-      post("frame",{connection:entry.record.id,direction:entry.direction,ingress:entry.ingress,data:encode(entry.bytes),ageMs:Math.max(0,Math.ceil(now()-entry.at))});
+      const ageMs=Math.max(0,Math.ceil(now()-entry.at));
+      if (entry.direction === "handoff") post("game-handoff",{connection:entry.record.id,ingress:entry.ingress,header:Array.from(entry.bytes),ageMs});
+      else post("frame",{connection:entry.record.id,direction:entry.direction,ingress:entry.ingress,data:encode(entry.bytes),ageMs});
     }
     frontier();
   }
@@ -60,10 +62,23 @@
     queue.push({record,direction,bytes,at,ingress:mark}); queuedBytes += bytes.length;
     if (timer === null) flush();
   }
+  // s2c 154 is U32, U64 Uid, C-string Host, U32 Port, U32 Key, U16 Zone, U16 x, U16 y, U8 Option. Only Zone and Pos cross.
+  function redactHandoff(header,payload) {
+    const end=payload.indexOf(0,12);
+    if (end<0 || payload.length<end+16) return null;
+    const body=new Uint8Array(34);body.set(header);body[0]=28;body[1]=0;
+    body.set(payload.subarray(end+9,end+15),27);
+    return body;
+  }
   function reader(record,direction) {
     const header = new Uint8Array(6);
-    let h = 0, remaining = 0, size = 0, wire = 0, body = null, offset = 0, at = 0, mark = 0, keep = false;
+    let h = 0, remaining = 0, size = 0, wire = 0, body = null, secret = null, offset = 0, at = 0, mark = 0, keep = false;
     function finish() {
+      if (keep && secret) {
+        body=redactHandoff(header,secret);secret.fill(0);secret=null;
+        if (body) handoff=true;
+        else fault("malformed");
+      }
       if (keep && body) frame(record,direction,body,at,mark);
       h=0; remaining=0; body=null; offset=0; keep=false;
     }
@@ -88,8 +103,14 @@
             record.selected=true;
             post("game-login",{connection:record.id,ingress:mark,header:Array.from(header),ageMs:Math.max(0,Math.ceil(now()-at))});
           }
+          if (direction==="outbound" && wire===cfg.handoffLogin && size===13 && header[4]===0 && header[5]===0) {
+            if (record.selected || !handoff) {fault("unknown-flow");return;}
+            record.selected=true;handoff=false;
+            frame(record,"handoff",header.slice(),at,mark);
+          }
           keep=record.selected && (direction==="inbound" ? incoming : outgoing).has(wire);
-          if (keep) {
+          if (keep && direction==="inbound" && wire===cfg.handoff) secret=new Uint8Array(size);
+          else if (keep) {
             const headerOnly=direction==="inbound" && (wire===cfg.accepted || wire===cfg.refused || cfg.markers.includes(wire) || cfg.headerOnly.includes(wire));
             body=new Uint8Array(6+(headerOnly?0:size));body.set(header);
             if (headerOnly) {body[0]=0;body[1]=0;}
@@ -97,7 +118,8 @@
           if (remaining===0) {finish();continue;}
         }
         const take=Math.min(remaining,bytes.length-p);
-        if (keep && body.length>6) {
+        if (keep && secret) secret.set(bytes.subarray(p,p+take),offset);
+        else if (keep && body.length>6) {
           if (direction==="inbound" && wire===cfg.profile) {
             for (let i=0;i<take;i++) {
               const index=offset+i;

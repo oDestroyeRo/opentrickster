@@ -26,6 +26,7 @@ pub(crate) struct Evidence {
     pub at: At,
     pub outcomes: Vec<Outcome>,
     pub gains: Vec<Gain>,
+    pub map_changed: bool,
 }
 
 pub(crate) struct Book {
@@ -206,6 +207,7 @@ impl Book {
             at: now,
             outcomes: Vec::new(),
             gains: Vec::new(),
+            map_changed: false,
         };
         let mut inventory = Vec::new();
         let mut settled: Option<IngressMark> = None;
@@ -239,6 +241,12 @@ impl Book {
                     self.own.position = Some((map, point));
                     self.own.map_label = self.map_labels.get(&map).cloned();
                     state = true;
+                }
+                Fact::MapChanged => {
+                    self.entities.clear();
+                    self.drops.clear();
+                    self.map_floor = self.map_floor.max(ingress);
+                    evidence.map_changed = true;
                 }
                 Fact::Hp(gauge) if valid_gauge(&gauge) && self.accept(Field::Hp, ingress, now) => {
                     self.vitals().hp = Some(gauge);

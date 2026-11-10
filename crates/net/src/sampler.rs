@@ -581,7 +581,14 @@ pub(crate) fn plan(
                     && s.combat.gun_ready
                     && matches!(s.combat.gun_state, 3 | 4))
             {
-                return Err(NetError::Refused);
+                // A loaded gun reloads after each shot; the ticket's receipt window bounds the wait.
+                return Err(
+                    if s.combat.gun_armed && matches!(s.combat.gun_state, 1 | 2) {
+                        NetError::NotReady
+                    } else {
+                        NetError::Refused
+                    },
+                );
             }
             let id = target_raw
                 .filter(|id| *id != s.motion.own)
@@ -1088,8 +1095,26 @@ mod tests {
         s.combat.gun_worn = true;
         s.combat.gun_armed = true;
         s.combat.gun_ready = true;
+        // A loaded gun reloads after each shot, so the press waits for it.
+        for reloading in [1, 2] {
+            s.combat.gun_state = reloading;
+            assert!(matches!(
+                candidate(&s, action, Some(73)),
+                Err(NetError::NotReady)
+            ));
+        }
+        s.combat.gun_state = 0;
+        assert!(matches!(
+            candidate(&s, action, Some(73)),
+            Err(NetError::Refused)
+        ));
         s.combat.gun_state = 2;
-        assert!(candidate(&s, action, Some(73)).is_err());
+        s.combat.gun_armed = false;
+        assert!(matches!(
+            candidate(&s, action, Some(73)),
+            Err(NetError::Refused)
+        ));
+        s.combat.gun_armed = true;
         s.combat.gun_state = 3;
         assert_eq!(
             candidate(&s, action, Some(73))

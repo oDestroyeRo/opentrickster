@@ -154,6 +154,21 @@ impl InputProbe {
                             ("keyup", Some("KeyX"), None),
                         ],
                 ));
+                // A press reports its own button as held, as a physical click does.
+                self.checks.push((
+                    "native_press_reports_held_button",
+                    self.events
+                        .iter()
+                        .filter(|e| e["event"] == "pointerdown" || e["event"] == "pointerup")
+                        .all(|e| {
+                            let held = match (e["event"].as_str(), e["button"].as_i64()) {
+                                (Some("pointerdown"), Some(0)) => 1,
+                                (Some("pointerdown"), Some(2)) => 2,
+                                _ => 0,
+                            };
+                            e["buttons"].as_i64() == Some(held)
+                        }),
+                ));
                 self.checks.push((
                     "native_dom_events_trusted",
                     !self.events.is_empty() && self.events.iter().all(|e| e["trusted"] == true),

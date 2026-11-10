@@ -1,5 +1,10 @@
 use super::normal_input::{Context, Control, Target};
-use objc2::{MainThreadMarker, rc::Retained, runtime::AnyObject};
+use objc2::{
+    ClassType, MainThreadMarker,
+    rc::Retained,
+    runtime::{AnyClass, AnyObject, Imp, Sel},
+    sel,
+};
 use objc2_app_kit::{
     NSApplication, NSEvent, NSEventMask, NSEventModifierFlags, NSEventType, NSResponder, NSView,
     NSWindowDidResignKeyNotification,
@@ -7,12 +12,62 @@ use objc2_app_kit::{
 use objc2_foundation::{NSNotificationCenter, NSPoint, NSString};
 use objc2_web_kit::WKWebView;
 use opentrickster_net::{InputKey, NormalInput};
-use std::{cell::Cell, ptr::NonNull, rc::Rc, time::Instant};
+use std::{
+    cell::Cell,
+    ptr::NonNull,
+    rc::Rc,
+    sync::{
+        Once, OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Instant,
+};
 use wry::{WebView, WebViewExtMacOS};
 
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
     fn CGEventSourceKeyState(state: i32, key: u16) -> bool;
+}
+
+type PressedButtons = unsafe extern "C-unwind" fn(&AnyClass, Sel) -> usize;
+
+/// Mouse buttons that this app holds down through native events, as `pressedMouseButtons` bits.
+static OWNED_BUTTONS: AtomicUsize = AtomicUsize::new(0);
+static PHYSICAL_BUTTONS: OnceLock<PressedButtons> = OnceLock::new();
+
+unsafe extern "C-unwind" fn pressed_buttons(class: &AnyClass, sel: Sel) -> usize {
+    physical_buttons_from(class, sel) | OWNED_BUTTONS.load(Ordering::Relaxed)
+}
+
+fn physical_buttons_from(class: &AnyClass, sel: Sel) -> usize {
+    // SAFETY: the saved implementation is AppKit's own, called with its class and selector.
+    PHYSICAL_BUTTONS
+        .get()
+        .map_or(0, |physical| unsafe { physical(class, sel) })
+}
+
+/// The buttons held on the physical mouse, without any that this app holds.
+fn physical_buttons() -> usize {
+    physical_buttons_from(NSEvent::class(), sel!(pressedMouseButtons))
+}
+
+/// WebKit fills DOM `buttons` from `+[NSEvent pressedMouseButtons]`, which reports only the
+/// physical mouse. Without this, the game sees an owned press with no button held and ignores it.
+fn report_owned_buttons() {
+    static INSTALL: Once = Once::new();
+    INSTALL.call_once(|| {
+        let Some(method) = NSEvent::class().class_method(sel!(pressedMouseButtons)) else {
+            return;
+        };
+        // SAFETY: both functions take the receiver class and selector and return NSUInteger.
+        // The original is saved before the replacement can run.
+        unsafe {
+            let _ = PHYSICAL_BUTTONS.set(std::mem::transmute::<Imp, PressedButtons>(
+                method.implementation(),
+            ));
+            method.set_implementation(std::mem::transmute::<PressedButtons, Imp>(pressed_buttons));
+        }
+    });
 }
 
 pub(super) struct NativeInput {
@@ -37,6 +92,7 @@ impl NativeInput {
             .webview()
             .window()
             .ok_or("The input view has no window.")?;
+        report_owned_buttons();
         let physical = Rc::new(Cell::new(0u64));
         let changed = physical.clone();
         let monitored = web.webview();
@@ -182,7 +238,7 @@ impl NativeInput {
             ).is_empty()
             // SAFETY: read-only combined-session hardware state. Never post a global event.
             && !(0..128).any(|code| unsafe { CGEventSourceKeyState(0, code) })
-            && NSEvent::pressedMouseButtons() == 0
+            && physical_buttons() == 0
     }
 
     fn mouse(&mut self, input: NormalInput, cleanup: bool) -> Result<(), ()> {
@@ -247,17 +303,21 @@ impl NativeInput {
             NormalInput::PointerMove { .. } => window.sendEvent(&event),
             NormalInput::LeftDown => {
                 self.left = Some(target.clone());
+                OWNED_BUTTONS.fetch_or(1, Ordering::Relaxed);
                 target.mouseDown(&event);
             }
             NormalInput::LeftUp => {
+                OWNED_BUTTONS.fetch_and(!1, Ordering::Relaxed);
                 target.mouseUp(&event);
                 self.left = None;
             }
             NormalInput::RightDown => {
                 self.right = Some(target.clone());
+                OWNED_BUTTONS.fetch_or(2, Ordering::Relaxed);
                 target.rightMouseDown(&event);
             }
             NormalInput::RightUp => {
+                OWNED_BUTTONS.fetch_and(!2, Ordering::Relaxed);
                 target.rightMouseUp(&event);
                 self.right = None;
             }
@@ -321,8 +381,8 @@ impl Target for NativeInput {
     }
     fn physical_held(&self, control: Control) -> bool {
         match control {
-            Control::Left => NSEvent::pressedMouseButtons() & 1 != 0,
-            Control::Right => NSEvent::pressedMouseButtons() & 2 != 0,
+            Control::Left => physical_buttons() & 1 != 0,
+            Control::Right => physical_buttons() & 2 != 0,
             // SAFETY: Combined-session state is read-only; no event tap, posting, or permission change.
             Control::Key(key) => {
                 key_code(key).is_none_or(|code| unsafe { CGEventSourceKeyState(0, code) })

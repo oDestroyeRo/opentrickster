@@ -299,6 +299,9 @@ pub enum Fact {
         map: MapKey,
         point: Point,
     },
+    /// The client moved to another map in the same session, so the old map's entities and drops
+    /// are gone. A `Position` on the new map follows.
+    MapChanged,
     Hp(Gauge),
     Mp(Gauge),
     Weight(Gauge),
@@ -418,6 +421,7 @@ pub enum Pause {
     NoDrops,
     Uncertain,
     Reconnected,
+    MapChanged,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Halt {
@@ -514,6 +518,8 @@ impl DisplayText {
 pub struct Snapshot {
     pub mode: Mode,
     pub phase: Phase,
+    /// The step of a connect or reconnect in progress. `Phase::Reconnecting` does not show it.
+    pub connect_step: Option<ConnectStep>,
     pub allowed: Vec<Control>,
     pub blocked: Option<Refusal>,
     /// Each blocker names the observable condition required before Start or Resume.
