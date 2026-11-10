@@ -2,7 +2,9 @@ use super::{
     host::EmbeddedHost,
     normal_input::{Context, Executor, Plan, Target},
 };
-use opentrickster_engine::{ActionTicket, At, BarrierKey, Delivery, Event, SessionKey};
+use opentrickster_engine::{
+    ActionTicket, At, BarrierKey, Delivery, Event, SEND_MARGIN_MS, SessionKey,
+};
 use opentrickster_net::{GameObserver, InputFences, InputPlan, InputStepKey, NetError};
 use std::time::{Duration, Instant};
 
@@ -163,7 +165,9 @@ impl EmbeddedInput {
                 && self
                     .samples
                     .unsafe_to_hold(self.dispatched_at, Instant::now());
-            let expired = matches!(flight.phase, Phase::Planning) && now >= flight.ticket.not_after;
+            // A press planned this close to the receipt deadline could not report in time.
+            let expired = matches!(flight.phase, Phase::Planning)
+                && now.0.saturating_add(SEND_MARGIN_MS) >= flight.ticket.not_after.0;
             if source_lost || expired {
                 self.fence();
                 self.cleanup(host, observer, &mut events);
