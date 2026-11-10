@@ -135,7 +135,8 @@ holds,49,50 and sampled releases. Normal right-down/up clears active digging or
 remaining targeting. Source input-up,46,stage7 and silence are not idle proof.
 Quiescent requires a new source idle sample, original ingress drained through
 that sample, no unresolved action and no queued/held input. A worn, armed gun
-in state 1 or 2 is reloading after a shot and is not idle. Planning NotReady,
+is not idle while it reloads in state 1 or 2, or before state 3 or 4 sets Ready
+on its next tick. Planning NotReady,
 Busy and Refused are transient errors and do not poison the decoder. Missing
 receipt means owned emergency release plus uncertainty/drain, never replay.
 
