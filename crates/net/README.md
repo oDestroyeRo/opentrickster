@@ -204,7 +204,9 @@ exchange, including real48 cancellation counters. Native movement policy is
 explicit WALK1. Assisted mode uses observed RunToggle/Heavy; it never inherits
 that policy. Own hit/kill association requires one complete unambiguous own
 Strike bundle with the matching recipient, action floor and incarnation.
-Unattributed HP falls, captions and faint alone cannot award outcomes.
+That own strike resolves the attack even when it deals no damage, so a miss
+confirms the action without a kill. An ungrouped (Aux 0) own strike resolves at
+once. Unattributed HP falls, captions and faint alone cannot award outcomes.
 
 When a gun is worn in a configured gun slot, or that is unknown, `BasicAttack`
 never falls back to 288+29. `src/gun.rs` transcribes the client's `GunFlowing`.
