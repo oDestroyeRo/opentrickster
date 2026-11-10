@@ -661,7 +661,7 @@ impl Actor {
                             // Report idle only once nothing is outstanding; otherwise the engine's drain deadline closes the session.
                             barrier=Some(key);
                             if let Some(pending)=&mut dig && let Some((opcode,payload))=pending.cycle.cancel() {g.send(opcode,&payload.0,&mut self.order).await?;}
-                            if !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
+                            if !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && !decoder.gun_reloading() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                         },
                         _=>return Err(NetError::WrongPhase),
                     }
@@ -696,7 +696,7 @@ impl Actor {
                         } else {held=Some(waiting);}
                     }
                     if action_until.is_some_and(|until|now>=until) {lost|=barrier.is_some()&&decoder.action_pending();decoder.expire_action();action_until=None;}
-                    if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
+                    if let Some(key)=barrier && !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && !decoder.gun_reloading() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order {self.emit(Event::Quiescent(key))?;barrier=None;}
                 }
                 result=login.gateway.receive(&mut login.order)=>self.login_frame(login,result?).await?,
                 result=g.receive(&mut self.order)=>{
@@ -718,7 +718,7 @@ impl Actor {
                         for result in decoder.take_correlated(){correlated.entry(result.mark).or_insert_with(||(result.received,Vec::new())).1.extend(result.facts);}
                         for (mark,(received,facts)) in correlated {self.emit_at(Event::Facts{revision:e::EvidenceKey((mark<<2)|3),ingress:e::IngressMark(mark),facts},received)?;}
                         if dig_ended {dig=None;decoder.drilling(false);}
-                        if !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
+                        if !lost && dig.is_none() && !decoder.action_pending() && decoder.walk_settled() && !decoder.gun_reloading() && ordered.is_empty() && aux.oldest_mark().is_none() && g.complete_through(self.order)==self.order && let Some(key)=barrier.take() {self.emit_at(Event::Quiescent(key),p.received)?;}
                     }
                     if let Some(mark)=settled {
                         let mut facts=vec![e::Fact::InventorySettled(e::IngressMark(mark))];

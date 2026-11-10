@@ -134,7 +134,8 @@ Manual dig preserves one armed ticket across key targeting,44,45/own371, gauge
 holds,49,50 and sampled releases. Normal right-down/up clears active digging or
 remaining targeting. Source input-up,46,stage7 and silence are not idle proof.
 Quiescent requires a new source idle sample, original ingress drained through
-that sample, no unresolved action and no queued/held input. Planning NotReady,
+that sample, no unresolved action and no queued/held input. A worn, armed gun
+in state 1 or 2 is reloading after a shot and is not idle. Planning NotReady,
 Busy and Refused are transient errors and do not poison the decoder. Missing
 receipt means owned emergency release plus uncertainty/drain, never replay.
 
@@ -252,9 +253,10 @@ only on a tick where every received frame is applied, so it never decides
 halfway through a message. Cancel and engine ops win over a due tick. The ticket
 gets `NotSent` instead when Ready needs new input, at `Quiesce`, while the own
 character is fainted or its HP is unknown, or when that window ends. A shot is
-never sent early or resent. The engine pauses as Uncertain on that `NotSent`, so
-a reload longer than the ticket window (about 1.75 s) pauses the run instead of
-shooting late. Own Kind-2 firing starts the reload
+never sent early or resent. The engine pauses as Uncertain on that `NotSent`.
+So that a reload never outlasts the ticket window (about 1.75 s), native
+quiescence also waits while the armed gun reloads in state 1 or 2 with a gauge
+that can rise. The engine then issues each gun ticket with the gun Ready. Own Kind-2 firing starts the reload
 and projects the client's local ammo use until an authoritative count replaces
 it. 32, 310 and 525 only release the wait. Outcomes come only from the own
 Strike-bundle attribution above. With a worn gun, `Support.basic_attack`
