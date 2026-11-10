@@ -1164,6 +1164,27 @@ fn a_pause_closes_the_session_when_a_sent_attack_outlives_its_confirmation_windo
     assert_eq!(expired.snapshot.phase, Phase::Closing);
 }
 
+#[test]
+fn a_stop_after_a_confirmed_attack_ends_the_run_and_keeps_the_session() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    h.sent(id);
+    let hit = h.facts(vec![Fact::Outcome(Outcome::OwnHit(EntityKey(1)))]);
+    let key = barrier(&hit).expect("quiescence after the confirmation");
+    assert_eq!(h.command(Command::Stop).snapshot.phase, Phase::Stopping);
+    // A gun reload after the confirmed shot holds the idle proof past the window.
+    let ended = h.wake(DRAIN_MS);
+    assert_eq!(closes(&ended), 0);
+    assert_eq!(ended.snapshot.phase, Phase::Ready);
+    assert_eq!(ended.snapshot.totals.confirmed, 1);
+    // The next run still waits for the same idle proof.
+    assert_eq!(barrier(&ended), Some(key));
+    assert!(!ended.snapshot.allowed.contains(&Control::Start));
+    let idle = h.event(Event::Quiescent(key));
+    assert!(idle.snapshot.allowed.contains(&Control::Start));
+    assert_eq!(acts(&h.command(Command::Start)).len(), 1);
+}
+
 fn unsent(h: &mut Harness, id: ActionKey) -> Effects {
     h.event(Event::Receipt {
         action: id,
