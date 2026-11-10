@@ -1,0 +1,206 @@
+name: Game build
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: game-build
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  watch:
+    name: Watch the official game build
+    if: github.repository == 'oDestroyeRo/opentrickster' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A queued or re-run job starts from the tip of main, not from the commit that triggered it.
+          ref: main
+          persist-credentials: false
+      # Reads the 4 KiB version file first, so an unchanged build costs one small request.
+      - name: Read the deployed build
+        id: probe
+        run: |
+          deployed=$(curl -fsS --proto '=https' --max-redirs 0 --max-time 60 --max-filesize 4096 \
+            -H 'Cache-Control: no-cache' -A 'Mozilla/5.0 (opentrickster build-migrate)' \
+            https://tr-play.playall.in.th/version |
+            python3 -I -c 'import json, re, sys; b = json.load(sys.stdin).get("build", ""); print(b if re.fullmatch(r"[0-9a-f]{32}", b) else "")')
+          pinned=$(sed -n 's/^pub const BUILD: &str = "\([0-9a-f]\{32\}\)";$/\1/p' crates/net/src/profile.rs)
+          [ -n "$deployed" ] && [ -n "$pinned" ] || { echo "Cannot read the deployed or the pinned build." >&2; exit 1; }
+          echo "Deployed build $deployed. Pinned build $pinned."
+          echo "deployed=$deployed" >> "$GITHUB_OUTPUT"
+          if [ "$deployed" = "$pinned" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          elif [ -f "tools/build-migrate/pins/$deployed.json" ]; then
+            echo "Reviewed pins for build $deployed exist, but BUILD pins $pinned. A return to a reviewed build needs a person." >&2
+            exit 1
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Both names come from the first 8 hex characters of the deployed build. This runs before the 71 MB fetch.
+      - name: Look for work already in flight
+        id: inflight
+        if: steps.probe.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYED: ${{ steps.probe.outputs.deployed }}
+        run: |
+          short=${DEPLOYED:0:8}
+          branch="auto/game-build-$short"
+          title="Game build $short needs review"
+          # A pull request from a fork can reuse the branch name. Only a same-repository one counts.
+          pulls=$(gh pr list --repo "$GITHUB_REPOSITORY" --state all --head "$branch" --limit 100 \
+            --json state,isCrossRepository,number \
+            --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.state)"')
+          open=$(printf '%s\n' "$pulls" | awk '$2 == "OPEN" { print $1; exit }')
+          if [ -n "$open" ]; then
+            echo "Pull request #$open from $branch is open, but main does not pin build $DEPLOYED. Merge it or close it." >&2
+            exit 1
+          fi
+          if [ -n "$pulls" ]; then
+            echo "Every pull request from $branch has ended, and main does not pin build $DEPLOYED:"
+            printf '%s\n' "$pulls" | awk '{ print "  #" $1 " " tolower($2) }'
+            echo "A person decided against it, so the watcher ships nothing for this build."
+            echo "fetch=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          titles=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json title --jq '.[].title')
+          if printf '%s\n' "$titles" | grep -Fxq -- "$title"; then
+            echo "An open issue already tracks build $short: $title. Nothing to fetch."
+            echo "fetch=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "fetch=true" >> "$GITHUB_OUTPUT"
+      - name: Fetch the public build
+        if: steps.inflight.outputs.fetch == 'true'
+        run: python3 -I tools/build-migrate/migrate.py fetch "$RUNNER_TEMP/game" > "$RUNNER_TEMP/fetch.json"
+      - name: Compare it with the pinned build
+        id: watch
+        if: steps.inflight.outputs.fetch == 'true'
+        env:
+          DEPLOYED: ${{ steps.probe.outputs.deployed }}
+        run: |
+          status=0
+          python3 -I tools/build-migrate/watch.py "$RUNNER_TEMP/game" \
+            --work "$RUNNER_TEMP/watch" --github-output "$GITHUB_OUTPUT" --expect-build "$DEPLOYED" || status=$?
+          # Status 3 means the public files disagree on the build, as they do during a deploy. Try again next hour.
+          if [ "$status" = 3 ]; then
+            echo "A deploy may be in progress. The next hourly run tries again."
+            exit 0
+          fi
+          exit "$status"
+
+      - name: Install Rust
+        if: steps.watch.outputs.outcome == 'proven'
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt
+          rustup default 1.99.1
+      - name: Format and test Net
+        if: steps.watch.outputs.outcome == 'proven'
+        run: |
+          cargo fmt -p opentrickster-net
+          cargo test -p opentrickster-net --locked
+      - name: Commit and push the pins
+        id: push
+        if: steps.watch.outputs.outcome == 'proven'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+          TITLE: ${{ steps.watch.outputs.title }}
+        run: |
+          gh auth setup-git
+          git switch --create "$BRANCH"
+          git add --all -- crates tools
+          git status --short
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --message "$TITLE" \
+            --message "Moves the pins of Net and the client-assisted sampler to the new game build. Every signed method body matches a reviewed fingerprint."
+          # A run that failed after this push leaves the branch behind with no pull request. Replace it.
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Open the pull request
+        id: pr
+        if: steps.watch.outputs.outcome == 'proven'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+          TITLE: ${{ steps.watch.outputs.title }}
+          BODY_FILE: ${{ steps.watch.outputs.body_file }}
+        run: |
+          url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "$TITLE" --body-file "$BODY_FILE")
+          echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
+      - name: Run CI on the branch
+        if: steps.watch.outputs.outcome == 'proven'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+          SHA: ${{ steps.push.outputs.sha }}
+        run: |
+          # A pull request opened with GITHUB_TOKEN starts no workflow, so run CI by hand on its head.
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch "$BRANCH" --event workflow_dispatch --commit "$SHA" --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run_id" ] && break
+            sleep 10
+          done
+          [ -n "$run_id" ] || { echo "No CI run started for $SHA." >&2; exit 1; }
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 30
+      - name: Merge and release
+        if: steps.watch.outputs.outcome == 'proven'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          SHA: ${{ steps.push.outputs.sha }}
+          TITLE: ${{ steps.watch.outputs.title }}
+        run: |
+          gh pr merge "$NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$SHA" \
+            --subject "$TITLE (#$NUMBER)" \
+            --body "Opened and merged by the game-build workflow after CI passed on the branch."
+          # The merge starts no push run, so run CI on main to reach its release job.
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Open an issue for review
+        if: steps.watch.outputs.outcome == 'review'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.watch.outputs.title }}
+          BODY_FILE: ${{ steps.watch.outputs.body_file }}
+        run: |
+          titles=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json title --jq '.[].title')
+          if printf '%s\n' "$titles" | grep -Fxq -- "$TITLE"; then
+            echo "An open issue already tracks: $TITLE"
+            exit 0
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$BODY_FILE" --label needs-triage
+
+      # A failed step must not pass unseen. One open issue collects every failed run.
+      - name: Report the failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Game build watcher failed"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body "The watcher failed again. Run: $RUN_URL"
+            exit 0
+          fi
+          body=$(printf 'The game build watcher failed.\n\nRun: %s\n\nRead the log, fix the cause and close this issue. Each later failure adds a comment here.' "$RUN_URL")
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" --label needs-triage

@@ -21,10 +21,14 @@ const MAX_START_SPECIALS: usize = 64;
 /// H is the last raw game-link receipt among accepted S5, S679, S230 and S233, with
 /// delivery settled through it. It is a candidate from
 /// `docs/research/native-inventory-baseline.md` ("Startup waits and the real replay
-/// window", "Carried weight and invalidation"). Set this to the exact verified build
-/// only after Trial A and Trial B there pass for that build. Until then, and after any
-/// pin migration to another build, carried weight and HP potion counts stay unknown.
-// Accepted from Trials A and B (docs/research/native-inventory-trials.md).
+/// window", "Carried weight and invalidation"). Trial A and Trial B passed on build
+/// ea1a68bd (`docs/research/native-inventory-trials.md`).
+///
+/// The acceptance carries forward to a new build when every signed client method still
+/// matches its reviewed fingerprint, because the trials verified those methods.
+/// `tools/build-migrate` moves this string with `BUILD` in that case. When a signed
+/// method changed, a person sets it to `None` until the trials pass on the new build.
+/// For any other build, carried weight and HP potion counts stay unknown.
 const INVENTORY_CUTOFF_BUILD: Option<&str> = Some("ea1a68bd89958fae94179f1e0835ffb5");
 /// Logical opcodes whose `ReadItemChange` rows this decoder applies to the cache.
 const INVENTORY_DELTAS: [u16; 8] = [561, 160, 770, 262, 246, 260, 843, 68];

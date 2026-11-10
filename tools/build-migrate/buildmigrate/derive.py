@@ -5,6 +5,7 @@ kinds, byte lengths and, for non-volatile inputs, content hashes), never through
 """
 
 import base64
+import copy
 import hashlib
 import json
 import re
@@ -12,7 +13,7 @@ import struct
 
 from . import artifacts, il2cpp, unityfs, wasm
 from .fingerprint import ADDRESS_FLOOR, Fingerprinter, is_memory
-from .wasm import Malformed, check
+from .wasm import Malformed, Transient, check
 
 NET = "[Spinel.Net.dll]Spinel.Net."
 GAME = "[Spinel.Game.dll]Spinel.Game.Play."
@@ -172,7 +173,8 @@ def pins(build):
     directory = artifacts.unity_directory(cache.data)
     entry = next(e for e in directory if e["name"] == artifacts.METADATA)
     compiled = {k: {f: v for f, v in r.items() if f != "usage"} for k, r in build.compiled.items()}
-    check(compiled["build"]["value"] == cache.build, "compiled gateway build differs from config")
+    if compiled["build"]["value"] != cache.build:
+        raise Transient("compiled gateway build differs from config")
     return {
         "build": cache.build,
         "deployment": {name: {"bytes": len(b), "sha256": artifacts.sha256(b)}
@@ -232,28 +234,90 @@ def catalog(cache):
             "spineldatasettings": found["spineldatasettings"]}
 
 
-def rust_expectations(p):
-    """(file, regex) pairs every pin must satisfy in crates/net/src after a migration."""
+SLOT = re.compile(r"\{([a-z_]+)\}")
+
+
+class Site:
+    """One literal that a build pins in source.
+
+    `template` is a regex with `{name}` holes. The entry answers two questions: does the source
+    hold these values (`pattern`), and where do they sit, so that another build's values can
+    replace them (`grouped`). `optional` marks a pin that a cache may not carry. `follows` marks a
+    build string that is not a pin: it moves with the build only when it holds the old one."""
+
+    def __init__(self, key, file, template, values, optional=False, follows=False):
+        names = SLOT.findall(template)
+        if sorted(names) != sorted(values) or len(set(names)) != len(names):
+            raise ValueError("site %s: the template holes and the values disagree" % key)
+        self.key, self.file, self.template, self.values = key, file, template, values
+        self.optional, self.follows = optional, follows
+
+    def pattern(self):
+        """The regex that matches the literal with these values."""
+        return SLOT.sub(lambda m: re.escape(str(self.values[m.group(1)])), self.template)
+
+    def grouped(self):
+        """The same regex with one named group around each value."""
+        return re.compile(SLOT.sub(
+            lambda m: "(?P<%s>%s)" % (m.group(1), re.escape(str(self.values[m.group(1)]))), self.template))
+
+
+def rust_sites(p):
+    """Every literal that crates/net/src must hold for the build of manifest `p`, in reporting order."""
     c = p["compiled"]
-    out = [("profile.rs", r'pub const BUILD: &str = "%s";' % p["build"]),
-           ("profile.rs", r"const MAX_METADATA: usize = %d;" % p["metadata"]["bytes"]),
-           ("profile.rs", r'"%s"' % p["metadata"]["sha256"]),
-           ("profile.rs", r'"%s"' % p["deployment"]["spinel-config.json"]["sha256"]),
-           ("profile.rs", r'"%s"' % p["deployment"]["version"]["sha256"]),
-           ("codec.rs", r'const SEED: &str = "%s";' % re.escape(c["seed"]["value"]))]
-    for asset in p["assets"]:
-        out.append(("profile.rs", r'name: "%s",\s*size: %d,\s*hash: "%s"'
-                    % (re.escape(asset["name"]), asset["bytes"], asset["sha256"])))
+    out = [Site("build", "profile.rs", r'pub const BUILD: &str = "{build}";', {"build": p["build"]}),
+           Site("metadata.limit", "profile.rs", r"const MAX_METADATA: usize = {bytes};",
+                {"bytes": p["metadata"]["bytes"]}),
+           Site("metadata.hash", "profile.rs", r'"{hash}"', {"hash": p["metadata"]["sha256"]}),
+           Site("deployment.config", "profile.rs", r'"{hash}"',
+                {"hash": p["deployment"]["spinel-config.json"]["sha256"]}),
+           Site("deployment.version", "profile.rs", r'"{hash}"', {"hash": p["deployment"]["version"]["sha256"]}),
+           Site("seed", "codec.rs", r'const SEED: &str = "{seed}";', {"seed": c["seed"]["value"]})]
+    for index, asset in enumerate(p["assets"]):
+        out.append(Site("asset.%d" % index, "profile.rs", r'name: "{name}",\s*size: {size},\s*hash: "{hash}"',
+                        {"name": asset["name"], "size": asset["bytes"], "hash": asset["sha256"]}))
     for name in ("marker", "client_version", "build", "seed"):
         f = c[name]
-        out.append(("profile.rs", r'field\(\s*metadata,\s*%d,\s*%d,\s*"%s",?\s*\)'
-                    % (int(f["offset"], 16), f["length"], f["sha256"])))
+        out.append(Site("field." + name, "profile.rs",
+                        r'field\(\s*metadata,\s*{offset},\s*{length},\s*"{hash}",?\s*\)',
+                        {"offset": int(f["offset"], 16), "length": f["length"], "hash": f["sha256"]}))
     for name in ("catalog_key", "normal_form_effects", "gun_slots"):
         f = c[name]
         start = int(f["offset"], 16)
-        out.append(("catalog.rs", r'\.get\(0x%x\.\.0x%x\)[^"]*"%s"' % (start, start + f["length"], f["sha256"])))
+        out.append(Site("catalog." + name, "catalog.rs", r'\.get\(0x{start}\.\.0x{end}\)[^"]*"{hash}"',
+                        {"start": "%x" % start, "end": "%x" % (start + f["length"]), "hash": f["sha256"]}))
     for key, digest in p["opcode_maps"].items():
-        out.append(("codec.rs", r'"%s"' % digest))
-    for digest in p.get("definitions", {}).values():
-        out.append(("definitions.rs", r'"%s"' % digest))
+        out.append(Site("opcode." + key, "codec.rs", r'"{hash}"', {"hash": digest}))
+    for name, digest in p.get("definitions", {}).items():
+        out.append(Site("definitions." + name, "definitions.rs", r'"{hash}"', {"hash": digest}, optional=True))
     return out
+
+
+def follower_sites(build):
+    """Build strings in source that move with BUILD but are not pins, so `check` leaves them alone."""
+    return [Site("inventory_cutoff", "decode.rs",
+                 r'const INVENTORY_CUTOFF_BUILD: Option<&str> = Some\("{build}"\);', {"build": build},
+                 follows=True),
+            Site("sampler", "sampler.js", r'const samplerBuild = "{build}";', {"build": build}, follows=True)]
+
+
+def invariants(p):
+    """Manifest `p` without the values that every build derives again.
+
+    Two builds that differ only in what is dropped here are one client: the same data version,
+    metadata format, compiled-field owners, lengths and pinned contents, login failure table, and
+    catalog relevance. A migration that changes anything left over needs a person."""
+    q = copy.deepcopy(p)
+    for key in ("build", "deployment", "assets", "opcode_maps", "definitions"):
+        q.pop(key, None)
+    for key in ("offset", "bytes", "sha256"):
+        q["metadata"].pop(key, None)
+    for name, record in q["compiled"].items():
+        for key in ("cell", "target", "offset") + (("sha256", "value") if name in VOLATILE else ()):
+            record.pop(key, None)
+    for overlay in q["catalog"]["overlays"].values():
+        for key in ("bytes", "sha256", "tables"):
+            overlay.pop(key, None)
+    for table in q["tables"].values():
+        table.pop("address", None)
+    return q

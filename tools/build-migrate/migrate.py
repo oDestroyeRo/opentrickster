@@ -13,7 +13,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from buildmigrate import artifacts, derive  # noqa: E402
+from buildmigrate import artifacts, derive, repin  # noqa: E402
 from buildmigrate.fingerprint import diff  # noqa: E402
 from buildmigrate.wasm import Malformed, check  # noqa: E402
 
@@ -49,79 +49,135 @@ def joined(build, name):
 
 
 def load_signatures(path):
-    return json.loads(Path(path).read_text())
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def cmd_check(args):
-    build = derive.Build(args.cache)
-    signatures = load_signatures(args.signatures)
-    failures = 0
+class Report:
+    """The lines `check` prints, in order, and how many of them are failures."""
+
+    def __init__(self, echo=False):
+        self.lines = []
+        self.failed = []
+        self.echo = echo
+
+    @property
+    def failures(self):
+        return len(self.failed)
+
+    def add(self, line, failed=False):
+        self.lines.append(line)
+        if failed:
+            self.failed.append(line)
+        if self.echo:
+            print(line)
+
+
+def check_methods(build, signatures, excluded, report):
     fp = build.fingerprinter
-    excluded = set(args.exclude_source or ())
     for s in signatures["methods"]:
         if excluded and set(s["sources"]) <= excluded:
-            print("SKIPPED   %s (cited only by %s)" % (s["name"], ",".join(s["sources"])))
+            report.add("SKIPPED   %s (cited only by %s)" % (s["name"], ",".join(s["sources"])))
             continue
         try:
             _, (_, function, _, _) = build.function_of(s["name"])
             digest, count = fp.fingerprint(function)
         except Malformed as error:
-            print("UNMATCHED %s: %s" % (s["name"], error))
-            failures += 1
+            report.add("UNMATCHED %s: %s" % (s["name"], error), failed=True)
             continue
         reviewed = [a["build"] for a in s["accepted"] if (a["fingerprint"], a["tokens"]) == (digest, count)]
         if reviewed:
-            print("MATCH     f%-6d %s (as reviewed for %s)" % (function, s["name"], ",".join(b[:8] for b in reviewed)))
+            report.add("MATCH     f%-6d %s (as reviewed for %s)" % (
+                function, s["name"], ",".join(b[:8] for b in reviewed)))
         else:
-            print("CHANGED   f%-6d %s (%d tokens; reviewed %s)" % (
-                function, s["name"], count, ",".join("%s:%d" % (a["build"][:8], a["tokens"]) for a in s["accepted"])))
-            failures += 1
-    manifest = derive.pins(build)
-    expected_path = Path(args.pins) if args.pins else PINS / (build.cache.build + ".json")
-    if not expected_path.is_file():
-        print("NOPINS    no reviewed pins for build %s at %s" % (build.cache.build, expected_path))
-        failures += 1
-    else:
-        expected = json.loads(expected_path.read_text())
-        if "definitions" in expected and "definitions" not in manifest:
-            print("SKIPPED   pins.definitions (the cache carries no catalog JSON; see step 4)")
-            del expected["definitions"]
-        failures += compare("pins", expected, manifest)
+            report.add("CHANGED   f%-6d %s (%d tokens; reviewed %s)" % (
+                function, s["name"], count, ",".join("%s:%d" % (a["build"][:8], a["tokens"]) for a in s["accepted"])),
+                failed=True)
+
+
+def check_catalog(manifest, report):
     for name, overlay in manifest["catalog"]["overlays"].items():
         if overlay["relevant"]:
-            print("CATALOG   overlay %s defines catalog tables %s; Net would miss merged rows"
-                  % (name, ",".join(overlay["relevant"])))
-            failures += 1
+            report.add("CATALOG   overlay %s defines catalog tables %s; Net would miss merged rows"
+                       % (name, ",".join(overlay["relevant"])), failed=True)
     if manifest["catalog"]["spineldatasettings"]:
-        print("CATALOG   the Unity bundle names SpinelDataSettings; the data URL may be overridden")
-        failures += 1
-    if args.rust:
-        for name, pattern in derive.rust_expectations(manifest):
-            text = re.sub(r"(?<=\d)_(?=\d)", "", (Path(args.rust) / name).read_text())
-            if re.search(pattern, text):
-                print("RUST      %s: %s" % (name, pattern[:90]))
-            else:
-                print("STALE     %s lacks %s" % (name, pattern))
-                failures += 1
-    print("%s: %d failure(s) for build %s" % ("FAIL" if failures else "PASS", failures, build.cache.build))
-    return 1 if failures else 0
+        report.add("CATALOG   the Unity bundle names SpinelDataSettings; the data URL may be overridden",
+                   failed=True)
 
 
-def compare(path, expected, actual):
+def check_rust(manifest, rust, report):
+    sites = derive.rust_sites(manifest)
+    flat = {}
+    for site in sites:
+        if site.file not in flat:
+            path = Path(rust) / site.file
+            check(path.is_file(), "missing source file %s" % path)
+            flat[site.file] = repin.flatten(repin.read_source(path))[0]
+        pattern = site.pattern()
+        if re.search(pattern, flat[site.file]):
+            report.add("RUST      %s: %s" % (site.file, pattern[:90]))
+        else:
+            report.add("STALE     %s lacks %s" % (site.file, pattern), failed=True)
+
+
+def run_check(build, signatures, pins=None, rust=None, excluded=(), echo=False):
+    """Every check of one cache, as a Report: signatures, reviewed pins, catalog inputs, Rust pins."""
+    report = Report(echo)
+    check_methods(build, signatures, set(excluded or ()), report)
+    manifest = derive.pins(build)
+    expected_path = Path(pins) if pins else PINS / (build.cache.build + ".json")
+    if not expected_path.is_file():
+        report.add("NOPINS    no reviewed pins for build %s at %s" % (build.cache.build, expected_path), failed=True)
+    else:
+        expected = json.loads(expected_path.read_text(encoding="utf-8"))
+        if "definitions" in expected and "definitions" not in manifest:
+            report.add("SKIPPED   pins.definitions (the cache carries no catalog JSON; see step 4)")
+            del expected["definitions"]
+        compare("pins", expected, manifest, report)
+    check_catalog(manifest, report)
+    if rust:
+        check_rust(manifest, rust, report)
+    return report
+
+
+def cmd_check(args):
+    build = derive.Build(args.cache)
+    report = run_check(build, load_signatures(args.signatures), args.pins, args.rust, args.exclude_source, echo=True)
+    print("%s: %d failure(s) for build %s" % ("FAIL" if report.failures else "PASS", report.failures, build.cache.build))
+    return 1 if report.failures else 0
+
+
+def compare(path, expected, actual, report):
     if isinstance(expected, dict) and isinstance(actual, dict):
-        failures = 0
         for key in expected:
             if key not in actual:
-                print("PIN       %s.%s missing from derivation" % (path, key))
-                failures += 1
+                report.add("PIN       %s.%s missing from derivation" % (path, key), failed=True)
             else:
-                failures += compare(path + "." + key, expected[key], actual[key])
-        return failures
-    if isinstance(expected, list) and isinstance(actual, list) and len(expected) == len(actual):
-        return sum(compare("%s[%d]" % (path, i), e, a) for i, (e, a) in enumerate(zip(expected, actual)))
-    if expected != actual:
-        print("PIN       %s: expected %s, derived %s" % (path, json.dumps(expected), json.dumps(actual)))
-        return 1
+                compare(path + "." + key, expected[key], actual[key], report)
+    elif isinstance(expected, list) and isinstance(actual, list) and len(expected) == len(actual):
+        for i, (e, a) in enumerate(zip(expected, actual)):
+            compare("%s[%d]" % (path, i), e, a, report)
+    elif expected != actual:
+        report.add("PIN       %s: expected %s, derived %s" % (path, json.dumps(expected), json.dumps(actual)),
+                   failed=True)
+
+
+def cmd_repin(args):
+    """Move the Rust pins of a reviewed build to the values of the build in CACHE."""
+    new = derive.pins(derive.Build(args.cache))
+    old = json.loads(Path(args.source).read_text(encoding="utf-8"))
+    rust = Path(args.rust)
+    texts = {}
+    for name in repin.files(old, new):
+        check((rust / name).is_file(), "missing source file %s" % (rust / name))
+        texts[name] = repin.read_source(rust / name)
+    result = repin.plan(old, new, texts)
+    for name, text in result.texts.items():
+        repin.write_source(rust / name, text)
+        print("MOVED     %s: %s" % (name, ", ".join(result.moved[name])))
+    for note in result.notes:
+        print(note)
+    print("repinned %d pin(s) in %d file(s): build %s -> %s" % (
+        sum(len(keys) for keys in result.moved.values()), len(result.texts), old["build"], new["build"]))
     return 0
 
 
@@ -297,6 +353,11 @@ def main(argv=None):
     p.add_argument("--exclude-source", action="append",
                    help="skip methods cited only by this document (repeatable)")
     p.set_defaults(run=cmd_check)
+    p = sub.add_parser("repin", help="rewrite the Rust pins of a reviewed build to the build in CACHE")
+    p.add_argument("cache")
+    p.add_argument("--from", dest="source", required=True, help="reviewed pins file of the build Rust holds now")
+    p.add_argument("--rust", required=True, help="crates/net/src")
+    p.set_defaults(run=cmd_repin)
     p = sub.add_parser("sign", help="write signatures for methods cited by documents")
     p.add_argument("cache")
     p.add_argument("--cite", nargs="+", required=True)

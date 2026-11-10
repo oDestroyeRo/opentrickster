@@ -300,9 +300,11 @@ a copy that has ended, the next time it opens.
 
 ## Limitations
 
-- **Pinned game build.** The app supports only build `ea1a68bd89958fae94179f1e0835ffb5`.
-  After a redeploy, it refuses the new build and shows **Game updated** until
-  its pins are migrated. The client-assisted in-game reader is still pinned to
+- **Pinned game build.** The app supports only the game build it was released
+  for. After a redeploy, it refuses the new build and shows **Game updated**.
+  An hourly check ships a new release when every signed protocol method of the
+  new build is unchanged. Otherwise the new build waits for a person to migrate
+  its pins. The client-assisted in-game reader is still pinned to
   the previous build, so that mode shows **Game updated** until [#37] closes.
 - **State readiness.** Start stays blocked until the app has received carried
   weight, inventory and, for combat, the HP potion count. Carried weight is not

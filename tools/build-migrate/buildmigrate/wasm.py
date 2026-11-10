@@ -7,6 +7,10 @@ class Malformed(ValueError):
     pass
 
 
+class Transient(Malformed):
+    """The public files name different builds, as they do while a deploy is in progress."""
+
+
 def check(ok, why):
     if not ok:
         raise Malformed(why)
