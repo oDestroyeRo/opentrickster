@@ -46,6 +46,10 @@ mode runs without Unity and displays received game state in the native dashboard
   next action until the game is idle.
 - Stop a run after three consecutive correlated rejected actions. A confirmed
   action resets the rejection streak.
+- An attack that the adapter could not send, for example on a target that the
+  client hides or covers, sets that target aside for 15 seconds, and the run
+  chooses again. Any other unsent action, or a third unsent attack in a row,
+  pauses the run for uncertain state. A sent action or Resume resets that streak.
 - Pause on fainting, uncertain state, resource or drill limits, a reached goal,
   manual gameplay input and after reconnect. Every pause carries a reason and
   an observable condition for resuming.

@@ -253,7 +253,8 @@ only on a tick where every received frame is applied, so it never decides
 halfway through a message. Cancel and engine ops win over a due tick. The ticket
 gets `NotSent` instead when Ready needs new input, at `Quiesce`, while the own
 character is fainted or its HP is unknown, or when that window ends. A shot is
-never sent early or resent. The engine pauses as Uncertain on that `NotSent`.
+never sent early or resent. On that `NotSent` the engine sets the target aside
+and chooses again, and pauses as Uncertain at the third unsent attack in a row.
 So that a reload never outlasts the ticket window (about 1.75 s), native
 quiescence also waits while the armed gun reloads in state 1 or 2 with a gauge
 that can rise. The engine then issues each gun ticket with the gun Ready. Own Kind-2 firing starts the reload

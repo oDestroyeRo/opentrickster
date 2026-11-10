@@ -52,6 +52,8 @@ struct Run {
     stage: Stage,
     pending: Option<Pending>,
     rejected: u8,
+    unsent: u8,
+    set_aside: BTreeMap<EntityKey, At>,
     totals: Totals,
     killed: BTreeSet<(SessionKey, EntityKey, u64)>,
     dig_index: u64,
@@ -483,6 +485,8 @@ impl Engine {
                     stage: Stage::Running,
                     pending: None,
                     rejected: 0,
+                    unsent: 0,
+                    set_aside: BTreeMap::new(),
                     totals: zero_totals(),
                     killed: BTreeSet::new(),
                     dig_index: 0,
@@ -493,6 +497,7 @@ impl Engine {
             Command::Resume => {
                 if let Some(run) = &mut self.run {
                     run.stage = Stage::Running;
+                    run.unsent = 0;
                 }
             }
             Command::Pause => {
@@ -893,6 +898,7 @@ impl Engine {
                     return;
                 }
                 pending.sent = Some(mark);
+                run.unsent = 0;
                 pending.finish_by =
                     At(self
                         .now
@@ -915,6 +921,18 @@ impl Engine {
             Delivery::NotSent => {
                 if pending.sent.is_some() {
                     self.uncertain(io);
+                } else if let Action::BasicAttack(target) = pending.action
+                    && run.unsent + 1 < UNSENT_LIMIT
+                {
+                    // Nothing reached the game. The client would not take this target, for
+                    // example one it hides or covers, so choose again without it for a while.
+                    run.unsent += 1;
+                    let now = self.now;
+                    run.set_aside.retain(|_, until| *until > now);
+                    run.set_aside
+                        .insert(target, At(now.0.saturating_add(SET_ASIDE_MS)));
+                    run.pending = None;
+                    self.quiesce(io);
                 } else {
                     pending.quarantined = true;
                     pending.early.clear();

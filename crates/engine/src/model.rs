@@ -11,6 +11,10 @@ pub const ACTION_MS: u64 = 5_000;
 pub const DIG_MS: u64 = 30_000;
 /// Window for an adapter to report `Quiescent` after `SessionOp::Quiesce`.
 pub const DRAIN_MS: u64 = 2_000;
+/// How long a run skips a target after the adapter could not send an attack on it.
+pub const SET_ASIDE_MS: u64 = 15_000;
+/// Consecutive unsent actions that pause a run as uncertain.
+pub const UNSENT_LIMIT: u8 = 3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SessionKey(pub(crate) u64); // engine minted
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

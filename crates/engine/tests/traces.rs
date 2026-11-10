@@ -1123,6 +1123,90 @@ fn a_slow_idle_proof_after_a_confirmed_attack_keeps_the_session_and_asks_again()
     ));
 }
 
+fn unsent(h: &mut Harness, id: ActionKey) -> Effects {
+    h.event(Event::Receipt {
+        action: id,
+        delivery: Delivery::NotSent,
+    })
+}
+
+fn attack_on(effects: &Effects) -> (ActionKey, EntityKey) {
+    match acts(effects).as_slice() {
+        [ticket] => match ticket.action {
+            Action::BasicAttack(target) => (ticket.id, target),
+            _ => panic!("expected an attack"),
+        },
+        _ => panic!("expected one action"),
+    }
+}
+
+#[test]
+fn an_unsent_attack_sets_its_target_aside_and_attacks_another() {
+    let mut h = Harness::new(false);
+    h.facts(vec![entity(2, Point { x: 104, y: 100 }, Some(false))]);
+    let first = h.start_attack();
+    // The client would not take the nearest target, so nothing reached the game.
+    let skipped = unsent(&mut h, first);
+    assert_eq!(skipped.snapshot.phase, Phase::Running);
+    assert!(acts(&skipped).is_empty());
+    let next = h.idle(&skipped);
+    let (second, target) = attack_on(&next);
+    assert_eq!(target, EntityKey(2));
+    // A duplicate receipt for the dropped action changes nothing.
+    let duplicate = unsent(&mut h, first);
+    assert_eq!(duplicate.snapshot.phase, Phase::Running);
+    assert!(acts(&duplicate).is_empty() && barrier(&duplicate).is_none());
+    h.sent(second);
+    let kill = h.facts(vec![Fact::Outcome(Outcome::OwnKill(EntityKey(2)))]);
+    let waiting = h.idle(&kill);
+    assert!(acts(&waiting).is_empty(), "the set-aside target waits");
+    for _ in 0..3 {
+        h.live(SET_ASIDE_MS / 3);
+    }
+    let back = h.facts(vec![entity(1, center(), Some(false))]);
+    assert_eq!(attack_on(&back).1, EntityKey(1));
+}
+
+#[test]
+fn three_unsent_actions_in_a_row_pause_the_run_as_uncertain() {
+    let mut h = Harness::new(false);
+    h.facts(
+        (2..=5)
+            .map(|key| {
+                entity(
+                    key,
+                    Point {
+                        x: 100 + 2 * key as i32,
+                        y: 100,
+                    },
+                    Some(false),
+                )
+            })
+            .collect(),
+    );
+    let first = h.start_attack();
+    let skipped = unsent(&mut h, first);
+    // A sent attack ends the streak.
+    let (sent, target) = attack_on(&h.idle(&skipped));
+    assert_eq!(target, EntityKey(2));
+    h.sent(sent);
+    let kill = h.facts(vec![Fact::Outcome(Outcome::OwnKill(EntityKey(2)))]);
+    let mut next = h.idle(&kill);
+    for (round, expected) in [3, 4, 5].into_iter().enumerate() {
+        let (id, target) = attack_on(&next);
+        assert_eq!(target, EntityKey(expected));
+        let skipped = unsent(&mut h, id);
+        if round + 1 < usize::from(UNSENT_LIMIT) {
+            assert_eq!(skipped.snapshot.phase, Phase::Running);
+            next = h.idle(&skipped);
+        } else {
+            let paused = h.idle(&skipped);
+            assert_eq!(paused.snapshot.phase, Phase::Paused(Pause::Uncertain));
+            assert!(acts(&paused).is_empty());
+        }
+    }
+}
+
 #[test]
 fn manual_play_during_a_run_without_a_pending_action_keeps_the_session() {
     let mut h = Harness::new(false);

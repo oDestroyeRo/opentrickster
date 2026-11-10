@@ -200,6 +200,11 @@ impl Engine {
                             && entity.hp.as_ref().is_none_or(|hp| hp.current > 0)
                             && entity.engaged_by_other == Some(false)
                             && self.book.entity_fresh(entity.key, self.now)
+                            && self.run.as_ref().is_none_or(|run| {
+                                run.set_aside
+                                    .get(&entity.key)
+                                    .is_none_or(|until| self.now >= *until)
+                            })
                             && setup.boundary.contains(map, entity.position)
                             && match targets {
                                 Targets::Only(keys) => keys.contains(&entity.species),
