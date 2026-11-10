@@ -12,6 +12,7 @@ mod native_input;
 mod network;
 mod normal_input;
 mod theme;
+mod updater;
 mod verification;
 mod view;
 

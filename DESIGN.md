@@ -45,7 +45,7 @@ The window has a 52 px unified toolbar, a 3 px pulse strip under the toolbar, an
 
 - The toolbar holds the traffic lights, the app name, the mode switch, the keyboard badge in client-assisted mode, and the panel toggle.
 - In client-assisted mode, the game pane fills the left side of the body. A strip under the game shows the last minute of activity and the six newest log rows. The strip takes the height that the 16:9 game leaves, and at least 150 px.
-- The side panel on the right is 344 px wide. From top to bottom, it holds the large status pill, the run controls, the blocked reason or a refused-action message, the alert banner, the Run, Setup, and Log tabs, and a footer with the status line.
+- The side panel on the right is 344 px wide. From top to bottom, it holds the large status pill, the run controls, the blocked reason or a refused-action message, the alert banner, the Run, Setup, and Log tabs, the [update row](#update-row) while an update needs attention, and a footer with the status line.
 - In clientless mode, the clientless board replaces the game pane and the strip. The side panel does not change.
 
 ![The app window in clientless mode. A board with the character header, the current target, the session, the last-minute lanes, and the log replaces the game.](docs/design/clientless-running.png)
@@ -159,7 +159,7 @@ A halt ends the run and closes the game or session, so the app stops reading gam
 
 | Halt | Status pill | Recovery |
 | --- | --- | --- |
-| `build-changed` | Game updated | Dismiss. In client-assisted mode, **Reload game** in the game pane also dismisses the halt and loads the game again. |
+| `build-changed` | Game updated | Dismiss. In client-assisted mode, **Reload game** in the game pane also dismisses the halt and loads the game again. The halt also makes the app check for an update. When one is on its way, the app installs it and restarts, as the [update row](#update-row) describes. |
 | `client-failed` | Game client stopped | **Reload game** in the game pane, with no banner. In clientless mode, Dismiss. |
 | `session-replaced` | Signed in elsewhere | Dismiss, then sign in again. Reserved. No adapter reports this halt yet. |
 | `actions-rejected` | Actions rejected | Dismiss |
@@ -468,6 +468,8 @@ An alert banner has a title, a body, an optional unlock line, and at most one ac
 
 The banner sits in the side panel under the run controls. A failed clientless sign-in has no banner. Its cause appears inside the connect panel instead. A `client-failed` halt in client-assisted mode has no banner, because the game pane shows the failure and its **Reload game** button.
 
+A `build-changed` halt reads "The game updated. Reload it or reconnect before continuing." Once an update is downloading, ready, or installing, the body reads "The game updated. OpenTrickster is updating itself." A connect attempt that fails on a build change shows a short message with the same split: "The game updated. Update OpenTrickster before reconnecting." or, while an update is on its way, "The game updated. OpenTrickster is updating itself."
+
 A banner never repeats a run control. When a pause has a blocking check, the unlock line reads "Resume locked ·" and what unlocks Resume, for example "Resume locked · Restock HP potions in the game before resuming." The action is a primary button.
 
 The banner has the alert role. In GPUI, map it to an AccessKit alert. That mapping is unverified.
@@ -492,6 +494,43 @@ The status line is one freshness caption in `small` type and `text.secondary`. I
 | No live state | No state has arrived since the session opened, or the connection dropped or the session closed |
 
 The footer shows no build label. The Run tab's checklist shows "Supported game build" once the session reports a supported build. The status pill reads "Game updated" during a `build-changed` halt.
+
+### Update row
+
+The app updates itself from GitHub Releases. The update row is the only place the update shows. It sits in the side panel between the tab content and the footer, and it appears only while an update needs attention. The toolbar and the ticker never show it, so the row is visible only while the side panel is shown.
+
+The row is at least 40 px tall, on `surface.panel` with a 1 px `line.subtle` top border and 16 px of side padding. It holds `small` text in `text.secondary`, an optional `caption` line in `text.muted`, and at most one button on the right. The text wraps. The buttons are the standard buttons at `size.control`. The row adds no tokens.
+
+| When | Text | Button |
+| --- | --- | --- |
+| An update downloads | Downloading OpenTrickster 0.2.0. | None |
+| The update is ready, and a game page, a session, or a held run is open | Update 0.2.0 is ready. The caption reads "Restarting closes the game and ends a run." | **Restart to update**, primary |
+| The update is ready, and another window of this app runs from the same bundle | Another OpenTrickster window is open. Quit it to update. | None |
+| The user clicked **Restart to update**, and the game or session is closing | Closing the game, then installing OpenTrickster 0.2.0. | None |
+| The app installs | Installing OpenTrickster 0.2.0. | None |
+| A download failed a check, or the install failed | One sentence for the cause, such as "The update failed its checksum and was discarded." | **Release page**, secondary |
+| The app runs from a temporary location that macOS made | Updates are off. Move OpenTrickster to Applications to turn them on. | **Release page**, secondary |
+| The app cannot write to its folder | Updates are off because OpenTrickster cannot write to its folder. Download updates from the release page. | **Release page**, secondary |
+
+The row shows nothing in these cases:
+
+- The app is checking, or no newer release exists.
+- A check failed because of the network or an unreadable answer. The next check tries again.
+- The build has no release version, the build is not arm64, the app does not run from `OpenTrickster.app`, or the app runs a verification.
+- The running bundle's `build.json` names another version than the build. The app would install again on every launch.
+- The update is ready and nothing is open, because the app installs at once.
+
+**Release page** opens the latest release in the browser.
+
+How the app decides:
+
+1. It checks for a newer release when it opens, every 6 hours, and when a game halt reports a build change. A check that fails on the network tries again after 15 minutes. Any other failure waits for the next 6-hour check, including a failed download and a worker that stopped without an answer. A build change starts a check at most once a minute, and never while an update is on its way.
+2. It downloads in the background and verifies the download before the row says the update is ready. It refuses a download unless the archive matches the release's `SHA256SUMS`, the unpacked app passes `codesign --verify --strict`, its bundle identifier is `org.opentrickster.desktop`, its `build.json` names the release version with a clean source and the release profile, and its minimum macOS fits the running one.
+   A release that fails any of these checks except the checksum and the signature is skipped. The app does not download that version again and waits for a newer release. A checksum or signature mismatch may be a bad transfer, so the app tries it again at the next 6-hour check.
+3. It installs and relaunches without asking when nothing is open: no game page, no session, no run held after a lost connection, and the app is not quitting. Otherwise the row offers **Restart to update**.
+4. **Restart to update** checks that the staged update is still on disk. If it is gone, the app drops the update, checks again, and leaves the game open. Otherwise it closes the game and the session through the same cleanup as quit, then installs and relaunches. If the install fails, the app stays open and the row says so. A failed install removes the staged update.
+5. A user who quits never gets an install they did not ask for.
+6. Every running copy holds a lock on `.OpenTrickster-instance-<pid>-<bundle>.lock` beside its bundle. The kernel drops the lock when the process ends. While another live copy of the same bundle runs, neither the automatic install nor **Restart to update** goes ahead, and the row says so. The install checks again just before it swaps. A copy removes a staged update or a backup only when the process that made it is dead.
 
 ### Meter
 

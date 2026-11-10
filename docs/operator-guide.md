@@ -185,7 +185,7 @@ A halt ends the run and closes the game or session. The status shows the halt.
 
 | Status | Meaning | What to do |
 | --- | --- | --- |
-| **Game updated** | The official game no longer matches the build this app supports. | Click **Dismiss**. Reloading or reconnecting fails the same way until an OpenTrickster update supports the new build. |
+| **Game updated** | The official game no longer matches the build this app supports. | Click **Dismiss**. The app checks for an OpenTrickster update and [installs it](#updates) when one exists. Until an update supports the new build, reloading or reconnecting fails the same way. |
 | **Game client stopped** | The game view ended or failed. The game pane shows the cause. | Click **Reload game**. |
 | **Actions rejected** | The game rejected three actions in a row. | Check the character and Setup, then click **Dismiss**. |
 | **Sign-in failed** | The game or session could not open, for example after a rejected sign-in or a network error. | Fix the cause, then click **Sign in**, or **Reload game** in client-assisted mode. |
@@ -244,6 +244,59 @@ Setup lists four alerts, all on by default: **Pause with a reason**,
 **Connection lost**, **Goal reached** and **Dock badge**. Notifications work
 only from the packaged app, after you allow them. Otherwise alerts stay in the
 panel.
+
+## Updates
+
+The app updates itself from
+[GitHub Releases](https://github.com/oDestroyeRo/opentrickster/releases/latest).
+It checks when it opens, every 6 hours, and when the game reports a new build.
+It downloads a newer release in the background and refuses it unless the
+download matches the release's checksum and the app passes its signature
+check.
+
+- **Nothing is open.** When no game or session is open and no run is held
+  after a lost connection, the app installs the update and opens again by
+  itself.
+- **Something is open.** The panel shows "Update 0.2.0 is ready." and
+  **Restart to update**. Click it to close the game or session as Quit does,
+  install the update and open the app again. A run in progress ends.
+- **Another OpenTrickster window is open.** Two copies of the same app never
+  update at once. The panel shows "Another OpenTrickster window is open. Quit
+  it to update." and no button. Quit the other window. The update then goes
+  ahead.
+- **You are quitting.** Quitting never installs an update.
+
+Before **Restart to update** closes the game, the app checks that the
+downloaded update is still on disk. If it is gone, the app downloads it again
+and the game stays open.
+
+Updates stay off in these cases:
+
+- A copy that you built yourself has no release version and never checks.
+- The app runs from a temporary location that macOS made, for example
+  straight from a downloaded zip. The panel says "Updates are off. Move
+  OpenTrickster to Applications to turn them on." Move the app to
+  **Applications** and open it from there.
+- The app's folder is read-only. The panel says "Updates are off because
+  OpenTrickster cannot write to its folder. Download updates from the release
+  page."
+- The build is not for Apple silicon, or the app's own `build.json` names
+  another version than the build. The panel shows nothing.
+
+If an update fails a check or cannot be installed, the panel says why and
+shows **Release page**. The app you have stays in place, and a failed install
+removes the downloaded update. Download the release from that page to update
+by hand.
+
+A failed check on the network tries again after 15 minutes. A failed download
+waits for the next 6-hour check. A release that fails a check that another
+download cannot fix is skipped until a newer release appears. A checksum or
+signature mismatch tries again at the next 6-hour check.
+
+While the app runs, a hidden file named
+`.OpenTrickster-instance-<pid>-<app name>.lock` sits beside it. The app uses it
+to see other running copies. The app removes it, and any download or backup of
+a copy that has ended, the next time it opens.
 
 ## Limitations
 
