@@ -1102,6 +1102,28 @@ fn a_slow_idle_proof_without_a_run_keeps_the_session_and_asks_again() {
 }
 
 #[test]
+fn a_slow_idle_proof_after_a_confirmed_attack_keeps_the_session_and_asks_again() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    h.sent(id);
+    let hit = h.facts(vec![Fact::Outcome(Outcome::OwnHit(EntityKey(1)))]);
+    let key = barrier(&hit).expect("quiescence after the confirmation");
+    // A gun reload can hold the idle proof past the drain window. The confirmed attack is
+    // no longer in flight, so the engine asks again instead of closing.
+    for _ in 0..3 {
+        let expired = h.wake(DRAIN_MS);
+        assert_eq!(closes(&expired), 0);
+        assert_eq!(barrier(&expired), Some(key));
+        assert_eq!(expired.snapshot.phase, Phase::Running);
+    }
+    let settled = h.event(Event::Quiescent(key));
+    assert!(matches!(
+        acts(&settled).as_slice(),
+        [ticket] if ticket.action == Action::BasicAttack(EntityKey(1))
+    ));
+}
+
+#[test]
 fn manual_play_during_a_run_without_a_pending_action_keeps_the_session() {
     let mut h = Harness::new(false);
     let start = h.command(Command::Start);

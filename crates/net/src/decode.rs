@@ -1638,6 +1638,11 @@ impl Decoder {
             self.gun.advance(elapsed_ms, frame);
         }
     }
+    /// The armed gun is loading toward Ready. Quiescence waits for it: a gun ticket's
+    /// receipt window is shorter than a reload, so a ticket issued now would expire unsent.
+    pub(crate) fn gun_reloading(&self) -> bool {
+        self.gun_live && self.gun.reloading(self.gun_frame())
+    }
     /// Whether a gun ticket for `key` can wait for Ready: a valid target and an armed,
     /// fully known controller that reaches Ready without another received input.
     pub(crate) fn gun_waitable(&self, key: e::EntityKey) -> bool {

@@ -123,6 +123,17 @@ impl Gun {
     pub(crate) fn ready(&self) -> bool {
         self.armed && self.ready && matches!(self.state, State::S3 | State::S4)
     }
+    /// Armed and loading toward Ready, as each shot leaves it, with a gauge that `frame`
+    /// lets rise. A gauge that cannot rise is not a reload anyone can wait for.
+    pub(crate) fn reloading(&self, frame: Frame) -> bool {
+        frame.worn
+            && self.armed
+            && match self.state {
+                State::S1 => frame.zone_allows,
+                State::S2 => frame.speed.is_some() && self.param.is_some(),
+                _ => false,
+            }
+    }
     /// Armed in a state that reaches Ready without another received input.
     pub(crate) fn waitable(&self) -> bool {
         self.armed && matches!(self.state, State::S1 | State::S2 | State::S3 | State::S4)

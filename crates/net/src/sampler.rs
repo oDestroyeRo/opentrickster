@@ -465,11 +465,18 @@ pub(crate) fn walk_ended(s: &Snapshot) -> Option<[f64; 2]> {
     Some([own.x, own.y])
 }
 
+/// An armed gun loads toward Ready after each shot. Quiescence waits for it, because an
+/// attack's receipt window is shorter than a reload.
+fn reloading(s: &Snapshot) -> bool {
+    s.combat.gun_worn && s.combat.gun_armed && matches!(s.combat.gun_state, 1 | 2)
+}
+
 pub(crate) fn idle(s: &Snapshot) -> bool {
     fresh(s)
         && matches!(s.motion.fsm, 0 | 1)
         && motion_idle(s)
         && combat_idle(s)
+        && !reloading(s)
         && !s.input.left
         && !s.input.right
         && !s.input.dig_held
@@ -573,6 +580,11 @@ pub(crate) fn plan(
             world_press(s, p, None)
         }
         Action::BasicAttack(_) => {
+            // Quiescence waits for a reload; a plan that still meets one waits within the
+            // ticket's receipt window.
+            if reloading(s) {
+                return Err(NetError::NotReady);
+            }
             if !idle(s) {
                 return Err(NetError::Busy);
             }
@@ -581,14 +593,7 @@ pub(crate) fn plan(
                     && s.combat.gun_ready
                     && matches!(s.combat.gun_state, 3 | 4))
             {
-                // A loaded gun reloads after each shot; the ticket's receipt window bounds the wait.
-                return Err(
-                    if s.combat.gun_armed && matches!(s.combat.gun_state, 1 | 2) {
-                        NetError::NotReady
-                    } else {
-                        NetError::Refused
-                    },
-                );
+                return Err(NetError::Refused);
             }
             let id = target_raw
                 .filter(|id| *id != s.motion.own)
@@ -1095,27 +1100,31 @@ mod tests {
         s.combat.gun_worn = true;
         s.combat.gun_armed = true;
         s.combat.gun_ready = true;
-        // A loaded gun reloads after each shot, so the press waits for it.
+        // A loaded gun reloads after each shot. Quiescence waits for it, and so does a press.
         for reloading in [1, 2] {
             s.combat.gun_state = reloading;
+            assert!(!idle(&s));
             assert!(matches!(
                 candidate(&s, action, Some(73)),
                 Err(NetError::NotReady)
             ));
         }
         s.combat.gun_state = 0;
+        assert!(idle(&s));
         assert!(matches!(
             candidate(&s, action, Some(73)),
             Err(NetError::Refused)
         ));
         s.combat.gun_state = 2;
         s.combat.gun_armed = false;
+        assert!(idle(&s));
         assert!(matches!(
             candidate(&s, action, Some(73)),
             Err(NetError::Refused)
         ));
         s.combat.gun_armed = true;
         s.combat.gun_state = 3;
+        assert!(idle(&s));
         assert_eq!(
             candidate(&s, action, Some(73))
                 .unwrap_or_else(|_| panic!("ready gun"))

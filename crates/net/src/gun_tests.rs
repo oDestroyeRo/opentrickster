@@ -649,6 +649,30 @@ fn own_firing_reloads_projects_ammo_and_attributes_one_outcome() {
 }
 
 #[test]
+fn quiescence_waits_for_a_reload_that_can_finish() {
+    let mut run = Run::reloaded(startup());
+    assert!(!run.d.gun_reloading(), "a Ready gun");
+    run.shoot();
+    run.bundle(31, 7, strike(OWN, 2, MONSTER));
+    run.bundle(42, 7, damage(MONSTER));
+    run.bundle(1951, 7, vec![]);
+    assert!(!run.d.action_pending());
+    // Own firing restarts the reload, so the session holds its barrier until Ready.
+    assert!(run.d.gun_reloading());
+    run.d.gun_tick(0.0);
+    assert!(run.d.gun_reloading());
+    run.d.gun_tick(RELOAD_MS);
+    run.d.gun_tick(1.0);
+    assert!(run.ready() && !run.d.gun_reloading());
+    // A gauge that cannot rise is no reload to wait for.
+    let mut stalled = Run::armed();
+    stalled.apply(224, effect_start(OWN, 5, crate::gun::FAST_LOAD, 50.0));
+    stalled.d.gun_tick(0.0);
+    stalled.d.gun_tick(RELOAD_MS * 2.0);
+    assert!(!stalled.ready() && !stalled.d.gun_reloading());
+}
+
+#[test]
 fn own_damage_restarts_reload_unless_learned() {
     let mut run = Run::reloaded(startup());
     run.apply(42, damage(OWN));
