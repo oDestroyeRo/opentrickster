@@ -207,7 +207,11 @@ When accepted:
   The ea1a68bd trials saw no Aux-grouped frame, so this case is unexercised.
 
 Native code sends24, ordinary288+29 and the full timed44->45/371->49->50 dig
-exchange, including real48 cancellation counters. Native movement policy is
+exchange, including real48 cancellation counters. The client, and the native
+cycle like it, cancels an own spot with an odd key and no item depth before
+digging. The server answers that cancel with 50 kind 1, which the decoder
+reports as an empty dig in both modes. Kind 1 after any other spot reports no
+outcome. Native movement policy is
 explicit WALK1. Assisted mode uses observed RunToggle/Heavy; it never inherits
 that policy. Own hit/kill association requires one complete unambiguous own
 Strike bundle with the matching recipient, action floor and incarnation.
