@@ -204,7 +204,9 @@ exchange, including real48 cancellation counters. Native movement policy is
 explicit WALK1. Assisted mode uses observed RunToggle/Heavy; it never inherits
 that policy. Own hit/kill association requires one complete unambiguous own
 Strike bundle with the matching recipient, action floor and incarnation.
-Unattributed HP falls, captions and faint alone cannot award outcomes.
+That own strike resolves the attack even when it deals no damage, so a miss
+confirms the action without a kill. An ungrouped (Aux 0) own strike resolves at
+once. Unattributed HP falls, captions and faint alone cannot award outcomes.
 
 A MoveTo is confirmed only after the server accepts it and the walk ends. The
 first own movement frame after the request answers it. An own 24/26 echo
