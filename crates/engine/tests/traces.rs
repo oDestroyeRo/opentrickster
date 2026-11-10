@@ -1123,6 +1123,47 @@ fn a_slow_idle_proof_after_a_confirmed_attack_keeps_the_session_and_asks_again()
     ));
 }
 
+#[test]
+fn a_pause_keeps_the_session_while_a_sent_attack_can_still_be_confirmed() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    h.sent(id);
+    // The approach to the target carries the character out of the boundary just after the send.
+    let outside = h.facts(vec![Fact::Position {
+        map: MapKey(1),
+        point: Point { x: 111, y: 100 },
+    }]);
+    assert_eq!(outside.snapshot.phase, Phase::Pausing);
+    let key = barrier(&outside).expect("the pause drains");
+    // The attack's confirmation window outlasts the drain window, so the drain waits for it.
+    let waiting = h.wake(DRAIN_MS);
+    assert_eq!(closes(&waiting), 0);
+    assert_eq!(barrier(&waiting), Some(key));
+    assert_eq!(waiting.snapshot.phase, Phase::Pausing);
+    let hit = h.facts(vec![Fact::Outcome(Outcome::OwnHit(EntityKey(1)))]);
+    assert_eq!(hit.snapshot.totals.confirmed, 1);
+    assert_eq!(
+        h.event(Event::Quiescent(key)).snapshot.phase,
+        Phase::Paused(Pause::Uncertain)
+    );
+}
+
+#[test]
+fn a_pause_closes_the_session_when_a_sent_attack_outlives_its_confirmation_window() {
+    let mut h = Harness::new(false);
+    let id = h.start_attack();
+    h.sent(id);
+    let pause = h.command(Command::Pause);
+    let key = barrier(&pause).expect("the pause drains");
+    let waiting = h.wake(DRAIN_MS);
+    assert_eq!(closes(&waiting), 0);
+    assert_eq!(barrier(&waiting), Some(key));
+    // Nothing confirmed the attack in its own window, so it may still be in flight.
+    let expired = h.wake(ACTION_MS - DRAIN_MS);
+    assert_eq!(closes(&expired), 1);
+    assert_eq!(expired.snapshot.phase, Phase::Closing);
+}
+
 fn unsent(h: &mut Harness, id: ActionKey) -> Effects {
     h.event(Event::Receipt {
         action: id,
