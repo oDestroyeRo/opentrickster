@@ -90,6 +90,8 @@ visible-client policy. No gateway resume or uncertain outbound replay occurs.
 `VerifiedProfile::observer_script` generates one document-start wrapper from the
 verified maps. It recognizes the GS login from its six-byte header and never
 copies that authentication body. Only allowlisted GS state/actions cross IPC.
+The allowlist includes every input of derived maxima. Frames whose arrival
+alone matters, every `parts::UNMODELED` opcode among them, cross as a bare header.
 FL/LS authentication bytes and text tokens never cross. Host epoch, guard,
 connection generation, sequence and first-byte ordinal fence callbacks.
 
@@ -190,7 +192,8 @@ When accepted:
   engine reconnect reports them again.
 - The page bridge forwards the undecoded Inventory opcodes header-only
   (`page::HEADER_ONLY`), so the assisted observer sees them and invalidates
-  without any item data crossing IPC.
+  without their item rows crossing IPC. Only 151 crosses whole, because
+  `GameParts` reads its UID.
 - Known limit: `ordered.rs` releases a buffered Aux group and later Aux-0
   packets in raw order, while the client applies Aux-0 packets at once. If both
   touch the same UID before the group flushes, the cache can diverge silently.
@@ -254,7 +257,7 @@ the source joins.
 | Native gun controller | Controller, session integration and synthetic tests exist for ea1a68bd. Server acceptance of 477, the key's lifetime, live attribution and the live order of 271 and own 8/9 relative to H remain unproven. A gun never falls back to melee. |
 | HP potion | Catalog classification and precise missing instance/expiry/use-state reasons exist. Normal87 use and result correlation remain unfinished; no fake usable-potion fact. |
 | Pickup | Ground state and own captions decode. Normal 33 send and inventory attribution remain unfinished; captions do not grant items. |
-| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. Without S282, the HP, MP and weight maxima are `GameParts` plus the packet-fed core, the client's installed steady state, and only while every input is proven. A denied inventory opcode, an unproven worn row or slot, a non-empty imprint list or a page-bound decoder leaves them unknown. Server enforcement is unprovable. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |
+| Carried weight | The H cutoff is accepted for ea1a68bd: Trial A matched the client's cache and weight exactly, and a native-only boot matched Trial A. Without S282, the HP, MP and weight maxima are `GameParts` plus the packet-fed core, the client's installed steady state, and only while every input is proven. A denied inventory opcode, an unproven worn row or slot, a non-empty imprint list or a page bound after the game login leaves them unknown. Server enforcement is unprovable. See [derived maxima](../../docs/research/derived-resource-maxima.md) (#47). |
 | Runtime acceptance | One production Rust startup and joined cleanup passed. Gameplay, inventory readiness, and Desktop integration remain open. See the [runtime report](../../docs/research/native-rust-startup.md). |
 
 These gaps remain visible in support/readiness and cannot be called a completed

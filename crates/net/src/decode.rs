@@ -30,6 +30,7 @@ const INVENTORY_CUTOFF_BUILD: Option<&str> = Some("ea1a68bd89958fae94179f1e0835f
 const INVENTORY_DELTAS: [u16; 8] = [561, 160, 770, 262, 246, 260, 843, 68];
 /// Inventory subscribes to these after replay, but this decoder has no grammar for them.
 /// 518/521 (slot 20), 82/85 (slots), 83 (refusal) and 41 (Galder) leave carried weight alone.
+/// The page bridge forwards each of them, header-only except 151, whose UID `GameParts` reads.
 const UNDECODED_INVENTORY: &[u16] = &[586, 590, 1152, 587, 599, 601, 261, 86, 35, 151];
 
 pub(crate) fn text(s: String) -> Result<e::DisplayText> {
@@ -89,6 +90,7 @@ pub(crate) struct DeferredFacts {
 }
 /// Carried-inventory proof for one game session under the startup cutoff H.
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 enum Carried {
     /// The cutoff is unaccepted, or an input made weight and potions unknown for this session.
     Unknown,
@@ -415,11 +417,43 @@ impl Decoder {
         let player = data.map(|d| d.player_levels.as_slice());
         self.status.maximum(stat, player, game_parts)
     }
-    /// The page bridge forwards only `page::INCOMING`, so frames `GameParts` depends on
-    /// never reach this decoder.
+    /// A page bound after this decoder's startup began: StartSet frames may have reached
+    /// neither this decoder nor the page.
     pub(crate) fn lose_game_parts(&mut self) {
         self.parts.lose();
         self.note_maxima();
+    }
+    #[cfg(test)]
+    pub(crate) fn maxima(&self) -> [Option<u32>; 3] {
+        [9, 3, 6].map(|stat| self.maximum(stat).map(NonZeroU32::get))
+    }
+    /// The `CharacterStatus` and `GameParts` inputs, and the cache that `Parts` reads.
+    #[cfg(test)]
+    pub(crate) fn derived_state(&self) -> (resources::Status, parts::Parts, BTreeMap<u64, Cached>) {
+        let data = self.definitions.as_deref();
+        let cache = self
+            .items
+            .keys()
+            .map(|uid| (*uid, cached(&self.items, data, *uid)));
+        (self.status.clone(), self.parts.clone(), cache.collect())
+    }
+    /// Every input of derived maxima and carried weight.
+    #[cfg(test)]
+    pub(crate) fn derived_inputs(&self) -> impl PartialEq + std::fmt::Debug + use<> {
+        let items = self.items.iter().map(|(uid, item)| {
+            let options = item.options.clone();
+            (
+                *uid,
+                item.id,
+                item.wire_kind,
+                item.count,
+                item.state,
+                options,
+            )
+        });
+        let (status, parts, _) = self.derived_state();
+        let carried = self.carried;
+        (status, parts, items.collect::<Vec<_>>(), carried, self.own)
     }
     fn note_maxima(&mut self) {
         self.readiness.hp_maximum_known = self.maximum(9).is_some();
@@ -682,6 +716,10 @@ impl Decoder {
                 if !live {
                     self.parts
                         .start_slots(&self.slots, |uid| lookup(&self.items, uid));
+                    // At H the StartSet closes here, so the resources below carry its maxima.
+                    if self.status.closes_start_set(p.mark) {
+                        self.parts.finish_start(|uid| lookup(&self.items, uid));
+                    }
                 }
                 self.missing_slots.clear();
                 self.missing_slot_refs = [0; 23];
@@ -741,8 +779,8 @@ impl Decoder {
                 });
                 out.extend([
                     Fact::Profile(profile),
-                    Fact::Hp(gauge(hp)),
-                    Fact::Mp(gauge(mp)),
+                    Fact::Hp(resources::gauge(hp, self.maximum(9))),
+                    Fact::Mp(resources::gauge(mp, self.maximum(3))),
                 ]);
                 if let Some(point) = self.point {
                     out.push(Fact::Position { map, point });

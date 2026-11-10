@@ -32,14 +32,20 @@ const incoming=messages.filter(m=>m.kind==='frame'&&m.direction==='inbound');ass
 const accepted=Buffer.from(incoming[0].data,'base64');assert.equal(accepted.length,6);assert.equal(accepted[0],0);
 const redacted=Buffer.from(incoming[1].data,'base64').subarray(6);assert.equal(redacted.length,69);
 for(let i=0;i<redacted.length;i++)assert.equal(redacted[i],i>=17&&i<=38||[53,54,56,57].includes(i)?85:0);
-const inventoryInput=cfg.headerOnly[0];assert.equal(cfg.headerOnly.length,11);assert.ok(cfg.incoming.includes(input.pass)&&cfg.headerOnly.includes(input.pass));
-gs.fire('message',{data:frame(inventoryInput,Buffer.from('SYNTHETIC-ITEM-ROWS'),3)});
-const headerOnly=Buffer.from(messages.filter(m=>m.kind==='frame'&&m.direction==='inbound').at(-1).data,'base64');
-assert.equal(headerOnly.length,6);assert.equal(headerOnly[0],0);assert.equal(headerOnly[1],0);assert.equal(headerOnly[4],3);
-gs.fire('message',{data:frame(input.pass,Buffer.from('SYNTHETIC-PASS-PROGRESS'))});
-const pass=Buffer.from(messages.filter(m=>m.kind==='frame'&&m.direction==='inbound').at(-1).data,'base64');
-assert.equal(pass.length,6);assert.equal(pass.readUInt16LE(0),0);assert.equal(pass.readUInt16LE(2),input.pass);
-assert.ok(!JSON.stringify(messages).includes(Buffer.from('SYNTHETIC-ITEM-ROWS').toString('base64')));
+assert.ok(cfg.headerOnly.every(op=>cfg.incoming.includes(op)));
+assert.ok(input.bare.every(op=>cfg.headerOnly.includes(op)));
+assert.ok(input.state.every(op=>cfg.incoming.includes(op)&&!cfg.headerOnly.includes(op)));
+assert.ok(!cfg.incoming.includes(input.dropped));
+const inbound=()=>messages.filter(m=>m.kind==='frame'&&m.direction==='inbound');
+const rows=Buffer.from('SYNTHETIC-ITEM-ROWS'), state=Buffer.from('SYNTHETIC-STATE-ROWS');
+for(const op of input.bare){
+  gs.fire('message',{data:frame(op,rows,3)});
+  const bare=Buffer.from(inbound().at(-1).data,'base64');
+  assert.equal(bare.length,6);assert.equal(bare.readUInt16LE(0),0);assert.equal(bare.readUInt16LE(2),op);assert.equal(bare[4],3);
+}
+for(const op of input.state){const sent=frame(op,state);gs.fire('message',{data:sent});assert.equal(inbound().at(-1).data,Buffer.from(sent).toString('base64'));}
+const forwardedCount=inbound().length;gs.fire('message',{data:frame(input.dropped,rows)});assert.equal(inbound().length,forwardedCount);
+assert.ok(!inbound().some(m=>Buffer.from(m.data,'base64').includes(rows)));
 assert.ok(!JSON.stringify(messages).includes('SYNTHETIC-AUTH'));
 assert.ok(!JSON.stringify(messages).includes('SYNTHETIC-PRIVATE-TOKEN'));
 assert.ok(!messages.some(m=>m.data===Buffer.from(auth).toString('base64')));

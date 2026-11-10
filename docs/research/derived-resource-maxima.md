@@ -250,13 +250,21 @@ Net matches the client's `Total`, which the client caches and displays at its ne
 
 ### Page path
 
-The page bridge forwards only `page::INCOMING` payloads and `page::HEADER_ONLY` headers. A decoder bound to it receives the 518 and 521 payloads, but only the header of 151. It never sees the 837, 1386, 1387, 1487 or 1489 frames that `GameParts` needs, or 175 of the 181 denied opcodes. Binding a page marks `GameParts` lost (`Decoder::lose_game_parts`), so every derived maximum stays unknown on that path, in all three bind orders. A received S282 total is still reported. The follow-up is to forward the frames `GameParts` needs.
+The page bridge forwards every frame that derived maxima read, so a page-bound decoder applies the same inputs as a native one:
+
+- `page::INCOMING` carries these with their payload: the core frames (39, 109, 282, 283, 629, 634, 649, 784 and 1070), the inventory and slot frames (231, 233, the item deltas, 82, 85, 151, 518 and 521), 230 and 437 for `Me`, the 837 set frames, the 1386 and 1387 imprint frames, and the login-time 1487 and 1489, whose handlers `Parts` models.
+- `page::HEADER_ONLY` carries only the header of frames whose arrival alone matters. These are the inventory inputs without a decoder grammar, which invalidate carried weight, and the 1065, 1071 and 1389 recomputes, which never read their payload.
+- Every other `parts::UNMODELED` opcode also crosses as a bare header. Its arrival leaves `GameParts` unknown, as on the native path.
+
+`page::tests::the_page_withholds_no_input_of_derived_maxima_or_carried_weight` checks all 65,536 logical opcodes against a decoder before H and after it. A dropped opcode must change no input. `Status` and `Parts` are probed with every payload of a synthetic session, and the decoder with an empty one. A header-only opcode must change the inputs and the decoder's outcome the same way whatever its payload. The observer tests feed the same synthetic session to a native observer and, through the real bridge script, to a page-bound one, and compare the maxima after every frame.
+
+Bind order decides whether the page saw the StartSet. A page bound before the game login sees it from the first frame, and its decoder derives the native maxima. A page bound once a startup or decoder exists, at H or after it, marks `GameParts` lost (`Decoder::lose_game_parts`). StartSet frames may have reached neither that decoder nor the page. The maxima then stay unknown until the next game login starts a fresh startup. A received S282 total is still reported. Desktop binds the page before it opens the host, so the assisted app takes the first path.
 
 ## Net model
 
 `crates/net/src/resources.rs` keeps the `CharacterStatus` inputs per decoder and applies frames in arrival order. `crates/net/src/parts.rs` keeps the `GameParts` inputs alongside.
 
-- **StartSet boundary.** Frames through the startup cutoff H are treated as the StartSet, the same boundary the accepted inventory cutoff uses. In the StartSet only 233 and the soul-seed opcodes act on `CharacterStatus`. A StartSet 233 recomputes once the frame at H has been applied, after the whole StartSet aura. `Parts` closes its own StartSet replay at the same frame.
+- **StartSet boundary.** Frames through the startup cutoff H are treated as the StartSet, the same boundary the accepted inventory cutoff uses. In the StartSet only 233 and the soul-seed opcodes act on `CharacterStatus`. A StartSet 233 recomputes once the frame at H has been applied, after the whole StartSet aura. `Parts` closes its own StartSet replay at the same frame. When that frame is the 233, the replay closes before Net reports the 233's HP and MP, so the Baseline carries the maxima the StartSet proves.
 - **Live frames.** After H, the block, points, buff, override and aura frames act as described above.
 - **Unknown on doubt.** An input becomes unknown when a frame's effect is not provable:
   - a 109 shorter than 26 bytes;
@@ -311,8 +319,8 @@ Static validation passed:
 - **A live 231 diverges rows.** The client ignores it, so any listed row that differs from Net's cache becomes unproven.
 - **Imprint entries are not modelled.** Any non-empty imprint list leaves the term unknown.
 - **The JSON definitions carry no set bonuses.** A non-empty own set list is unknown on that path. On ea1a68bd the JSON path is refused anyway.
-- **The page path never derives maxima.** Forwarding the needed frames is the follow-up.
-- **Carried weight ignores the denied callers.** After H, the carried-weight model fails only on a late 231, a stray row or an `Inventory` hook without a grammar (`page::HEADER_ONLY`). The trace above found 177 more opcodes whose handlers can change rows: the other 175 denied opcodes, and 1487 and 1489 when they carry an item change. A parsed 1387 applies an item change too. Any of them can change the client's carried weight while Net's stays as it was. This affects the accepted inventory cutoff, not the maxima, and needs its own fix.
+- **The page path relies on its forwarding lists.** A new input of derived maxima reaches a page-bound decoder only once it joins `page::INCOMING`, or `page::HEADER_ONLY` when only its arrival matters. The completeness test catches a missed input only when a session payload or an empty one exercises it. A page bound after the game login keeps the maxima unknown until the next login.
+- **Carried weight ignores the denied callers.** After H, the carried-weight model fails only on a late 231, a stray row or an `Inventory` hook without a grammar (`decode::UNDECODED_INVENTORY`). The trace above found 177 more opcodes whose handlers can change rows: the other 175 denied opcodes, and 1487 and 1489 when they carry an item change. A parsed 1387 applies an item change too. Any of them can change the client's carried weight while Net's stays as it was. This affects the accepted inventory cutoff, not the maxima, and needs its own fix.
 - **Server enforcement is unprovable**, as described above.
 - **S282 invalidation is unchanged.** It still clears on the earlier opcode list. It does not clear on imprint, aura or 649/629/634 recomputes, and it clears on some frames that never recompute in this build.
 - **Malformed known frames are stricter in Net.** Net's strict 282, 283 and 784 parsers reject trailing bytes that the client ignores. For 282 and 283 that still fails the frame, as before. For 784 it makes the overrides unknown.
