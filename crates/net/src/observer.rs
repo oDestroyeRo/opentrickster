@@ -314,13 +314,15 @@ impl GameObserver {
         let Some(flow) = &self.input_flow else {
             return Ok(None);
         };
+        // Only planning the press needs an eligible target, and it refuses without one. The
+        // shot can kill or mark the target before the flow ends.
         let target = match flow.ticket.action {
-            e::Action::BasicAttack(key) => Some(
-                self.decoder
-                    .as_ref()
-                    .ok_or(NetError::NotReady)?
-                    .raw_target(key)?,
-            ),
+            e::Action::BasicAttack(key) => self
+                .decoder
+                .as_ref()
+                .ok_or(NetError::NotReady)?
+                .raw_target(key)
+                .ok(),
             _ => None,
         };
         let pending = self.decoder.as_ref().is_some_and(|d| d.action_pending());
@@ -1326,6 +1328,20 @@ mod tests {
             .unwrap();
         assert_eq!(up.steps(), [crate::NormalInput::LeftUp]);
         assert_ne!(up.step_key(), plan.step_key());
+        assert_eq!(observer.active_input(), Some(action));
+        // A target that faints after the press no longer bounds the rest of the flow.
+        observer
+            .decoder
+            .as_mut()
+            .unwrap()
+            .apply(&packet(43, 73u16.to_le_bytes().to_vec()))
+            .unwrap();
+        assert!(
+            observer
+                .continue_input(e::At(13), fences, action)
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(observer.active_input(), Some(action));
     }
     fn observer(definitions: &std::sync::Arc<crate::definitions::GameDefinitions>) -> GameObserver {
