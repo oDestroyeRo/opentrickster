@@ -4,7 +4,8 @@
     python3 -I tools/build-migrate/watch.py CACHE [--work DIR] [--github-output FILE]
 
 CACHE is a fresh `migrate.py fetch` directory outside Git. The command prints one outcome and
-writes it, with the names that the workflow needs, to --github-output:
+writes it, with the names that the workflow needs, to --github-output. With --expect-build BUILD,
+a fetch that names another build counts as a deploy in progress:
 
     current  The deployed build is the build that Net pins. Nothing changes.
     proven   Every proof below holds. The pins file, the Rust pins and the sampler pins now hold
@@ -15,6 +16,10 @@ The proofs: every signed method body matches a reviewed fingerprint, no catalog 
 under Net, the pins that a build does not derive again are unchanged, the config and version
 differ from the reviewed files only in the build string, no sampler pin moved or changed, and the
 Rust pins hold the new values after the rewrite. See README.md.
+
+Exit status: 0 for an outcome, 2 when the tool fails, 3 when the public files disagree on the build,
+as they do while a deploy is in progress. Nothing changes after a 3, and the workflow tries again
+later.
 """
 
 import argparse
@@ -30,7 +35,7 @@ sys.path.insert(0, str(HERE))
 
 import migrate  # noqa: E402
 from buildmigrate import artifacts, derive, repin  # noqa: E402
-from buildmigrate.wasm import Malformed  # noqa: E402
+from buildmigrate.wasm import Malformed, Transient  # noqa: E402
 
 PINNED = re.compile(r'pub const BUILD: &str = "([0-9a-f]{32})";')
 ISSUE_LINES = 200
@@ -55,18 +60,21 @@ def deployed_build(cache):
             names.append(json.loads(path.read_bytes()).get("build"))
         except (ValueError, AttributeError):
             raise Malformed("%s is not a JSON object" % name) from None
-    if names[0] != names[1] or not isinstance(names[0], str) or not re.fullmatch(r"[0-9a-f]{32}", names[0]):
-        raise Malformed("config and version disagree on the build")
+    if names[0] != names[1]:
+        raise Transient("config and version disagree on the build")
+    if not isinstance(names[0], str) or not re.fullmatch(r"[0-9a-f]{32}", names[0]):
+        raise Malformed("config and version carry no build id")
     return names[0]
 
 
 class Proof:
     """What a fetched cache shows against the reviewed pins."""
 
-    def __init__(self, manifest=None, failed=(), matched=0, sampler=None):
+    def __init__(self, manifest=None, failed=(), matched=0, sampler=None, signed=0):
         self.manifest = manifest  # derive.pins of the cache; None when the cache could not be read
         self.failed = list(failed)  # the check lines that stop a migration
         self.matched = matched  # signed methods that match a reviewed fingerprint
+        self.signed = signed  # signed methods in signatures.json
         self.sampler = sampler  # (pins file, new text) when no sampler pin moved or changed
 
 
@@ -83,15 +91,18 @@ class Artifacts:
             self.build = derive.Build(cache)
             manifest = derive.pins(self.build)
             report = migrate.Report()
-            migrate.check_methods(self.build, migrate.load_signatures(self.tools / "signatures.json"), set(), report)
+            signatures = migrate.load_signatures(self.tools / "signatures.json")
+            migrate.check_methods(self.build, signatures, set(), report)
             migrate.check_catalog(manifest, report)
             migrate.compare("pins", derive.invariants(old), derive.invariants(manifest), report)
             descriptors(old, self.build.cache, report)
             sampler, failed = self.sampler(self.build.cache, old["build"])
+        except Transient:  # a deploy in progress is not a finding
+            raise
         except Exception as error:  # a changed format can fail anywhere in the parsers
             return Proof(failed=["ERROR     %s: %s" % (type(error).__name__, error)])
         matched = sum(1 for line in report.lines if line.startswith("MATCH "))
-        return Proof(manifest, report.failed + failed, matched, sampler)
+        return Proof(manifest, report.failed + failed, matched, sampler, len(signatures["methods"]))
 
     def sampler(self, cache, old_build):
         """Derive the sampler pins of the new build against the pins file that names the pinned build.
@@ -213,11 +224,15 @@ def migrate_tree(proof, old, repo, target, prover):
             writes.undo()
 
 
-def run(cache, repo, work, prover):
-    """Classify the fetched build and, when it is proven, move the repository to it."""
+def run(cache, repo, work, prover, expect=None):
+    """Classify the fetched build and, when it is proven, move the repository to it.
+
+    `expect` is the build that an earlier probe read. Another build in the fetch is a deploy in progress."""
     repo = Path(repo)
     previous = pinned_build(repo / "crates" / "net" / "src")
     deployed = deployed_build(cache)
+    if expect is not None and deployed != expect:
+        raise Transient("the deployed build moved from %s to %s during the run" % (expect, deployed))
     if deployed == previous:
         return Verdict("current", deployed, previous)
     pins = repo / "tools" / "build-migrate" / "pins"
@@ -227,6 +242,9 @@ def run(cache, repo, work, prover):
     target = pins / (deployed + ".json")
     proof = prover.prove(cache, old)
     failed = list(proof.failed)
+    if not failed and not proof.matched == proof.signed > 0:
+        failed.append("SIGNED    %d of %d signed methods match; every signed method must match and one must exist"
+                      % (proof.matched, proof.signed))
     if target.exists():
         failed.append("PIN       %s already exists; a return to a reviewed build needs a person" % target.name)
     change = None
@@ -322,13 +340,14 @@ def main(argv=None, prover=None):
     parser.add_argument("--repo", default=str(HERE.parents[1]), help="repository root (default: this checkout)")
     parser.add_argument("--work", help="directory outside Git for the body files (default: a new temporary one)")
     parser.add_argument("--github-output", help="file that receives name=value lines for the workflow")
+    parser.add_argument("--expect-build", help="the build that a probe read; a fetch that names another build exits 3")
     args = parser.parse_args(argv)
     try:
         work = Path(args.work) if args.work else Path(tempfile.mkdtemp(prefix="game-build-"))
         if artifacts.inside_git(work):
             raise Malformed("refusing to write bodies inside a Git work tree")
         work.mkdir(parents=True, exist_ok=True)
-        verdict = run(args.cache, args.repo, work, prover or Artifacts(args.repo, work))
+        verdict = run(args.cache, args.repo, work, prover or Artifacts(args.repo, work), args.expect_build)
         outputs = {"outcome": verdict.outcome, "build": verdict.build, "previous": verdict.previous}
         if verdict.body is not None:
             name = "pr-body.md" if verdict.outcome == "proven" else "issue-body.md"
@@ -339,6 +358,9 @@ def main(argv=None, prover=None):
             print(line, file=sys.stderr)
         if args.github_output:
             write_outputs(args.github_output, outputs)
+    except Transient as error:
+        print("TRANSIENT: %s" % error, file=sys.stderr)
+        return 3
     except Malformed as error:
         print("ERROR: %s" % error, file=sys.stderr)
         return 2

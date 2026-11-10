@@ -78,7 +78,13 @@ python3 -I tools/build-migrate/watch.py /tmp/ot-NEW --work /tmp/ot-work
 The command prints one outcome. With `--github-output FILE` it also writes `outcome`, `build` and
 `previous`, plus `short`, `title`, `body_file` and `branch` when there is a body to post.
 Details go to stderr. It exits 2 when the tool itself fails, for example when the fetched config
-or version is missing or the two name different builds.
+or version is missing. It exits 3 when the public files disagree on the build: the config and the
+version differ, or the compiled gateway build differs from the config. A deploy in progress looks
+like this. Nothing changes after a 3, and the next hourly run tries again. Every other failed
+proof is a `review`.
+
+`--expect-build BUILD` adds one check. The fetched build must equal `BUILD`, the build that the
+workflow probe read. A fetch that names another build exits 3, because the deploy moved during the run.
 
 | Outcome   | Meaning                                                    | Tree                              |
 | --------- | ---------------------------------------------------------- | --------------------------------- |
@@ -88,7 +94,8 @@ or version is missing or the two name different builds.
 
 A build is `proven` only when all of these hold:
 
-1. Every signed method matches a reviewed fingerprint. A `CHANGED` or `UNMATCHED` method fails.
+1. Every signed method matches a reviewed fingerprint, and at least one method is signed. A
+   `CHANGED` or `UNMATCHED` method fails. An empty `signatures.json` fails as `SIGNED`.
 2. No overlay defines a table that Net's catalog reads, and the bundle does not name
    `SpinelDataSettings`.
 3. The pins that a build does not derive again are equal to the reviewed pins: the metadata
@@ -106,7 +113,7 @@ A build is `proven` only when all of these hold:
 On `proven` the watcher writes `pins/<new>.json` (the derived manifest without `methods`),
 rewrites the Rust pins, writes the new sampler pins over the file that named the old build, and
 writes `pr-body.md`. On `review` it writes `issue-body.md` with the `CHANGED`, `UNMATCHED`,
-`CATALOG`, `PIN`, `SAMPLER` and `REPIN` lines that stopped it.
+`SIGNED`, `CATALOG`, `PIN`, `SAMPLER` and `REPIN` lines that stopped it.
 
 The sampler pins file keeps its name, `ea1a68bd.json`, because `crates/net/tests/sampler.cjs`
 opens it by that name. Its `build` field holds the pinned build.
@@ -118,20 +125,40 @@ outcome is `review` and a person decides.
 
 ### Workflow
 
-The workflow runs on `main` only. It holds `contents`, `pull-requests`, `issues` and `actions`
-write permission and uses `GITHUB_TOKEN`. Runs never overlap (concurrency group `game-build`).
+The workflow runs on `main` of `oDestroyeRo/opentrickster` only. It checks out `main` itself, so a
+queued or re-run job starts from the tip of `main` and never from the commit that triggered it. It
+holds `contents`, `pull-requests`, `issues` and `actions` write permission and uses
+`GITHUB_TOKEN`. Runs never overlap (concurrency group `game-build`).
 
-- `current`: it stops.
-- `proven`: it skips when a pull request from `auto/game-build-<first 8 hex>` is already open.
-  Otherwise it installs Rust 1.99.1, runs `cargo fmt -p opentrickster-net` and
-  `cargo test -p opentrickster-net --locked`, commits `fix(net): pin game build <first 8 hex>`
-  to that branch, pushes, and opens a pull request. A pull request opened with `GITHUB_TOKEN`
-  starts no workflow, so it dispatches `ci.yml` on the branch, finds the run by head SHA and
-  waits for it. On success it squash merges with `--match-head-commit`, then dispatches `ci.yml`
-  on `main`. The `fix` type makes that run release a PATCH version. On a CI failure it leaves
-  the pull request open and fails the job.
-- `review`: it opens the issue `Game build <first 8 hex> needs review` with the label
-  `needs-triage`, unless an open issue has that title.
+1. **Probe.** It reads the 4 KiB `version` file and the `BUILD` in `profile.rs`.
+   - Equal builds: it stops. Nothing changed.
+   - `pins/<deployed>.json` exists while `BUILD` pins another build: it fails the job. The game
+     returned to a reviewed build, and a person must migrate.
+2. **Gate.** It runs before the fetch. `<b8>` is the first 8 hex characters of the deployed build.
+   Pull requests from forks are ignored. Only a same-repository pull request from
+   `auto/game-build-<b8>` counts.
+   - An open pull request: it fails the job with a message. Merge it or close it.
+   - A closed or merged pull request: it prints why, ships nothing and passes. A closed pull
+     request vetoes its build. To override the veto, migrate by hand from another branch.
+   - An open issue titled `Game build <b8> needs review`: it prints why and passes. The 71 MB
+     fetch does not repeat every hour while that issue is open.
+3. **Compare.** It fetches the build and runs `watch.py --expect-build <deployed>`. Exit status 3
+   means a deploy is in progress. The job passes, opens no issue and tries again next hour.
+4. **Act** on the outcome:
+   - `current`: it stops.
+   - `proven`: it installs Rust 1.99.1, runs `cargo fmt -p opentrickster-net` and
+     `cargo test -p opentrickster-net --locked`, commits `fix(net): pin game build <b8>` to
+     that branch, pushes, and opens a pull request. A pull request opened with `GITHUB_TOKEN`
+     starts no workflow, so it dispatches `ci.yml` on the branch, finds the run by head SHA and
+     waits for it. On success it squash merges with `--match-head-commit`, then dispatches
+     `ci.yml` on `main`. The `fix` type makes that run release a PATCH version. On a CI
+     failure it leaves the pull request open and fails the job.
+   - `review`: it opens the issue `Game build <b8> needs review` with the label
+     `needs-triage`, unless an open issue has that title.
+5. **Report.** Any failed step runs a last step. It opens one issue titled
+   `Game build watcher failed` with the label `needs-triage` and the run URL. When that issue is
+   already open, the step adds a comment instead. A merge that succeeds followed by a failed
+   dispatch of CI on `main` ends here too.
 
 Only `watch.py` holds logic. The workflow runs Git and `gh`.
 
@@ -145,7 +172,10 @@ Only `watch.py` holds logic. The workflow runs Git and `gh`.
   `current`.
 - Server acceptance of the new seed and opcode maps is not tested.
 - The hourly run first reads the 4 KiB `version` file. It downloads the full build, about 71 MB,
-  only when the deployed build differs from `BUILD`.
+  only when the deployed build differs from `BUILD` and the gate finds no open issue and no
+  pull request for it.
+- A fetch that fails while a deploy is in progress, such as a 404 on a new asset, fails the job
+  and reports through the failure issue. Only a disagreement on the build id is retried silently.
 - The watcher does not use `--exclude-source`. Every signed method must match.
 
 ## Migrating by hand

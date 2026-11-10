@@ -13,8 +13,10 @@ import shutil
 import struct
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parents[1]
 REPO = HERE.parents[1]
@@ -23,7 +25,7 @@ sys.path.insert(0, str(HERE))
 import migrate  # noqa: E402
 import watch  # noqa: E402
 from buildmigrate import artifacts, derive, fingerprint, repin, unityfs  # noqa: E402
-from buildmigrate.wasm import Cursor, Malformed  # noqa: E402
+from buildmigrate.wasm import Cursor, Malformed, Transient  # noqa: E402
 
 
 class Leb128(unittest.TestCase):
@@ -471,8 +473,9 @@ class Descriptors(unittest.TestCase):
 class FakeProver:
     """Stands in for `watch.Artifacts`: the proof is chosen by the test, the files are real."""
 
-    def __init__(self, repo, new, failed=(), sampler=True, after=()):
+    def __init__(self, repo, new, failed=(), sampler=True, after=(), matched=400, signed=400):
         self.repo, self.new, self.failed, self.after = repo, new, list(failed), list(after)
+        self.matched, self.signed = matched, signed
         self.sampler = None
         if sampler:
             path = repo / "tools" / "build-migrate" / "sampler" / "pins.json"
@@ -480,7 +483,7 @@ class FakeProver:
         self.verified = []
 
     def prove(self, cache, old):
-        return watch.Proof(self.new, self.failed, 400, self.sampler)
+        return watch.Proof(self.new, self.failed, self.matched, self.sampler, self.signed)
 
     def verify(self, pins, rust):
         self.verified.append((Path(pins), Path(rust)))
@@ -600,22 +603,87 @@ class Watcher(unittest.TestCase):
         self.assert_review(verdict, before, "already exists; a return to a reviewed build needs a person")
 
     def test_an_unreadable_deployment_is_an_error_not_an_outcome(self):
-        (self.cache / "version").write_text(json.dumps({"build": "f" * 32}))
-        with self.assertRaisesRegex(Malformed, "disagree"):
-            self.go()
         (self.cache / "version").unlink()
-        with self.assertRaisesRegex(Malformed, "missing public artifact version"):
+        with self.assertRaisesRegex(Malformed, "missing public artifact version") as caught:
             self.go()
+        self.assertNotIsInstance(caught.exception, Transient)
         (self.cache / "version").write_text("[1]")
-        with self.assertRaises(Malformed):
+        with self.assertRaises(Malformed) as caught:
+            self.go()
+        self.assertNotIsInstance(caught.exception, Transient)
+        self.fetched("not a build id")
+        with self.assertRaisesRegex(Malformed, "no build id") as caught:
+            self.go()
+        self.assertNotIsInstance(caught.exception, Transient)
+
+    def test_a_config_and_version_that_disagree_are_a_deploy_in_progress(self):
+        (self.cache / "version").write_text(json.dumps({"build": "f" * 32}))
+        with self.assertRaisesRegex(Transient, "disagree"):
             self.go()
 
-    def test_the_pinned_build_comes_from_exactly_one_declaration(self):
-        src = self.repo / "crates" / "net" / "src"
-        self.assertEqual(watch.pinned_build(src), self.old["build"])
-        (src / "profile.rs").write_text("nothing")
-        with self.assertRaises(Malformed):
-            watch.pinned_build(src)
+    def test_a_gateway_build_that_differs_from_config_is_a_deploy_in_progress(self):
+        name = artifacts.METADATA.encode()
+        head = 20 + 12 + len(name)
+        data = b"UnityWebData1.0\0" + struct.pack("<I", head) + struct.pack("<III", head, 4, len(name)) + name + b"meta"
+        build = types.SimpleNamespace(cache=types.SimpleNamespace(build="b" * 32, data=data),
+                                      compiled={"build": {"value": "a" * 32, "usage": 1}})
+        with self.assertRaisesRegex(Transient, "compiled gateway build differs from config"):
+            derive.pins(build)
+
+    def test_a_deploy_in_progress_is_not_a_finding_but_any_other_failure_to_read_is(self):
+        prover = watch.Artifacts(self.repo, self.work)
+        cache = types.SimpleNamespace(build="b" * 32)
+        moved = Transient("compiled gateway build differs from config")
+        broken = Malformed("metadata entry is missing or duplicated")
+        with mock.patch.object(watch.derive, "Build", return_value=cache), \
+                mock.patch.object(watch.derive, "pins", side_effect=moved):
+            with self.assertRaises(Transient):
+                prover.prove(self.cache, self.old)
+        with mock.patch.object(watch.derive, "Build", return_value=cache), \
+                mock.patch.object(watch.derive, "pins", side_effect=broken):
+            proof = prover.prove(self.cache, self.old)
+        self.assertEqual(proof.failed, ["ERROR     Malformed: metadata entry is missing or duplicated"])
+
+    def test_an_empty_list_of_signed_methods_is_not_a_proof(self):
+        before = snapshot(self.tmp)
+        verdict, prover = self.go(matched=0, signed=0)
+        self.assert_review(verdict, before, "SIGNED    0 of 0 signed methods match")
+        self.assertEqual(prover.verified, [])
+
+    def test_every_signed_method_must_match(self):
+        before = snapshot(self.tmp)
+        verdict, _ = self.go(matched=399, signed=400)
+        self.assert_review(verdict, before, "SIGNED    399 of 400 signed methods match")
+
+    def sampler_stub(self, source):
+        self.write(self.repo / "tools" / "build-migrate" / "sampler" / "derive.py", source)
+
+    def sampler_cache(self):
+        names = ["a.loader.js", "b.framework.js.gz", "c.wasm.gz", "d.data.gz"]
+        return types.SimpleNamespace(build=self.new["build"], root=self.cache, names=names)
+
+    def test_a_sampler_pin_that_moved_is_a_review(self):
+        self.sampler_stub("import sys\nprint('MOVED cells x: 1 -> 2', file=sys.stderr)\nsys.exit(1)\n")
+        sampler_cache, new = self.sampler_cache(), self.new
+
+        class Prover(watch.Artifacts):
+            """The real sampler step and the real decision, on an invented cache."""
+
+            def prove(self, cache, old):
+                sampler, failed = self.sampler(sampler_cache, old["build"])
+                return watch.Proof(new, failed, 400, sampler, 400)
+
+        before = snapshot(self.tmp)
+        verdict = watch.run(self.cache, self.repo, self.work, Prover(self.repo, self.work))
+        self.assert_review(verdict, before, "SAMPLER   MOVED cells x: 1 -> 2")
+
+    def test_a_sampler_that_derives_without_a_move_returns_its_pins(self):
+        self.sampler_stub(
+            "import sys\nout = sys.argv[sys.argv.index('--out') + 1]\n"
+            "open(out, 'w').write('{\"build\": \"' + sys.argv[sys.argv.index('--build') + 1] + '\"}\\n')\n")
+        found, failed = watch.Artifacts(self.repo, self.work).sampler(self.sampler_cache(), self.old["build"])
+        self.assertEqual((failed, found[0].name, json.loads(found[1])),
+                         ([], "pins.json", {"build": self.new["build"]}))
 
     def main(self, *extra, prover=None):
         out = self.tmp / "github-output"
@@ -642,6 +710,21 @@ class Watcher(unittest.TestCase):
                          (0, "review\n", "review", str(self.work / "issue-body.md")))
         self.assertEqual(outputs["title"], "Game build %s needs review" % self.new["build"][:8])
         self.assertIn("CHANGED   f1 x", (self.work / "issue-body.md").read_text())
+
+    def test_main_exits_3_and_changes_nothing_when_the_files_disagree_on_the_build(self):
+        (self.cache / "version").write_text(json.dumps({"build": "f" * 32}))
+        before = snapshot(self.tmp)
+        code, printed, outputs = self.main(prover=FakeProver(self.repo, self.new))
+        self.assertEqual((code, printed, outputs), (3, "", {}))
+        self.assertEqual(snapshot(self.tmp), before)
+
+    def test_main_exits_3_when_the_build_moved_since_the_probe(self):
+        before = snapshot(self.tmp)
+        code, printed, outputs = self.main("--expect-build", "c" * 32, prover=FakeProver(self.repo, self.new))
+        self.assertEqual((code, printed, outputs), (3, "", {}))
+        self.assertEqual(snapshot(self.tmp), before)
+        code, printed, outputs = self.main("--expect-build", self.new["build"], prover=FakeProver(self.repo, self.new))
+        self.assertEqual((code, printed, outputs["outcome"]), (0, "proven\n", "proven"))
 
     def test_main_for_the_pinned_build_needs_no_artifacts_at_all(self):
         self.fetched(self.old["build"])

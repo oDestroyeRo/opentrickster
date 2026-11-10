@@ -13,7 +13,7 @@ import struct
 
 from . import artifacts, il2cpp, unityfs, wasm
 from .fingerprint import ADDRESS_FLOOR, Fingerprinter, is_memory
-from .wasm import Malformed, check
+from .wasm import Malformed, Transient, check
 
 NET = "[Spinel.Net.dll]Spinel.Net."
 GAME = "[Spinel.Game.dll]Spinel.Game.Play."
@@ -173,7 +173,8 @@ def pins(build):
     directory = artifacts.unity_directory(cache.data)
     entry = next(e for e in directory if e["name"] == artifacts.METADATA)
     compiled = {k: {f: v for f, v in r.items() if f != "usage"} for k, r in build.compiled.items()}
-    check(compiled["build"]["value"] == cache.build, "compiled gateway build differs from config")
+    if compiled["build"]["value"] != cache.build:
+        raise Transient("compiled gateway build differs from config")
     return {
         "build": cache.build,
         "deployment": {name: {"bytes": len(b), "sha256": artifacts.sha256(b)}
