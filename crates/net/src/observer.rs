@@ -29,6 +29,20 @@ struct Connection {
     inbound: Frames,
     outbound: Frames,
 }
+/// The client's zone change. After s2c 154, `CompleteZoneChangeAsync` closes the announcing link
+/// and logs in on a replacement link with c2s 156.
+#[derive(Clone, Copy)]
+enum Handoff {
+    /// The active link announced a handoff and is still open.
+    Announced(ConnectionKey),
+    /// The announcing link closed at this instant. The replacement must log in within
+    /// `HANDOFF_WINDOW`.
+    Waiting(std::time::Instant),
+    /// The replacement is active, and the announcing link has not reported its close.
+    Replaced(ConnectionKey),
+}
+/// The client opens the replacement right after closing the old link, retrying the open once.
+const HANDOFF_WINDOW: std::time::Duration = std::time::Duration::from_secs(10);
 struct Armed {
     ticket: e::ActionTicket,
     selected: Option<u64>,
@@ -54,6 +68,7 @@ pub struct GameObserver {
     session: e::SessionKey,
     connections: BTreeMap<u64, Connection>,
     active: Option<ConnectionKey>,
+    handoff: Option<Handoff>,
     retired: Vec<ConnectionKey>,
     order: u64,
     epoch: u64,
@@ -87,6 +102,7 @@ impl GameObserver {
             session,
             connections: BTreeMap::new(),
             active: None,
+            handoff: None,
             retired: Vec::new(),
             order: 0,
             epoch: 0,
@@ -541,8 +557,8 @@ impl GameObserver {
             Some("socket") => {
                 self.connect(ObserverContext::checked(origin, crate::BUILD, connection)?)?
             }
-            Some("socket-closed") => self.disconnect(connection)?,
-            Some("game-login") => {
+            Some("socket-closed") => self.close_link(connection, captured_at)?,
+            Some(kind @ ("game-login" | "game-handoff")) => {
                 let mark = crate::page::ordinal(&value)?;
                 self.order = self.order.max(mark);
                 let fields = value["header"]
@@ -556,7 +572,11 @@ impl GameObserver {
                         .and_then(|n| u8::try_from(n).ok())
                         .ok_or(NetError::Malformed)?;
                 }
-                self.notice_game_login(connection, header)?;
+                if kind == "game-login" {
+                    self.notice_game_login(connection, header)?;
+                } else {
+                    self.notice_game_handoff(connection, header)?;
+                }
             }
             Some("frame") => {
                 let captured = crate::page::captured(&value, captured_at)?;
@@ -593,8 +613,39 @@ impl GameObserver {
         self.epoch = self.epoch.checked_add(1).ok_or(NetError::Capacity)?;
         let mut startup = Startup::new(self.epoch);
         startup.decoder.set_definitions(self.definitions.clone());
+        startup.decoder.follow_handoffs();
         self.active = Some(connection);
         self.startup = Some(startup);
+        Ok(())
+    }
+    /// Only the six-byte header of c2s 156 crosses the page boundary. Never pass its body.
+    pub fn notice_game_handoff(
+        &mut self,
+        connection: ConnectionKey,
+        header: [u8; 6],
+    ) -> Result<()> {
+        self.check()?;
+        if !self.connections.contains_key(&connection.0) {
+            return Err(NetError::StaleConnection);
+        }
+        let expected = crate::codec::OpcodeMap::current(b"c2s").wire_opcode(156);
+        if header[..2] != 13u16.to_le_bytes()
+            || header[2..4] != expected.to_le_bytes()
+            || header[4..] != [0, 0]
+        {
+            return self.fail(NetError::Malformed);
+        }
+        self.expire_handoff()?;
+        self.handoff = match self.handoff {
+            Some(Handoff::Announced(from)) => Some(Handoff::Replaced(from)),
+            Some(Handoff::Waiting(_)) => None,
+            // A login after the window closed belongs to a session already reported lost.
+            _ if self.decoder.is_none() && self.startup.is_none() => return Ok(()),
+            _ => return self.fail(NetError::Uncertain),
+        };
+        self.active = Some(connection);
+        // The client's replacement link starts with no Aux groups.
+        self.aux = Default::default();
         Ok(())
     }
     pub fn connect(&mut self, context: ObserverContext) -> Result<()> {
@@ -618,26 +669,45 @@ impl GameObserver {
         Ok(())
     }
     pub fn disconnect(&mut self, key: ConnectionKey) -> Result<()> {
+        self.close_link(key, std::time::Instant::now())
+    }
+    fn close_link(&mut self, key: ConnectionKey, at: std::time::Instant) -> Result<()> {
         self.check()?;
         self.connections
             .remove(&key.0)
             .ok_or(NetError::StaleConnection)?;
         self.retired.push(key);
-        if self.active == Some(key) {
-            self.active = None;
-            self.startup = None;
-            self.decoder = None;
-            self.dig_cycle = None;
-            self.aux = Default::default();
-            self.ordered = Default::default();
-            self.ordered = Default::default();
-            if let Some(armed) = self.armed.take() {
-                self.emit(Event::Receipt {
-                    action: armed.ticket.id,
-                    delivery: e::Delivery::Unknown,
-                })?;
+        match self.handoff {
+            Some(Handoff::Replaced(from)) if from == key => self.handoff = None,
+            Some(Handoff::Announced(from)) if from == key => {
+                self.active = None;
+                self.handoff = Some(Handoff::Waiting(at));
             }
-            self.emit(Event::Lost)?;
+            _ if self.active == Some(key) => self.lose()?,
+            _ => {}
+        }
+        Ok(())
+    }
+    fn lose(&mut self) -> Result<()> {
+        self.handoff = None;
+        self.active = None;
+        self.startup = None;
+        self.decoder = None;
+        self.dig_cycle = None;
+        self.aux = Default::default();
+        self.ordered = Default::default();
+        if let Some(armed) = self.armed.take() {
+            self.emit(Event::Receipt {
+                action: armed.ticket.id,
+                delivery: e::Delivery::Unknown,
+            })?;
+        }
+        self.emit(Event::Lost)
+    }
+    fn expire_handoff(&mut self) -> Result<()> {
+        if matches!(self.handoff, Some(Handoff::Waiting(since)) if since.elapsed() >= HANDOFF_WINDOW)
+        {
+            self.lose()?;
         }
         Ok(())
     }
@@ -706,6 +776,10 @@ impl GameObserver {
         if !self.connections.contains_key(&key.0) {
             return Err(NetError::StaleConnection);
         }
+        // The client closes the old link before it opens the replacement.
+        if matches!(self.handoff, Some(Handoff::Replaced(from)) if from == key) {
+            return self.fail(NetError::Uncertain);
+        }
         if direction == ObservedDirection::Outbound {
             if packet.opcode == 4 {
                 return self.fail(NetError::Malformed);
@@ -717,6 +791,10 @@ impl GameObserver {
         }
         if self.active != Some(key) {
             return Ok(());
+        }
+        // Seen on arrival, so a close that overtakes the frontier still waits for the replacement.
+        if packet.opcode == 154 && self.decoder.is_some() {
+            self.handoff = Some(Handoff::Announced(key));
         }
         let proof_at = packet.received;
         if let Some(startup) = &mut self.startup {
@@ -781,6 +859,18 @@ impl GameObserver {
                             revision: e::EvidenceKey(packet.mark << 2),
                             ingress: e::IngressMark(packet.mark),
                             facts,
+                        },
+                    ));
+                }
+                // The old map's target or spot is gone; the replacement link cannot carry it.
+                if packet.opcode == 154
+                    && let Some(armed) = self.armed.take()
+                {
+                    events.push((
+                        packet.received,
+                        Event::Receipt {
+                            action: armed.ticket.id,
+                            delivery: e::Delivery::Unknown,
                         },
                     ));
                 }
@@ -1015,6 +1105,12 @@ impl GameObserver {
         if let Some(error) = self.fault.take() {
             return Err(error);
         }
+        if !self.closed {
+            self.expire_handoff()?;
+            if let Some(event) = self.events.pop_front() {
+                return Ok(Some(event));
+            }
+        }
         if self.closed && !self.closed_reported {
             self.closed_reported = true;
             return Ok(Some(crate::TimedEvent {
@@ -1034,6 +1130,7 @@ impl GameObserver {
         self.sample_pending = None;
         self.barrier = None;
         self.active = None;
+        self.handoff = None;
         self.startup = None;
         self.decoder = None;
         self.dig_cycle = None;
@@ -1069,6 +1166,7 @@ impl GameObserver {
         self.sample_pending = None;
         self.barrier = None;
         self.active = None;
+        self.handoff = None;
         self.startup = None;
         self.decoder = None;
         self.dig_cycle = None;
@@ -1757,5 +1855,294 @@ mod tests {
         assert_eq!(dig_events(&mut observer, present), none);
         assert_eq!(dig_events(&mut observer, cold), none);
         assert_eq!(dig_events(&mut observer, absent), [false]);
+    }
+    /// A bound page whose game link (connection 1) has reached its baseline.
+    struct OnlinePage {
+        observer: GameObserver,
+        sequence: u64,
+        raw: u64,
+    }
+    const OWN: u16 = 0x0102;
+    const ZONE: u16 = 41;
+    impl OnlinePage {
+        fn online(session: e::SessionKey) -> Self {
+            use zeroize::Zeroizing;
+            let profile = VerifiedProfile {
+                first_host: "127.0.0.1".into(),
+                first_port: 1234,
+                marker: Zeroizing::new("fixture".into()),
+                client_version: Zeroizing::new(vec![0; 4]),
+                definitions: None,
+            };
+            let mut observer = GameObserver::new(session, profile);
+            observer
+                .bind_page(crate::PageBinding::new(7, "a".repeat(32)).unwrap())
+                .unwrap();
+            let mut page = Self {
+                observer,
+                sequence: 0,
+                raw: 0,
+            };
+            page.ingest("socket", serde_json::json!({"connection":1}))
+                .unwrap();
+            let login = crate::codec::OpcodeMap::current(b"c2s")
+                .encode(4, 0, &[0; 14])
+                .unwrap();
+            page.ingest(
+                "game-login",
+                serde_json::json!({"connection":1,"ingress":1,"header":login[..6]}),
+            )
+            .unwrap();
+            let mut profile = vec![0; 69];
+            profile[17] = b'S';
+            let mut clock = vec![0; 10];
+            clock[4..6].copy_from_slice(&OWN.to_le_bytes());
+            let mut stats = vec![0; 251];
+            stats[219..221].copy_from_slice(&9u16.to_le_bytes());
+            for (mark, (opcode, payload)) in
+                [(5, vec![]), (679, profile), (230, clock), (233, stats)]
+                    .into_iter()
+                    .enumerate()
+            {
+                page.frame(1, mark as u64 + 2, opcode, &payload).unwrap();
+            }
+            page.frontier(5);
+            assert!(matches!(page.events().as_slice(), [Event::Baseline { .. }]));
+            page
+        }
+        fn send(
+            &mut self,
+            kind: &str,
+            fields: serde_json::Value,
+            at: std::time::Instant,
+        ) -> Result<Option<crate::PageNotice>> {
+            self.sequence += 1;
+            self.raw = self.raw.max(fields["ingress"].as_u64().unwrap_or(0));
+            let mut value = serde_json::json!({"channel":"opentrickster.net.v1","epoch":"7","guard":"a".repeat(32),"sequence":self.sequence,"rawIngress":self.raw,"kind":kind});
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            self.observer.ingest_page(ORIGIN, &value.to_string(), at)
+        }
+        fn ingest(
+            &mut self,
+            kind: &str,
+            fields: serde_json::Value,
+        ) -> Result<Option<crate::PageNotice>> {
+            self.send(kind, fields, std::time::Instant::now())
+        }
+        fn frame(
+            &mut self,
+            connection: u64,
+            ingress: u64,
+            opcode: u16,
+            payload: &[u8],
+        ) -> Result<()> {
+            self.grouped(connection, ingress, opcode, 0, payload)
+        }
+        fn grouped(
+            &mut self,
+            connection: u64,
+            ingress: u64,
+            opcode: u16,
+            aux: u16,
+            payload: &[u8],
+        ) -> Result<()> {
+            use base64::{Engine, engine::general_purpose::STANDARD};
+            let bytes = crate::codec::OpcodeMap::current(b"s2c")
+                .encode(opcode, aux, payload)
+                .unwrap();
+            self.ingest("frame", serde_json::json!({"connection":connection,"direction":"inbound","ingress":ingress,"ageMs":0,"data":STANDARD.encode(bytes)}))
+                .map(|_| ())
+        }
+        fn frontier(&mut self, ingress: u64) {
+            self.ingest("frontier", serde_json::json!({"ingress":ingress,"ageMs":0}))
+                .unwrap();
+        }
+        fn handoff_login(&mut self, connection: u64, ingress: u64) -> Result<()> {
+            let login = crate::codec::OpcodeMap::current(b"c2s")
+                .encode(156, 0, &[0; 13])
+                .unwrap();
+            self.ingest(
+                "game-handoff",
+                serde_json::json!({"connection":connection,"ingress":ingress,"header":login[..6],"ageMs":0}),
+            )
+            .map(|_| ())
+        }
+        /// Every event except the settlement each frontier release reports.
+        fn events(&mut self) -> Vec<Event> {
+            let mut events = Vec::new();
+            while let Some((_, observation)) = self.observer.try_next_at(e::At(10_000)).unwrap() {
+                if !matches!(&observation.event, Event::Facts { revision, .. } if revision.0 & 3 == 2)
+                {
+                    events.push(observation.event);
+                }
+            }
+            events
+        }
+        /// The redacted s2c 154 the page bridge forwards.
+        fn handoff(&mut self, ingress: u64) {
+            let mut payload = vec![0; 28];
+            payload[21..23].copy_from_slice(&ZONE.to_le_bytes());
+            payload[23..25].copy_from_slice(&7u16.to_le_bytes());
+            payload[25..27].copy_from_slice(&9u16.to_le_bytes());
+            self.frame(1, ingress, 154, &payload).unwrap();
+            self.frontier(ingress);
+        }
+    }
+    fn entry(own: u16) -> Vec<u8> {
+        [own.to_le_bytes(), 7u16.to_le_bytes(), 9u16.to_le_bytes()]
+            .concat()
+            .into_iter()
+            .chain([0; 5])
+            .collect()
+    }
+    #[test]
+    fn a_zone_handoff_follows_the_client_onto_its_replacement_link() {
+        let point = e::Point { x: 7, y: 9 };
+        let (session, ticket) =
+            crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 12, y: 34 }));
+        let mut page = OnlinePage::online(session);
+        page.observer.arm_action(ticket.clone()).unwrap();
+        page.handoff(6);
+        let moved = page.events();
+        let map = match moved.as_slice() {
+            [
+                Event::Facts { facts, .. },
+                Event::Receipt {
+                    action,
+                    delivery: e::Delivery::Unknown,
+                },
+            ] if *action == ticket.id => match facts.as_slice() {
+                [e::Fact::MapChanged, e::Fact::Position { map, point: at }] if *at == point => *map,
+                _ => panic!("the handoff re-baselines the map and position"),
+            },
+            _ => panic!("map change facts, then the unsendable action resolves"),
+        };
+        assert_eq!(
+            page.observer.decoder.as_ref().unwrap().sampling_identity(),
+            None
+        );
+        page.ingest("socket", serde_json::json!({"connection":2}))
+            .unwrap();
+        page.ingest("socket-closed", serde_json::json!({"connection":1}))
+            .unwrap();
+        assert!(
+            page.events().is_empty(),
+            "the old link's close is not a loss"
+        );
+        page.handoff_login(2, 7).unwrap();
+        page.frame(2, 8, 437, &entry(0x0304)).unwrap();
+        page.frame(2, 9, 36, &17u32.to_le_bytes()).unwrap();
+        page.frontier(9);
+        let entered = page.events();
+        assert!(matches!(
+            entered.as_slice(),
+            [Event::Facts { facts: position, .. }, Event::Facts { facts: hp, .. }]
+                if matches!(position.as_slice(), [e::Fact::Position { map: m, point: at }] if *m == map && *at == point)
+                    && matches!(hp.as_slice(), [e::Fact::Hp(_)])
+        ));
+        assert_eq!(
+            page.observer.decoder.as_ref().unwrap().sampling_identity(),
+            Some((0x0304, ZONE))
+        );
+        assert!(page.observer.readiness().own_baseline_seen);
+    }
+    #[test]
+    fn a_replacement_login_before_the_old_link_closes_keeps_the_session() {
+        let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
+        let mut page = OnlinePage::online(session);
+        page.handoff(6);
+        page.events();
+        page.ingest("socket", serde_json::json!({"connection":2}))
+            .unwrap();
+        page.handoff_login(2, 7).unwrap();
+        page.ingest("socket-closed", serde_json::json!({"connection":1}))
+            .unwrap();
+        page.frame(2, 8, 437, &entry(OWN)).unwrap();
+        page.frontier(8);
+        assert!(matches!(page.events().as_slice(), [Event::Facts { .. }]));
+    }
+    #[test]
+    fn a_handoff_with_no_replacement_login_in_time_is_lost() {
+        let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
+        let mut page = OnlinePage::online(session);
+        page.handoff(6);
+        page.events();
+        let closed = std::time::Instant::now()
+            .checked_sub(HANDOFF_WINDOW)
+            .unwrap();
+        page.send("socket-closed", serde_json::json!({"connection":1}), closed)
+            .unwrap();
+        assert!(matches!(page.events().as_slice(), [Event::Lost]));
+        page.ingest("socket", serde_json::json!({"connection":2}))
+            .unwrap();
+        page.handoff_login(2, 7).unwrap();
+        page.frame(2, 8, 437, &entry(OWN)).unwrap();
+        page.frontier(8);
+        assert!(
+            page.events().is_empty(),
+            "a late replacement stays unobserved"
+        );
+    }
+    #[test]
+    fn an_unfinished_aux_group_on_the_old_link_dies_with_it() {
+        let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
+        let mut page = OnlinePage::online(session);
+        page.grouped(1, 6, 36, 5, &17u32.to_le_bytes()).unwrap();
+        page.frontier(6);
+        page.handoff(7);
+        assert!(
+            page.events().is_empty(),
+            "the 154 waits behind the open group"
+        );
+        page.ingest("socket", serde_json::json!({"connection":2}))
+            .unwrap();
+        page.ingest("socket-closed", serde_json::json!({"connection":1}))
+            .unwrap();
+        page.handoff_login(2, 8).unwrap();
+        page.frame(2, 9, 437, &entry(OWN)).unwrap();
+        page.frontier(9);
+        let events = page.events();
+        assert!(matches!(
+            events.as_slice(),
+            [Event::Facts { ingress: e::IngressMark(7), facts: moved, .. }, Event::Facts { ingress: e::IngressMark(9), .. }]
+                if matches!(moved.first(), Some(e::Fact::MapChanged))
+        ));
+    }
+    #[test]
+    fn handoff_flows_the_client_never_produces_fail_safe() {
+        let (session, _) = crate::test_support::ticket(e::Action::MoveTo(e::Point { x: 1, y: 1 }));
+        let mut unannounced = OnlinePage::online(session);
+        unannounced
+            .ingest("socket", serde_json::json!({"connection":2}))
+            .unwrap();
+        assert_eq!(unannounced.handoff_login(2, 6), Err(NetError::Uncertain));
+        assert!(unannounced.observer.try_next().is_err());
+        let mut late = OnlinePage::online(session);
+        late.handoff(6);
+        late.events();
+        late.ingest("socket", serde_json::json!({"connection":2}))
+            .unwrap();
+        late.handoff_login(2, 7).unwrap();
+        assert_eq!(
+            late.frame(1, 8, 36, &17u32.to_le_bytes()),
+            Err(NetError::Uncertain),
+            "the client closed the old link before it logged in on the new one"
+        );
+        let mut dropped = OnlinePage::online(session);
+        dropped
+            .ingest("socket-closed", serde_json::json!({"connection":1}))
+            .unwrap();
+        assert!(matches!(dropped.events().as_slice(), [Event::Lost]));
+        let mut unredacted = OnlinePage::online(session);
+        let mut payload = vec![0; 28];
+        payload[4] = 1;
+        assert_eq!(
+            unredacted.frame(1, 6, 154, &payload),
+            Err(NetError::Malformed),
+            "only Zone and Pos of a handoff may cross the page boundary"
+        );
     }
 }

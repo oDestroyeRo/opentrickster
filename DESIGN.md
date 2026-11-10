@@ -125,7 +125,7 @@ stateDiagram-v2
 | `pausing` | Pausing | Stop (⌘.). The current action finishes first. |
 | `paused` | Paused | Resume (⌘R) once nothing blocks it, or Stop (⌘.). |
 | `stopping` | Stopping | Wait. The current action finishes first. |
-| `reconnecting` | Reconnecting | End the run (⌘.). |
+| `reconnecting` | Reconnecting | End the run (⌘.). In client-assisted mode, log in inside the game when the alert asks. |
 | `disconnected` | Disconnected | Reconnect, or end the run (⌘.). In clientless mode, **Sign in** on the connect panel also reconnects a held run. |
 | `closing` | Closing session | Wait. The app closes the game or session before anything else opens. |
 | `error` | The halt's short name | The halt's recovery action. |
@@ -133,6 +133,8 @@ stateDiagram-v2
 The status pill shows only the phase label. The pause reason, the reconnect state, and the halt's cause appear in the [alert banner](#alert-banner).
 
 Reconnect is manual. The app never reconnects on its own, so it never opens a session the user did not ask for. The `disconnected` phase covers a lost connection and a run held after its session closed, for example after a failed reconnect attempt or a session that closed during a run. Each **Reconnect** is one attempt. After five failed attempts in a row, only **End run** remains. A successful reconnect resets the count.
+
+In client-assisted mode, a map change keeps the session. The app follows the game to the new map and forgets the old map's monsters and drops. A run pauses with `map-changed`. Outside a run, the phase does not change. If the game does not log in on the new map within 10 seconds of closing the old connection, the app treats the change as a lost connection. In clientless mode, the app does not follow a map change, so the session ends as a lost connection.
 
 Every pause has a reason, and the alert names what unlocks Resume.
 
@@ -151,6 +153,7 @@ Every pause has a reason, and the alert names what unlocks Resume.
 | `no-drops` | Check the loot list and map. | Reserved. No rule pauses for this reason yet. |
 | `uncertain` | Resume requires fresh state and verified idle gameplay. | Resume when the state is live again and the character is idle. |
 | `reconnected` | Check the character and live state before resuming. | Check the character, then resume. |
+| `map-changed` | The character changed maps. Check the character and the run's area before resuming. | Client-assisted mode only. Resume once the app confirms that the character is idle on the run's map. To run on the new map, change the area in Setup first. |
 
 A halt ends the run and closes the game or session, so the app stops reading game state and the status line says "No live state". Closing on every halt is the conservative MVP choice. No automation continues on a session that the app no longer trusts.
 
@@ -459,6 +462,7 @@ An alert banner has a title, a body, an optional unlock line, and at most one ac
 | --- | --- | --- | --- |
 | `paused` | Run paused | The banner text from the [pause table](#session-states) | None |
 | `reconnecting` | Connection lost | "Reconnecting. A recovered run stays paused until you check the character." | None |
+| `reconnecting`, waiting for the game login | Connection lost | "Log in inside the embedded game and choose a character. A recovered run stays paused until you check the character." | None |
 | `disconnected` | Disconnected | "Reconnect when the connection is available. Check the character before resuming." | **Reconnect**, while attempts remain |
 | `error` | The halt's status pill text | The halt's cause, such as "The game rejected repeated actions. Check the character and Setup." | **Dismiss** |
 
