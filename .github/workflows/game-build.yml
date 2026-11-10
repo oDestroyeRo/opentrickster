@@ -1,0 +1,136 @@
+name: Game build
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: game-build
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  watch:
+    name: Watch the official game build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch the public build
+        run: python3 -I tools/build-migrate/migrate.py fetch "$RUNNER_TEMP/game" > "$RUNNER_TEMP/fetch.json"
+      - name: Compare it with the pinned build
+        id: watch
+        run: >
+          python3 -I tools/build-migrate/watch.py "$RUNNER_TEMP/game"
+          --work "$RUNNER_TEMP/watch" --github-output "$GITHUB_OUTPUT"
+
+      - name: Look for an open pull request
+        id: open
+        if: steps.watch.outputs.outcome == 'proven'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+        run: |
+          open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --head "$BRANCH" --json number --jq length)
+          if [ "$open" = "0" ]; then
+            echo "ship=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "A pull request from $BRANCH is already open. Nothing to do."
+            echo "ship=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install Rust
+        if: steps.open.outputs.ship == 'true'
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component rustfmt
+          rustup default 1.99.1
+      - name: Format and test Net
+        if: steps.open.outputs.ship == 'true'
+        run: |
+          cargo fmt -p opentrickster-net
+          cargo test -p opentrickster-net --locked
+      - name: Commit and push the pins
+        id: push
+        if: steps.open.outputs.ship == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+          TITLE: ${{ steps.watch.outputs.title }}
+        run: |
+          gh auth setup-git
+          git switch --create "$BRANCH"
+          git add --all -- crates tools
+          git status --short
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --message "$TITLE" \
+            --message "Moves the pins of Net and the client-assisted sampler to the new game build. Every signed method body matches a reviewed fingerprint."
+          # A closed pull request can leave its branch behind. No open pull request uses it here.
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Open the pull request
+        id: pr
+        if: steps.open.outputs.ship == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+          TITLE: ${{ steps.watch.outputs.title }}
+          BODY_FILE: ${{ steps.watch.outputs.body_file }}
+        run: |
+          url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "$TITLE" --body-file "$BODY_FILE")
+          echo "number=${url##*/}" >> "$GITHUB_OUTPUT"
+      - name: Run CI on the branch
+        if: steps.open.outputs.ship == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.watch.outputs.branch }}
+          SHA: ${{ steps.push.outputs.sha }}
+        run: |
+          # A pull request opened with GITHUB_TOKEN starts no workflow, so run CI by hand on its head.
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch "$BRANCH" --event workflow_dispatch --commit "$SHA" --json databaseId --jq '.[0].databaseId // empty')
+            [ -n "$run_id" ] && break
+            sleep 10
+          done
+          [ -n "$run_id" ] || { echo "No CI run started for $SHA." >&2; exit 1; }
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status --interval 30
+      - name: Merge and release
+        if: steps.open.outputs.ship == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          SHA: ${{ steps.push.outputs.sha }}
+          TITLE: ${{ steps.watch.outputs.title }}
+        run: |
+          gh pr merge "$NUMBER" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$SHA" \
+            --subject "$TITLE (#$NUMBER)" \
+            --body "Opened and merged by the game-build workflow after CI passed on the branch."
+          # The merge starts no push run, so run CI on main to reach its release job.
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+      - name: Open an issue for review
+        if: steps.watch.outputs.outcome == 'review'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ steps.watch.outputs.title }}
+          BODY_FILE: ${{ steps.watch.outputs.body_file }}
+        run: |
+          titles=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 500 --json title --jq '.[].title')
+          if printf '%s\n' "$titles" | grep -Fxq -- "$TITLE"; then
+            echo "An open issue already tracks: $TITLE"
+            exit 0
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file "$BODY_FILE" --label needs-triage
