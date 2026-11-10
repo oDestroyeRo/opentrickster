@@ -966,9 +966,10 @@ impl Decoder {
                     out.push(f);
                 }
             }
-            472 => {
+            472 if self.native_walk => {
                 // ParseMoveSpeed (f11868). Its handler (f38368) sets Speed to U8 × 4 px/s, or
-                // clears it for zero.
+                // clears it for zero. Only the native walk estimate reads it; the page does not
+                // forward 472, because the assisted path ends a walk from the sample.
                 let id = r.u16()?;
                 let speed = r.u8()?;
                 if Some(id) == self.own {
